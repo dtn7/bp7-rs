@@ -16,7 +16,7 @@ pub const ENDPOINT_URI_SCHEME_IPN: u8 = 2;
 
 pub const DTN_NONE: EndpointID = EndpointID::DtnNone(ENDPOINT_URI_SCHEME_DTN, 0);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct IpnAddress(pub u32, pub u32);
 
 /// # Examples
@@ -29,7 +29,7 @@ pub struct IpnAddress(pub u32, pub u32);
 /// assert_eq!(deserialized, EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, "node1/test".to_string()))
 ///
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(untagged)]
 pub enum EndpointID {
     DtnNone(u8, u8),
