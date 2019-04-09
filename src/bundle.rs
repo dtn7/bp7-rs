@@ -1,7 +1,7 @@
+use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-
-use derive_builder::Builder;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::canonical::*;
 use super::crc::*;
@@ -299,6 +299,35 @@ impl Bundle {
             canonicals: canonicals,
         }
     }
+    /// Creates a new bundle with the given endpoints, a bundle age block and a payload block.
+    /// CRC is set to CRC_32 by default and the lifetime is set to 60 * 60 seconds.
+    pub fn new_standard_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer) -> Bundle {
+        let pblock = crate::primary::PrimaryBlockBuilder::default()
+            .destination(dst)
+            .source(src.clone())
+            .report_to(src)
+            .creation_timestamp(CreationTimestamp::now())
+            .lifetime(60 * 60 * 1_000_000)
+            .build()
+            .unwrap();
+        let mut b = crate::bundle::BundleBuilder::default()
+            .primary(pblock)
+            .canonicals(vec![
+                crate::canonical::new_payload_block(0, data),
+                crate::canonical::new_bundle_age_block(
+                    1,
+                    0,
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Time went backwards")
+                        .as_millis() as u64,
+                ),
+            ])
+            .build()
+            .unwrap();
+        b.set_crc(crate::crc::CRC_32);
+        b
+    }
     /// Validate bundle and optionally return list of errors.
     pub fn validation_errors(&self) -> Option<Bp7ErrorList> {
         let mut errors: Bp7ErrorList = Vec::new();
@@ -435,7 +464,8 @@ impl Bundle {
     /// Serialize bundle as CBOR encoded byte buffer.
     pub fn to_cbor(&mut self) -> ByteBuffer {
         self.calculate_crc();
-        let mut bytebuf = serde_cbor::to_vec(&self.blocks()).unwrap();
+        let mut bytebuf =
+            serde_cbor::to_vec(&self.blocks()).expect("Error serializing bundle as cbor.");
         bytebuf[0] = 0x9f; // TODO: fix hack, indefinite-length array encoding
         bytebuf.push(0xff); // break mark
         bytebuf

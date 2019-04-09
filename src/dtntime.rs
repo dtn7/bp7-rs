@@ -1,6 +1,8 @@
 use chrono::prelude::DateTime;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::ATOMIC_USIZE_INIT;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use std::fmt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -61,4 +63,33 @@ impl CreationTimestamp {
     pub fn get_dtntime(&self) -> DtnTime {
         self.0
     }
+    /// Create a new timestamp with automatic sequence counting
+    ///
+    /// # Example
+    /// ```
+    /// use bp7::dtntime::*;
+    /// use std::{thread, time};
+    ///
+    /// let time1 = CreationTimestamp::now();
+    /// let time2 = CreationTimestamp::now();
+    ///
+    /// assert_eq!(time1.get_dtntime(), time2.get_dtntime());
+    /// assert_ne!(time1.get_seqno(), time2.get_seqno());
+    ///
+    /// thread::sleep(time::Duration::from_secs(1));
+    /// let time3 = CreationTimestamp::now();
+    /// assert_eq!(time3.get_seqno(), 0);
+    /// ```
+    pub fn now() -> CreationTimestamp {
+        let now = dtn_time_now();
+        if now != LAST_CREATION_TIMESTAMP.swap(now as usize, Ordering::Relaxed) as u64 {
+            LAST_CREATION_SEQ.store(0, Ordering::SeqCst)
+        }
+        let seq = LAST_CREATION_SEQ.fetch_add(1, Ordering::SeqCst);
+
+        CreationTimestamp::with_time_and_seq(now, seq as u64)
+    }
 }
+
+static LAST_CREATION_TIMESTAMP: AtomicUsize = ATOMIC_USIZE_INIT;
+static LAST_CREATION_SEQ: AtomicUsize = ATOMIC_USIZE_INIT;
