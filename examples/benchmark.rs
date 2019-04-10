@@ -1,17 +1,19 @@
-use bp7::{bundle, canonical, crc, dtntime, eid, primary};
+use bp7::{bundle, canonical, crc, dtntime, eid, primary, Bundle, ByteBuffer};
 use std::io::stdout;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const RUNS: i64 = 1_000_000;
+const RUNS: i64 = 100_000;
 
-fn bench_bundle_create(runs: i64, crc_type: crc::CRCType) {
+fn bench_bundle_create(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
     let crc_str = match crc_type {
         crc::CRC_NO => "CRC_NO",
         crc::CRC_16 => "CRC_16",
         crc::CRC_32 => "CRC_32",
         _ => panic!("CRC_unknown"),
     };
+    let mut bundles: Vec<ByteBuffer> = Vec::new();
+
     print!("Creating {} bundles with {}: \t", RUNS, crc_str);
     stdout().flush().unwrap();
 
@@ -51,14 +53,42 @@ fn bench_bundle_create(runs: i64, crc_type: crc::CRCType) {
         b.set_crc(crc_type);
         b.validation_errors();
         let _serialized = b.to_cbor();
+        bundles.push(_serialized);
+    }
+    let elapsed = bench_now.elapsed();
+    let sec = (elapsed.as_secs() as f64) + (f64::from(elapsed.subsec_nanos()) / 1_000_000_000.0);
+    println!("{} bundles/second", (runs as f64 / sec) as i64);
+    bundles
+}
+
+fn bench_bundle_load(runs: i64, crc_type: crc::CRCType, mut bundles: Vec<ByteBuffer>) {
+    let crc_str = match crc_type {
+        crc::CRC_NO => "CRC_NO",
+        crc::CRC_16 => "CRC_16",
+        crc::CRC_32 => "CRC_32",
+        _ => panic!("CRC_unknown"),
+    };
+    print!("Loading {} bundles with {}: \t", RUNS, crc_str);
+    stdout().flush().unwrap();
+
+    use std::time::Instant;
+    let bench_now = Instant::now();
+
+    for _x in 0..runs {
+        let b = bundles.pop().unwrap();
+        let _deserialized: Bundle = Bundle::from(b);
+        _deserialized.validation_errors();
     }
     let elapsed = bench_now.elapsed();
     let sec = (elapsed.as_secs() as f64) + (f64::from(elapsed.subsec_nanos()) / 1_000_000_000.0);
     println!("{} bundles/second", (runs as f64 / sec) as i64);
 }
-
 fn main() {
-    bench_bundle_create(RUNS, crc::CRC_NO);
-    bench_bundle_create(RUNS, crc::CRC_16);
-    bench_bundle_create(RUNS, crc::CRC_32);
+    let crcno = bench_bundle_create(RUNS, crc::CRC_NO);
+    let crc16 = bench_bundle_create(RUNS, crc::CRC_16);
+    let crc32 = bench_bundle_create(RUNS, crc::CRC_32);
+
+    bench_bundle_load(RUNS, crc::CRC_NO, crcno);
+    bench_bundle_load(RUNS, crc::CRC_16, crc16);
+    bench_bundle_load(RUNS, crc::CRC_32, crc32);
 }

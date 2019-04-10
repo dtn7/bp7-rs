@@ -192,7 +192,6 @@ impl From<String> for EndpointID {
             item.replace(":", "://")
         };
         let u = Url::parse(&item).unwrap();
-        println!("{}", u.scheme());
         let host = u.host_str().unwrap();
 
         match u.scheme() {

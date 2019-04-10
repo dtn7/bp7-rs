@@ -210,7 +210,7 @@ impl From<BlockVariants> for CanonicalBlock {
                 block_number,
                 block_control_flags,
                 crc_type,
-                data: data.clone(),
+                data,
                 crc: Vec::new(),
             },
             BlockVariants::Canonical(
@@ -225,8 +225,8 @@ impl From<BlockVariants> for CanonicalBlock {
                 block_number,
                 block_control_flags,
                 crc_type,
-                data: data.clone(),
-                crc: crc.clone(),
+                data,
+                crc,
             },
             _ => panic!("Error parsing canonical block"),
         }

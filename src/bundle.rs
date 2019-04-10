@@ -497,11 +497,12 @@ impl Bundle {
 /// Deserialize from CBOR byte buffer.
 impl From<ByteBuffer> for Bundle {
     fn from(item: ByteBuffer) -> Self {
-        let deserialized: Vec<BlockVariants> = serde_cbor::from_slice(&item).unwrap();
-        let prim = PrimaryBlock::from(deserialized[0].clone()); // TODO: dirty hack and not idiomatic
+        let mut deserialized: Vec<BlockVariants> =
+            serde_cbor::from_slice(&item).expect("Decoding BlockVariant failed");
+        let prim = PrimaryBlock::from(deserialized.remove(0));
         let mut cblocks: Vec<CanonicalBlock> = Vec::new();
-        for b in deserialized.iter().skip(1) {
-            cblocks.push(CanonicalBlock::from(b.clone()));
+        while !deserialized.is_empty() {
+            cblocks.push(CanonicalBlock::from(deserialized.remove(0)));
         }
         Bundle::new(prim, cblocks)
     }
@@ -510,11 +511,12 @@ impl From<ByteBuffer> for Bundle {
 /// Deserialize from JSON string.
 impl From<String> for Bundle {
     fn from(item: String) -> Self {
-        let deserialized: Vec<BlockVariants> = serde_json::from_str(&item).unwrap();
-        let prim = PrimaryBlock::from(deserialized[0].clone()); // TODO: dirty hack and not idiomatic
+        let mut deserialized: Vec<BlockVariants> =
+            serde_json::from_str(&item).expect("Decoding BlockVariant failed");
+        let prim = PrimaryBlock::from(deserialized.remove(0));
         let mut cblocks: Vec<CanonicalBlock> = Vec::new();
-        for b in deserialized.iter().skip(1) {
-            cblocks.push(CanonicalBlock::from(b.clone()));
+        while !deserialized.is_empty() {
+            cblocks.push(CanonicalBlock::from(deserialized.remove(0)));
         }
         Bundle::new(prim, cblocks)
     }
