@@ -250,7 +250,7 @@ impl From<String> for EndpointID {
         };
         let u = Url::parse(&item).expect("EndpointID url parsing error");
         let host = u.host_str().expect("EndpointID host parsing error");
-        println!("test");
+
         match u.scheme() {
             "dtn" => {
                 if host == "none" {
