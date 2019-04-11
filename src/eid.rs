@@ -115,6 +115,55 @@ impl EndpointID {
     /// ```
     /// use bp7::eid::*;
     ///
+    /// let eid : EndpointID = "ipn://0.0".to_string().into();
+    /// assert_eq!(eid.node_part(),Some("0".to_string()));
+    ///
+    /// let eid : EndpointID = "dtn://node1/incoming".to_string().into();
+    /// assert_eq!(eid.node_part(),Some("node1".to_string()));
+    ///
+    /// let eid : EndpointID = "dtn://node1".to_string().into();
+    /// assert_eq!(eid.node_part(),Some("node1".to_string()));
+    /// ```
+    pub fn node_part(&self) -> Option<String> {
+        match self {
+            EndpointID::DtnNone(_, _) => None,
+            EndpointID::Dtn(_, eid) => {
+                let nodeid: Vec<&str> = eid.split('/').collect();
+                Some(nodeid[0].to_string())
+            }
+            EndpointID::Ipn(_, addr) => Some(addr.0.to_string()),
+        }
+    }
+    /// # Examples
+    ///
+    /// ```
+    /// use bp7::eid::*;
+    ///
+    /// let eid : EndpointID = "ipn://0.0".to_string().into();
+    /// assert_eq!(eid.is_node_id(), true);
+    ///
+    /// let eid : EndpointID = "ipn://0.1".to_string().into();
+    /// assert_eq!(eid.is_node_id(), false);
+    ///
+    /// let eid : EndpointID = "dtn://node1/incoming".to_string().into();
+    /// assert_eq!(eid.is_node_id(), false);
+    ///
+    /// let eid : EndpointID = "dtn://node1".to_string().into();
+    /// assert_eq!(eid.is_node_id(), true);
+    /// ```
+    pub fn is_node_id(&self) -> bool {
+        match self {
+            EndpointID::DtnNone(_, _) => false,
+            EndpointID::Dtn(_, eid) => self.node_part() == Some(eid.to_string()),
+            EndpointID::Ipn(_, addr) => addr.1 == 0,
+        }
+    }
+
+    /// # Examples
+    ///
+    /// ```
+    /// use bp7::eid::*;
+    ///
     /// let eid = EndpointID::DtnNone(1, 0);
     /// assert_eq!(eid.validation_error().is_none(), true); // should not fail
     ///
