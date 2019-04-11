@@ -233,6 +233,14 @@ impl EndpointID {
 /// assert_eq!(eid, EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, "node1/endpoint1".to_string()));
 ///   
 /// ```
+///
+/// This should panic:
+///
+/// ```should_panic
+/// use bp7::eid::*;
+///
+/// let eid = EndpointID::from("node1".to_string());
+/// ```
 impl From<String> for EndpointID {
     fn from(item: String) -> Self {
         let item = if item.contains("://") {
@@ -240,9 +248,9 @@ impl From<String> for EndpointID {
         } else {
             item.replace(":", "://")
         };
-        let u = Url::parse(&item).unwrap();
-        let host = u.host_str().unwrap();
-
+        let u = Url::parse(&item).expect("EndpointID url parsing error");
+        let host = u.host_str().expect("EndpointID host parsing error");
+        println!("test");
         match u.scheme() {
             "dtn" => {
                 if host == "none" {
