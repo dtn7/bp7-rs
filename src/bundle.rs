@@ -522,14 +522,15 @@ impl Bundle {
         blocks
     }
     fn wire_bundle(&mut self) -> WireBundle {
-        let mut blocks: Vec<CanonicalVariants> = Vec::new();
+        let mut blocks: Vec<TheVariants> = Vec::new();
         self.primary.calculate_crc();
+        blocks.push(TheVariants::Primary(self.primary.to_pvariant()));
         for b in &mut self.canonicals {
             //dbg!(b.get_data());
             b.calculate_crc();
-            blocks.push(b.to_cvariant());
+            blocks.push(TheVariants::Canonical(b.to_cvariant()));
         }
-        WireBundle(self.primary.to_pvariant(), blocks)
+        blocks
     }
     pub fn extension_block(
         &mut self,
@@ -591,19 +592,35 @@ impl Bundle {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct WireBundle(PrimaryVariants, Vec<CanonicalVariants>);
+#[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
+enum TheVariants {
+    Canonical(CanonicalVariants),
+    Primary(PrimaryVariants),
+}
+//#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+//pub struct WireBundle(PrimaryVariants, Vec<CanonicalVariants>);
+
+type WireBundle = Vec<TheVariants>;
 
 /// Deserialize from CBOR byte buffer.
 impl From<ByteBuffer> for Bundle {
     fn from(item: ByteBuffer) -> Self {
         let mut deserialized: WireBundle =
             serde_cbor::from_slice(&item).expect("Decoding BlockVariant failed");
-        let prim = PrimaryBlock::from(deserialized.0);
-        let mut cblocks: Vec<CanonicalBlock> = Vec::new();
-        while !deserialized.1.is_empty() {
-            cblocks.push(CanonicalBlock::from(deserialized.1.remove(0)));
+        if let TheVariants::Primary(p) = deserialized.remove(0) {
+            let prim = PrimaryBlock::from(p);
+            let mut cblocks: Vec<CanonicalBlock> = Vec::new();
+            while !deserialized.is_empty() {
+                if let TheVariants::Canonical(c) = deserialized.remove(0) {
+                    cblocks.push(CanonicalBlock::from(c));
+                } else {
+                    panic!("Multiple primary blocks found");
+                }
+            }
+            Bundle::new(prim, cblocks)
+        } else {
+            panic!("Missing primary block");
         }
-        Bundle::new(prim, cblocks)
     }
 }
 
@@ -612,11 +629,19 @@ impl From<String> for Bundle {
     fn from(item: String) -> Self {
         let mut deserialized: WireBundle =
             serde_json::from_str(&item).expect("Decoding BlockVariant failed");
-        let prim = PrimaryBlock::from(deserialized.0);
-        let mut cblocks: Vec<CanonicalBlock> = Vec::new();
-        while !deserialized.1.is_empty() {
-            cblocks.push(CanonicalBlock::from(deserialized.1.remove(0)));
+        if let TheVariants::Primary(p) = deserialized.remove(0) {
+            let prim = PrimaryBlock::from(p);
+            let mut cblocks: Vec<CanonicalBlock> = Vec::new();
+            while !deserialized.is_empty() {
+                if let TheVariants::Canonical(c) = deserialized.remove(0) {
+                    cblocks.push(CanonicalBlock::from(c));
+                } else {
+                    panic!("Multiple primary blocks found");
+                }
+            }
+            Bundle::new(prim, cblocks)
+        } else {
+            panic!("Missing primary block");
         }
-        Bundle::new(prim, cblocks)
     }
 }
