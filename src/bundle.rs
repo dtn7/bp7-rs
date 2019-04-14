@@ -57,7 +57,6 @@ pub type Bp7ErrorList = Vec<Bp7Error>;
 
 pub trait Block: Clone {
     /// Convert block struct to a serializable enum
-    fn to_variant(&self) -> BlockVariants;
     fn has_crc(&self) -> bool;
     fn calculate_crc(&mut self) {
         let new_crc = calculate_crc(self);
@@ -76,12 +75,7 @@ pub trait Block: Clone {
     fn crc_type(&self) -> CRCType;
     fn crc(&self) -> ByteBuffer;
     fn set_crc(&mut self, crc: ByteBuffer);
-
-    /// Convert block to a cbor encoded byte vector
-    fn to_cbor(&self) -> ByteBuffer {
-        let packet = self.to_variant();
-        serde_cbor::to_vec(&packet).unwrap()
-    }
+    fn to_cbor(&self) -> ByteBuffer;
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -96,6 +90,19 @@ pub enum PrimaryVariants {
         EndpointID,
         CreationTimestamp,
         LifetimeType,
+        #[serde(with = "serde_bytes")] ByteBuffer,
+    ),
+    FragmentedAndCrc(
+        DtnVersionType,
+        BundleControlFlags,
+        CRCType,
+        EndpointID,
+        EndpointID,
+        EndpointID,
+        CreationTimestamp,
+        LifetimeType,
+        FragOffsetType,
+        TotalDataLengthType,
         #[serde(with = "serde_bytes")] ByteBuffer,
     ),
     NotFragmentedAndNoCrc(
@@ -119,19 +126,6 @@ pub enum PrimaryVariants {
         LifetimeType,
         FragOffsetType,
         TotalDataLengthType,
-    ),
-    FragmentedAndCrc(
-        DtnVersionType,
-        BundleControlFlags,
-        CRCType,
-        EndpointID,
-        EndpointID,
-        EndpointID,
-        CreationTimestamp,
-        LifetimeType,
-        FragOffsetType,
-        TotalDataLengthType,
-        #[serde(with = "serde_bytes")] ByteBuffer,
     ),
 }
 
@@ -153,72 +147,6 @@ pub enum CanonicalVariants {
         BlockControlFlags,
         CRCType,
         CanonicalData,
-    ),
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
-pub enum BlockVariants {
-    JustCrc(
-        DtnVersionType,
-        BundleControlFlags,
-        CRCType,
-        EndpointID,
-        EndpointID,
-        EndpointID,
-        CreationTimestamp,
-        LifetimeType,
-        #[serde(with = "serde_bytes")] ByteBuffer,
-    ),
-    Canonical(
-        CanonicalBlockType,
-        CanonicalBlockNumberType,
-        BlockControlFlags,
-        CRCType,
-        CanonicalData,
-        #[serde(with = "serde_bytes")] ByteBuffer,
-    ),
-    NotFragmentedAndNoCrc(
-        DtnVersionType,
-        BundleControlFlags,
-        CRCType,
-        EndpointID,
-        EndpointID,
-        EndpointID,
-        CreationTimestamp,
-        LifetimeType,
-    ),
-    CanonicalWithoutCrc(
-        CanonicalBlockType,
-        CanonicalBlockNumberType,
-        BlockControlFlags,
-        CRCType,
-        CanonicalData,
-    ),
-    JustFragmented(
-        DtnVersionType,
-        BundleControlFlags,
-        CRCType,
-        EndpointID,
-        EndpointID,
-        EndpointID,
-        CreationTimestamp,
-        LifetimeType,
-        FragOffsetType,
-        TotalDataLengthType,
-    ),
-    FragmentedAndCrc(
-        DtnVersionType,
-        BundleControlFlags,
-        CRCType,
-        EndpointID,
-        EndpointID,
-        EndpointID,
-        CreationTimestamp,
-        LifetimeType,
-        FragOffsetType,
-        TotalDataLengthType,
-        #[serde(with = "serde_bytes")] ByteBuffer,
     ),
 }
 
@@ -367,8 +295,8 @@ impl Default for Bundle {
 impl Bundle {
     pub fn new(primary: PrimaryBlock, canonicals: Vec<CanonicalBlock>) -> Bundle {
         Bundle {
-            primary: primary,
-            canonicals: canonicals,
+            primary,
+            canonicals,
         }
     }
     /// Creates a new bundle with the given endpoints, a bundle age block and a payload block.
@@ -510,17 +438,6 @@ impl Bundle {
         }
     }
 
-    fn blocks(&mut self) -> Vec<BlockVariants> {
-        let mut blocks: Vec<BlockVariants> = Vec::new();
-        self.primary.calculate_crc();
-        blocks.push(self.primary.to_variant());
-        for b in &mut self.canonicals {
-            //dbg!(b.get_data());
-            b.calculate_crc();
-            blocks.push(b.to_variant());
-        }
-        blocks
-    }
     fn wire_bundle(&mut self) -> WireBundle {
         let mut blocks: Vec<TheVariants> = Vec::new();
         self.primary.calculate_crc();
@@ -544,17 +461,9 @@ impl Bundle {
         }
         None
     }
+
     /// Serialize bundle as CBOR encoded byte buffer.
     pub fn to_cbor(&mut self) -> ByteBuffer {
-        self.calculate_crc();
-        let mut bytebuf =
-            serde_cbor::to_vec(&self.blocks()).expect("Error serializing bundle as cbor.");
-        bytebuf[0] = 0x9f; // TODO: fix hack, indefinite-length array encoding
-        bytebuf.push(0xff); // break mark
-        bytebuf
-    }
-    /// Serialize bundle as CBOR encoded byte buffer.
-    pub fn to_cbor2(&mut self) -> ByteBuffer {
         self.calculate_crc();
         let mut bytebuf =
             serde_cbor::to_vec(&self.wire_bundle()).expect("Error serializing bundle as cbor.");
@@ -562,13 +471,9 @@ impl Bundle {
         bytebuf.push(0xff); // break mark
         bytebuf
     }
+
     /// Serialize bundle as JSON encoded string.
     pub fn to_json(&mut self) -> String {
-        self.calculate_crc();
-        serde_json::to_string(&self.blocks()).unwrap()
-    }
-    /// Serialize bundle as JSON encoded string.
-    pub fn to_json2(&mut self) -> String {
         self.calculate_crc();
         serde_json::to_string(&self.wire_bundle()).unwrap()
     }
@@ -597,8 +502,6 @@ enum TheVariants {
     Canonical(CanonicalVariants),
     Primary(PrimaryVariants),
 }
-//#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-//pub struct WireBundle(PrimaryVariants, Vec<CanonicalVariants>);
 
 type WireBundle = Vec<TheVariants>;
 

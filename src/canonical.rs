@@ -61,26 +61,6 @@ impl Default for CanonicalBlock {
     }
 }
 impl Block for CanonicalBlock {
-    fn to_variant(&self) -> BlockVariants {
-        if self.crc_type == CRC_NO {
-            BlockVariants::CanonicalWithoutCrc(
-                self.block_type,
-                self.block_number,
-                self.block_control_flags,
-                self.crc_type,
-                self.data.clone(),
-            )
-        } else {
-            BlockVariants::Canonical(
-                self.block_type,
-                self.block_number,
-                self.block_control_flags,
-                self.crc_type,
-                self.data.clone(),
-                self.crc.clone(),
-            )
-        }
-    }
     fn has_crc(&self) -> bool {
         self.crc_type != CRC_NO
     }
@@ -95,6 +75,9 @@ impl Block for CanonicalBlock {
     }
     fn set_crc(&mut self, crc: ByteBuffer) {
         self.crc = crc;
+    }
+    fn to_cbor(&self) -> ByteBuffer {
+        serde_cbor::to_vec(&self.to_cvariant()).unwrap()
     }
 }
 
@@ -213,43 +196,6 @@ impl CanonicalBlock {
     }
     pub fn set_data(&mut self, data: CanonicalData) {
         self.data = data;
-    }
-}
-
-impl From<BlockVariants> for CanonicalBlock {
-    fn from(item: BlockVariants) -> Self {
-        match item {
-            BlockVariants::CanonicalWithoutCrc(
-                block_type,
-                block_number,
-                block_control_flags,
-                crc_type,
-                data,
-            ) => CanonicalBlock {
-                block_type,
-                block_number,
-                block_control_flags,
-                crc_type,
-                data,
-                crc: Vec::new(),
-            },
-            BlockVariants::Canonical(
-                block_type,
-                block_number,
-                block_control_flags,
-                crc_type,
-                data,
-                crc,
-            ) => CanonicalBlock {
-                block_type,
-                block_number,
-                block_control_flags,
-                crc_type,
-                data,
-                crc,
-            },
-            _ => panic!("Error parsing canonical block"),
-        }
     }
 }
 
