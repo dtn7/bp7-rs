@@ -50,6 +50,59 @@ impl PrimaryBlock {
             crc: Vec::new(),
         }
     }
+    pub fn to_pvariant(&self) -> PrimaryVariants {
+        if self.crc_type == CRC_NO && !self.has_fragmentation() {
+            PrimaryVariants::NotFragmentedAndNoCrc(
+                self.version,
+                self.bundle_control_flags,
+                self.crc_type,
+                self.destination.clone(),
+                self.source.clone(),
+                self.report_to.clone(),
+                self.creation_timestamp.clone(),
+                self.lifetime,
+            )
+        } else if self.crc_type == CRC_NO && self.has_fragmentation() {
+            PrimaryVariants::JustFragmented(
+                self.version,
+                self.bundle_control_flags,
+                self.crc_type,
+                self.destination.clone(),
+                self.source.clone(),
+                self.report_to.clone(),
+                self.creation_timestamp.clone(),
+                self.lifetime,
+                self.fragmentation_offset,
+                self.total_data_length,
+            )
+        } else if self.crc_type != CRC_NO && !self.has_fragmentation() {
+            PrimaryVariants::JustCrc(
+                self.version,
+                self.bundle_control_flags,
+                self.crc_type,
+                self.destination.clone(),
+                self.source.clone(),
+                self.report_to.clone(),
+                self.creation_timestamp.clone(),
+                self.lifetime,
+                self.crc.clone(),
+            )
+        } else {
+            PrimaryVariants::FragmentedAndCrc(
+                self.version,
+                self.bundle_control_flags,
+                self.crc_type,
+                self.destination.clone(),
+                self.source.clone(),
+                self.report_to.clone(),
+                self.creation_timestamp.clone(),
+                self.lifetime,
+                self.fragmentation_offset,
+                self.total_data_length,
+                self.crc.clone(),
+            )
+        }
+    }
     pub fn has_fragmentation(&self) -> bool {
         self.bundle_control_flags.has(BUNDLE_IS_FRAGMENT)
     }
@@ -183,6 +236,106 @@ impl From<BlockVariants> for PrimaryBlock {
                 crc: crc,
             },
             _ => panic!("Error in parsing primary block"),
+        }
+    }
+}
+impl From<PrimaryVariants> for PrimaryBlock {
+    fn from(item: PrimaryVariants) -> Self {
+        match item {
+            PrimaryVariants::NotFragmentedAndNoCrc(
+                version,
+                bundle_control_flags,
+                crc_type,
+                destination,
+                source,
+                report_to,
+                creation_timestamp,
+                lifetime,
+            ) => PrimaryBlock {
+                version,
+                bundle_control_flags,
+                crc_type,
+                destination,
+                source,
+                report_to,
+                creation_timestamp,
+                lifetime,
+                fragmentation_offset: 0,
+                total_data_length: 0,
+                crc: Vec::new(),
+            },
+            PrimaryVariants::JustFragmented(
+                version,
+                bundle_control_flags,
+                crc_type,
+                destination,
+                source,
+                report_to,
+                creation_timestamp,
+                lifetime,
+                fragmentation_offset,
+                total_data_length,
+            ) => PrimaryBlock {
+                version,
+                bundle_control_flags,
+                crc_type,
+                destination,
+                source,
+                report_to,
+                creation_timestamp,
+                lifetime,
+                fragmentation_offset,
+                total_data_length,
+                crc: Vec::new(),
+            },
+            PrimaryVariants::JustCrc(
+                version,
+                bundle_control_flags,
+                crc_type,
+                destination,
+                source,
+                report_to,
+                creation_timestamp,
+                lifetime,
+                crc,
+            ) => PrimaryBlock {
+                version,
+                bundle_control_flags,
+                crc_type,
+                destination,
+                source,
+                report_to,
+                creation_timestamp,
+                lifetime,
+                fragmentation_offset: 0,
+                total_data_length: 0,
+                crc,
+            },
+            PrimaryVariants::FragmentedAndCrc(
+                version,
+                bundle_control_flags,
+                crc_type,
+                destination,
+                source,
+                report_to,
+                creation_timestamp,
+                lifetime,
+                fragmentation_offset,
+                total_data_length,
+                crc,
+            ) => PrimaryBlock {
+                version,
+                bundle_control_flags,
+                crc_type,
+                destination,
+                source,
+                report_to,
+                creation_timestamp,
+                lifetime,
+                fragmentation_offset,
+                total_data_length,
+                crc,
+            },
         }
     }
 }

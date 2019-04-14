@@ -86,6 +86,78 @@ pub trait Block: Clone {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
+pub enum PrimaryVariants {
+    JustCrc(
+        DtnVersionType,
+        BundleControlFlags,
+        CRCType,
+        EndpointID,
+        EndpointID,
+        EndpointID,
+        CreationTimestamp,
+        LifetimeType,
+        #[serde(with = "serde_bytes")] ByteBuffer,
+    ),
+    NotFragmentedAndNoCrc(
+        DtnVersionType,
+        BundleControlFlags,
+        CRCType,
+        EndpointID,
+        EndpointID,
+        EndpointID,
+        CreationTimestamp,
+        LifetimeType,
+    ),
+    JustFragmented(
+        DtnVersionType,
+        BundleControlFlags,
+        CRCType,
+        EndpointID,
+        EndpointID,
+        EndpointID,
+        CreationTimestamp,
+        LifetimeType,
+        FragOffsetType,
+        TotalDataLengthType,
+    ),
+    FragmentedAndCrc(
+        DtnVersionType,
+        BundleControlFlags,
+        CRCType,
+        EndpointID,
+        EndpointID,
+        EndpointID,
+        CreationTimestamp,
+        LifetimeType,
+        FragOffsetType,
+        TotalDataLengthType,
+        #[serde(with = "serde_bytes")] ByteBuffer,
+    ),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
+pub enum CanonicalVariants {
+    Canonical(
+        CanonicalBlockType,
+        CanonicalBlockNumberType,
+        BlockControlFlags,
+        CRCType,
+        CanonicalData,
+        #[serde(with = "serde_bytes")] ByteBuffer,
+    ),
+
+    CanonicalWithoutCrc(
+        CanonicalBlockType,
+        CanonicalBlockNumberType,
+        BlockControlFlags,
+        CRCType,
+        CanonicalData,
+    ),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
 pub enum BlockVariants {
     JustCrc(
         DtnVersionType,
@@ -449,6 +521,16 @@ impl Bundle {
         }
         blocks
     }
+    fn wire_bundle(&mut self) -> WireBundle {
+        let mut blocks: Vec<CanonicalVariants> = Vec::new();
+        self.primary.calculate_crc();
+        for b in &mut self.canonicals {
+            //dbg!(b.get_data());
+            b.calculate_crc();
+            blocks.push(b.to_cvariant());
+        }
+        WireBundle(self.primary.to_pvariant(), blocks)
+    }
     pub fn extension_block(
         &mut self,
         block_type: CanonicalBlockType,
@@ -470,10 +552,24 @@ impl Bundle {
         bytebuf.push(0xff); // break mark
         bytebuf
     }
+    /// Serialize bundle as CBOR encoded byte buffer.
+    pub fn to_cbor2(&mut self) -> ByteBuffer {
+        self.calculate_crc();
+        let mut bytebuf =
+            serde_cbor::to_vec(&self.wire_bundle()).expect("Error serializing bundle as cbor.");
+        bytebuf[0] = 0x9f; // TODO: fix hack, indefinite-length array encoding
+        bytebuf.push(0xff); // break mark
+        bytebuf
+    }
     /// Serialize bundle as JSON encoded string.
     pub fn to_json(&mut self) -> String {
         self.calculate_crc();
         serde_json::to_string(&self.blocks()).unwrap()
+    }
+    /// Serialize bundle as JSON encoded string.
+    pub fn to_json2(&mut self) -> String {
+        self.calculate_crc();
+        serde_json::to_string(&self.wire_bundle()).unwrap()
     }
 
     /// ID returns a kind of uniquene representation of this bundle, containing
@@ -494,15 +590,18 @@ impl Bundle {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WireBundle(PrimaryVariants, Vec<CanonicalVariants>);
+
 /// Deserialize from CBOR byte buffer.
 impl From<ByteBuffer> for Bundle {
     fn from(item: ByteBuffer) -> Self {
-        let mut deserialized: Vec<BlockVariants> =
+        let mut deserialized: WireBundle =
             serde_cbor::from_slice(&item).expect("Decoding BlockVariant failed");
-        let prim = PrimaryBlock::from(deserialized.remove(0));
+        let prim = PrimaryBlock::from(deserialized.0);
         let mut cblocks: Vec<CanonicalBlock> = Vec::new();
-        while !deserialized.is_empty() {
-            cblocks.push(CanonicalBlock::from(deserialized.remove(0)));
+        while !deserialized.1.is_empty() {
+            cblocks.push(CanonicalBlock::from(deserialized.1.remove(0)));
         }
         Bundle::new(prim, cblocks)
     }
@@ -511,12 +610,12 @@ impl From<ByteBuffer> for Bundle {
 /// Deserialize from JSON string.
 impl From<String> for Bundle {
     fn from(item: String) -> Self {
-        let mut deserialized: Vec<BlockVariants> =
+        let mut deserialized: WireBundle =
             serde_json::from_str(&item).expect("Decoding BlockVariant failed");
-        let prim = PrimaryBlock::from(deserialized.remove(0));
+        let prim = PrimaryBlock::from(deserialized.0);
         let mut cblocks: Vec<CanonicalBlock> = Vec::new();
-        while !deserialized.is_empty() {
-            cblocks.push(CanonicalBlock::from(deserialized.remove(0)));
+        while !deserialized.1.is_empty() {
+            cblocks.push(CanonicalBlock::from(deserialized.1.remove(0)));
         }
         Bundle::new(prim, cblocks)
     }

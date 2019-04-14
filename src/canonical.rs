@@ -125,6 +125,26 @@ impl CanonicalBlock {
             crc: Vec::new(),
         }
     }
+    pub fn to_cvariant(&self) -> CanonicalVariants {
+        if self.crc_type == CRC_NO {
+            CanonicalVariants::CanonicalWithoutCrc(
+                self.block_type,
+                self.block_number,
+                self.block_control_flags,
+                self.crc_type,
+                self.data.clone(),
+            )
+        } else {
+            CanonicalVariants::Canonical(
+                self.block_type,
+                self.block_number,
+                self.block_control_flags,
+                self.crc_type,
+                self.data.clone(),
+                self.crc.clone(),
+            )
+        }
+    }
     pub fn validation_errors(&self) -> Option<Bp7ErrorList> {
         let mut errors: Bp7ErrorList = Vec::new();
 
@@ -233,6 +253,41 @@ impl From<BlockVariants> for CanonicalBlock {
     }
 }
 
+impl From<CanonicalVariants> for CanonicalBlock {
+    fn from(item: CanonicalVariants) -> Self {
+        match item {
+            CanonicalVariants::CanonicalWithoutCrc(
+                block_type,
+                block_number,
+                block_control_flags,
+                crc_type,
+                data,
+            ) => CanonicalBlock {
+                block_type,
+                block_number,
+                block_control_flags,
+                crc_type,
+                data,
+                crc: Vec::new(),
+            },
+            CanonicalVariants::Canonical(
+                block_type,
+                block_number,
+                block_control_flags,
+                crc_type,
+                data,
+                crc,
+            ) => CanonicalBlock {
+                block_type,
+                block_number,
+                block_control_flags,
+                crc_type,
+                data,
+                crc,
+            },
+        }
+    }
+}
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
 pub enum CanonicalData {

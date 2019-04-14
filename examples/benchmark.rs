@@ -53,8 +53,8 @@ fn bench_bundle_create(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
             .unwrap();
         b.set_crc(crc_type);
         b.validation_errors();
-        let _serialized = b.to_cbor();
-        //let _serialized = b.to_json();
+        let _serialized = b.to_cbor2();
+        //let _serialized = b.to_json2();
         bundles.push(_serialized);
     }
     let elapsed = bench_now.elapsed();
@@ -89,6 +89,8 @@ fn main() {
     let crcno = bench_bundle_create(RUNS, crc::CRC_NO);
     let crc16 = bench_bundle_create(RUNS, crc::CRC_16);
     let crc32 = bench_bundle_create(RUNS, crc::CRC_32);
+    print!("{:x?}", crcno[0]);
+    print!("{:?}", crcno[0]);
 
     bench_bundle_load(RUNS, crc::CRC_NO, crcno);
     bench_bundle_load(RUNS, crc::CRC_16, crc16);
