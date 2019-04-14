@@ -234,12 +234,12 @@ impl From<BlockVariants> for CanonicalBlock {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[serde(untagged)]
+#[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
 pub enum CanonicalData {
+    Data(#[serde(with = "serde_bytes")] ByteBuffer),
+    BundleAge(u64),
     HopCount(u32, u32),
     PreviousNode(EndpointID),
-    BundleAge(u64),
-    Data(#[serde(with = "serde_bytes")] ByteBuffer),
 }
 
 pub fn new_hop_count_block(

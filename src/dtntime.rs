@@ -1,7 +1,6 @@
 use chrono::prelude::DateTime;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::ATOMIC_USIZE_INIT;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use std::fmt;
@@ -91,5 +90,5 @@ impl CreationTimestamp {
     }
 }
 
-static LAST_CREATION_TIMESTAMP: AtomicUsize = ATOMIC_USIZE_INIT;
-static LAST_CREATION_SEQ: AtomicUsize = ATOMIC_USIZE_INIT;
+static LAST_CREATION_TIMESTAMP: AtomicUsize = AtomicUsize::new(0);
+static LAST_CREATION_SEQ: AtomicUsize = AtomicUsize::new(0);

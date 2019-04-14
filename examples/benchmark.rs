@@ -13,6 +13,7 @@ fn bench_bundle_create(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
         _ => panic!("CRC_unknown"),
     };
     let mut bundles: Vec<ByteBuffer> = Vec::new();
+    //let mut bundles: Vec<String> = Vec::new();
 
     print!("Creating {} bundles with {}: \t", RUNS, crc_str);
     stdout().flush().unwrap();
@@ -53,6 +54,7 @@ fn bench_bundle_create(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
         b.set_crc(crc_type);
         b.validation_errors();
         let _serialized = b.to_cbor();
+        //let _serialized = b.to_json();
         bundles.push(_serialized);
     }
     let elapsed = bench_now.elapsed();

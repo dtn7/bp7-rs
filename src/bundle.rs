@@ -85,18 +85,8 @@ pub trait Block: Clone {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[serde(untagged)]
+#[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
 pub enum BlockVariants {
-    NotFragmentedAndNoCrc(
-        DtnVersionType,
-        BundleControlFlags,
-        CRCType,
-        EndpointID,
-        EndpointID,
-        EndpointID,
-        CreationTimestamp,
-        LifetimeType,
-    ),
     JustCrc(
         DtnVersionType,
         BundleControlFlags,
@@ -107,6 +97,31 @@ pub enum BlockVariants {
         CreationTimestamp,
         LifetimeType,
         #[serde(with = "serde_bytes")] ByteBuffer,
+    ),
+    Canonical(
+        CanonicalBlockType,
+        CanonicalBlockNumberType,
+        BlockControlFlags,
+        CRCType,
+        CanonicalData,
+        #[serde(with = "serde_bytes")] ByteBuffer,
+    ),
+    NotFragmentedAndNoCrc(
+        DtnVersionType,
+        BundleControlFlags,
+        CRCType,
+        EndpointID,
+        EndpointID,
+        EndpointID,
+        CreationTimestamp,
+        LifetimeType,
+    ),
+    CanonicalWithoutCrc(
+        CanonicalBlockType,
+        CanonicalBlockNumberType,
+        BlockControlFlags,
+        CRCType,
+        CanonicalData,
     ),
     JustFragmented(
         DtnVersionType,
@@ -131,21 +146,6 @@ pub enum BlockVariants {
         LifetimeType,
         FragOffsetType,
         TotalDataLengthType,
-        #[serde(with = "serde_bytes")] ByteBuffer,
-    ),
-    CanonicalWithoutCrc(
-        CanonicalBlockType,
-        CanonicalBlockNumberType,
-        BlockControlFlags,
-        CRCType,
-        CanonicalData,
-    ),
-    Canonical(
-        CanonicalBlockType,
-        CanonicalBlockNumberType,
-        BlockControlFlags,
-        CRCType,
-        CanonicalData,
         #[serde(with = "serde_bytes")] ByteBuffer,
     ),
 }

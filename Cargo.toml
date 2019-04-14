@@ -1,10 +1,11 @@
 [package]
 name = "bp7"
-version = "0.1.7"
+version = "0.1.8"
 authors = ["Lars Baumgaertner <baumgaertner@cs.tu-darmstadt.de>"]
 edition = "2018"
 description = "Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-12"
 license = "MIT OR Apache-2.0"
+
 
 [dependencies]
 chrono = "0.4"

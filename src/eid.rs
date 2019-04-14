@@ -32,8 +32,8 @@ pub struct IpnAddress(pub u32, pub u32);
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(untagged)]
 pub enum EndpointID {
+    Dtn(u8, String), // Order of probable occurence, serde tries decoding in untagged enums in this order
     DtnNone(u8, u8),
-    Dtn(u8, String),
     Ipn(u8, IpnAddress),
 }
 
