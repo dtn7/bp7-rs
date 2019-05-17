@@ -41,12 +41,9 @@ fn bench_bundle_create(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
             .canonicals(vec![
                 canonical::new_payload_block(0, b"ABC".to_vec()),
                 canonical::new_bundle_age_block(
-                    1,
-                    0,
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .expect("Time went backwards")
-                        .as_millis() as u64,
+                    1, // block number
+                    0, // flags
+                    0, // time elapsed
                 ),
             ])
             .build()
