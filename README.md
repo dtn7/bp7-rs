@@ -1,9 +1,13 @@
 # bp7-rs
-Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-12
+
+[![Crates.io](https://img.shields.io/crates/v/bp7.svg)](https://crates.io/crates/bp7)
+[![Docs.rs](https://docs.rs/bp7/badge.svg)](https://docs.rs/bp7)
+
+Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-13
 
 This library only handles encoding and decoding of bundles, not transmission or other processing of the data.
 
-This is more or less a port of the dtn7 golang implementation: https://github.com/geistesk/dtn7
+This is more or less a port of the dtn7 golang implementation: https://github.com/dtn7/dtn7
 
 **This code is not production ready!**
 
