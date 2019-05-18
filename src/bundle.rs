@@ -1,5 +1,7 @@
 use derive_builder::Builder;
-use serde::{de, Deserialize, Serialize};
+use serde::de::{SeqAccess, Visitor};
+use serde::ser::{SerializeSeq, Serializer};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -175,9 +177,9 @@ impl<'de> Deserialize<'de> for PrimaryVariants {
                     let crc_data = seq
                         .next_element::<CrcValue>()?
                         .ok_or_else(|| de::Error::invalid_length(8, &self))?;
-                    return Ok(PrimaryVariants::JustCrc(
+                    Ok(PrimaryVariants::JustCrc(
                         version, bcf, crc_type, dst, src, rprt, ts, lifetime, crc_data,
-                    ));
+                    ))
                 } else if seq.size_hint() == Some(2) && crc_type == CRC_NO {
                     let offset: FragOffsetType = seq
                         .next_element()?
@@ -186,13 +188,13 @@ impl<'de> Deserialize<'de> for PrimaryVariants {
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(9, &self))?;
 
-                    return Ok(PrimaryVariants::JustFragmented(
+                    Ok(PrimaryVariants::JustFragmented(
                         version, bcf, crc_type, dst, src, rprt, ts, lifetime, offset, len,
-                    ));
+                    ))
                 } else if seq.size_hint() == Some(0) && crc_type == CRC_NO {
-                    return Ok(PrimaryVariants::NotFragmentedAndNoCrc(
+                    Ok(PrimaryVariants::NotFragmentedAndNoCrc(
                         version, bcf, crc_type, dst, src, rprt, ts, lifetime,
-                    ));
+                    ))
                 } else if seq.size_hint() == Some(3) && crc_type != CRC_NO {
                     let offset: FragOffsetType = seq
                         .next_element()?
@@ -204,9 +206,9 @@ impl<'de> Deserialize<'de> for PrimaryVariants {
                         .next_element::<CrcValue>()?
                         .ok_or_else(|| de::Error::invalid_length(10, &self))?;
 
-                    return Ok(PrimaryVariants::FragmentedAndCrc(
+                    Ok(PrimaryVariants::FragmentedAndCrc(
                         version, bcf, crc_type, dst, src, rprt, ts, lifetime, offset, len, crc_data,
-                    ));
+                    ))
                 } else {
                     Err(de::Error::invalid_length(9, &self))
                 }
@@ -593,16 +595,17 @@ impl Bundle {
         }
     }
 
-    fn wire_bundle(&mut self) -> WireBundle {
-        let mut blocks: Vec<TheVariants> = Vec::new();
+    fn bundle_packet(&mut self) -> BundlePacket {
         self.primary.calculate_crc();
-        blocks.push(TheVariants::Primary(self.primary.to_pvariant()));
+        let mut canonicals: Vec<CanonicalVariants> = Vec::new();
         for b in &mut self.canonicals {
-            //dbg!(b.get_data());
             b.calculate_crc();
-            blocks.push(TheVariants::Canonical(b.to_cvariant()));
+            canonicals.push(b.to_cvariant());
         }
-        blocks
+        BundlePacket {
+            primary: self.primary.to_pvariant(),
+            canonicals,
+        }
     }
     pub fn extension_block(
         &mut self,
@@ -619,9 +622,9 @@ impl Bundle {
 
     /// Serialize bundle as CBOR encoded byte buffer.
     pub fn to_cbor(&mut self) -> ByteBuffer {
-        self.calculate_crc();
+        //self.calculate_crc();
         let mut bytebuf =
-            serde_cbor::to_vec(&self.wire_bundle()).expect("Error serializing bundle as cbor.");
+            serde_cbor::to_vec(&self.bundle_packet()).expect("Error serializing bundle as cbor.");
         bytebuf[0] = 0x9f; // TODO: fix hack, indefinite-length array encoding
         bytebuf.push(0xff); // break mark
         bytebuf
@@ -629,8 +632,8 @@ impl Bundle {
 
     /// Serialize bundle as JSON encoded string.
     pub fn to_json(&mut self) -> String {
-        self.calculate_crc();
-        serde_json::to_string(&self.wire_bundle()).unwrap()
+        //self.calculate_crc();
+        serde_json::to_string(&self.bundle_packet()).unwrap()
     }
 
     /// ID returns a kind of uniquene representation of this bundle, containing
@@ -658,11 +661,69 @@ enum TheVariants {
     Primary(PrimaryVariants),
 }
 
-type WireBundle = Vec<TheVariants>;
+#[derive(Debug, Clone, PartialEq)]
+struct BundlePacket {
+    primary: PrimaryVariants,
+    canonicals: Vec<CanonicalVariants>,
+}
+impl Serialize for BundlePacket {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.canonicals.len() + 1))?;
+        seq.serialize_element(&self.primary)?;
+        for e in &self.canonicals {
+            seq.serialize_element(&e)?;
+        }
+        seq.end()
+    }
+}
 
+impl<'de> Deserialize<'de> for BundlePacket {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct BundlePacketVisitor;
+
+        impl<'de> Visitor<'de> for BundlePacketVisitor {
+            type Value = BundlePacket;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("packet")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let primary: PrimaryVariants = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+
+                let mut canonicals: Vec<CanonicalVariants> = Vec::new();
+                while let next = seq.next_element::<CanonicalVariants>()? {
+                    if let Some(next) = next {
+                        canonicals.push(next);
+                    } else {
+                        break;
+                    }
+                }
+
+                Ok(BundlePacket {
+                    primary,
+                    canonicals,
+                })
+            }
+        }
+
+        deserializer.deserialize_any(BundlePacketVisitor)
+    }
+}
 /// Deserialize from CBOR byte buffer.
 impl From<ByteBuffer> for Bundle {
-    fn from(item: ByteBuffer) -> Self {
+    /*fn from(item: ByteBuffer) -> Self {
         let mut deserialized: WireBundle =
             serde_cbor::from_slice(&item).expect("Decoding BlockVariant failed");
         if let TheVariants::Primary(p) = deserialized.remove(0) {
@@ -679,27 +740,33 @@ impl From<ByteBuffer> for Bundle {
         } else {
             panic!("Missing primary block");
         }
+    }*/
+    fn from(item: ByteBuffer) -> Self {
+        let mut deserialized: BundlePacket =
+            serde_cbor::from_slice(&item).expect("Decoding BlockVariant failed");
+        let prim = PrimaryBlock::from(deserialized.primary);
+        let mut cblocks: Vec<CanonicalBlock> = Vec::new();
+        while !deserialized.canonicals.is_empty() {
+            let c = deserialized.canonicals.remove(0);
+            cblocks.push(CanonicalBlock::from(c));
+        }
+
+        Bundle::new(prim, cblocks)
     }
 }
 
 /// Deserialize from JSON string.
 impl From<String> for Bundle {
     fn from(item: String) -> Self {
-        let mut deserialized: WireBundle =
+        let mut deserialized: BundlePacket =
             serde_json::from_str(&item).expect("Decoding BlockVariant failed");
-        if let TheVariants::Primary(p) = deserialized.remove(0) {
-            let prim = PrimaryBlock::from(p);
-            let mut cblocks: Vec<CanonicalBlock> = Vec::new();
-            while !deserialized.is_empty() {
-                if let TheVariants::Canonical(c) = deserialized.remove(0) {
-                    cblocks.push(CanonicalBlock::from(c));
-                } else {
-                    panic!("Multiple primary blocks found");
-                }
-            }
-            Bundle::new(prim, cblocks)
-        } else {
-            panic!("Missing primary block");
+        let prim = PrimaryBlock::from(deserialized.primary);
+        let mut cblocks: Vec<CanonicalBlock> = Vec::new();
+        while !deserialized.canonicals.is_empty() {
+            let c = deserialized.canonicals.remove(0);
+            cblocks.push(CanonicalBlock::from(c));
         }
+
+        Bundle::new(prim, cblocks)
     }
 }

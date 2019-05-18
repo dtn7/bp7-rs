@@ -19,12 +19,15 @@ A simple benchmark is shipped with the library. It (de)serializes Bundles with a
 cargo run --release --example benchmark
     Finished release [optimized] target(s) in 0.29s
      Running `target/release/examples/benchmark`
-Creating 100000 bundles with CRC_NO: 	121971 bundles/second
-Creating 100000 bundles with CRC_16: 	89930 bundles/second
-Creating 100000 bundles with CRC_32: 	88962 bundles/second
-Loading 100000 bundles with CRC_NO: 	187613 bundles/second
-Loading 100000 bundles with CRC_16: 	182806 bundles/second
-Loading 100000 bundles with CRC_32: 	185649 bundles/second
+Creating 100000 bundles with CRC_NO: 	174322 bundles/second
+Creating 100000 bundles with CRC_16: 	140298 bundles/second
+Creating 100000 bundles with CRC_32: 	135711 bundles/second
+Encoding 100000 bundles with CRC_NO: 	249272 bundles/second
+Encoding 100000 bundles with CRC_16: 	181570 bundles/second
+Encoding 100000 bundles with CRC_32: 	175844 bundles/second
+Loading 100000 bundles with CRC_NO: 	291552 bundles/second
+Loading 100000 bundles with CRC_16: 	283297 bundles/second
+Loading 100000 bundles with CRC_32: 	275423 bundles/second
 ```
 
 These numbers were generated on a MBP 13" 2018 with i5 CPU and 16GB of ram.
