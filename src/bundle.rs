@@ -1,5 +1,5 @@
 use derive_builder::Builder;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Serialize};
 use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -78,7 +78,7 @@ pub trait Block: Clone {
     fn to_cbor(&self) -> ByteBuffer;
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Clone, PartialEq)]
 #[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
 pub enum PrimaryVariants {
     JustCrc(
@@ -90,7 +90,7 @@ pub enum PrimaryVariants {
         EndpointID,
         CreationTimestamp,
         LifetimeType,
-        #[serde(with = "serde_bytes")] ByteBuffer,
+        CrcValue,
     ),
     FragmentedAndCrc(
         DtnVersionType,
@@ -103,7 +103,7 @@ pub enum PrimaryVariants {
         LifetimeType,
         FragOffsetType,
         TotalDataLengthType,
-        #[serde(with = "serde_bytes")] ByteBuffer,
+        CrcValue,
     ),
     NotFragmentedAndNoCrc(
         DtnVersionType,
@@ -129,7 +129,95 @@ pub enum PrimaryVariants {
     ),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+impl<'de> Deserialize<'de> for PrimaryVariants {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        struct PrimaryVariantsVisitor;
+
+        impl<'de> de::Visitor<'de> for PrimaryVariantsVisitor {
+            type Value = PrimaryVariants;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("enum PrimaryVariants")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+            where
+                V: de::SeqAccess<'de>,
+            {
+                let version: DtnVersionType = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let bcf: BundleControlFlags = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let crc_type: CRCType = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let dst: EndpointID = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(3, &self))?;
+                let src: EndpointID = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(4, &self))?;
+                let rprt: EndpointID = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(5, &self))?;
+                let ts: CreationTimestamp = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(6, &self))?;
+                let lifetime: LifetimeType = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(7, &self))?;
+                if seq.size_hint() == Some(1) && crc_type != CRC_NO {
+                    let crc_data = seq
+                        .next_element::<CrcValue>()?
+                        .ok_or_else(|| de::Error::invalid_length(8, &self))?;
+                    return Ok(PrimaryVariants::JustCrc(
+                        version, bcf, crc_type, dst, src, rprt, ts, lifetime, crc_data,
+                    ));
+                } else if seq.size_hint() == Some(2) && crc_type == CRC_NO {
+                    let offset: FragOffsetType = seq
+                        .next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(8, &self))?;
+                    let len: TotalDataLengthType = seq
+                        .next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(9, &self))?;
+
+                    return Ok(PrimaryVariants::JustFragmented(
+                        version, bcf, crc_type, dst, src, rprt, ts, lifetime, offset, len,
+                    ));
+                } else if seq.size_hint() == Some(0) && crc_type == CRC_NO {
+                    return Ok(PrimaryVariants::NotFragmentedAndNoCrc(
+                        version, bcf, crc_type, dst, src, rprt, ts, lifetime,
+                    ));
+                } else if seq.size_hint() == Some(3) && crc_type != CRC_NO {
+                    let offset: FragOffsetType = seq
+                        .next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(8, &self))?;
+                    let len: TotalDataLengthType = seq
+                        .next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(9, &self))?;
+                    let crc_data = seq
+                        .next_element::<CrcValue>()?
+                        .ok_or_else(|| de::Error::invalid_length(10, &self))?;
+
+                    return Ok(PrimaryVariants::FragmentedAndCrc(
+                        version, bcf, crc_type, dst, src, rprt, ts, lifetime, offset, len, crc_data,
+                    ));
+                } else {
+                    Err(de::Error::invalid_length(9, &self))
+                }
+            }
+        }
+
+        deserializer.deserialize_any(PrimaryVariantsVisitor)
+    }
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq)]
 #[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
 pub enum CanonicalVariants {
     Canonical(
@@ -138,7 +226,7 @@ pub enum CanonicalVariants {
         BlockControlFlags,
         CRCType,
         CanonicalData,
-        #[serde(with = "serde_bytes")] ByteBuffer,
+        CrcValue,
     ),
 
     CanonicalWithoutCrc(
@@ -148,6 +236,73 @@ pub enum CanonicalVariants {
         CRCType,
         CanonicalData,
     ),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
+pub enum CrcValue {
+    CRC(#[serde(with = "serde_bytes")] ByteBuffer),
+}
+impl<'de> Deserialize<'de> for CanonicalVariants {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        struct CanonicalVariantsVisitor;
+
+        impl<'de> de::Visitor<'de> for CanonicalVariantsVisitor {
+            type Value = CanonicalVariants;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("enum CanonicalVariants")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+            where
+                V: de::SeqAccess<'de>,
+            {
+                let block_type: CanonicalBlockType = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let block_number: CanonicalBlockNumberType = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let bcf: BlockControlFlags = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let crc_type: CRCType = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(3, &self))?;
+                let data: CanonicalData = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(4, &self))?;
+                if crc_type == CRC_NO {
+                    Ok(CanonicalVariants::CanonicalWithoutCrc(
+                        block_type,
+                        block_number,
+                        bcf,
+                        crc_type,
+                        data,
+                    ))
+                } else {
+                    let crc_data = seq
+                        .next_element::<CrcValue>()?
+                        .ok_or_else(|| de::Error::invalid_length(5, &self))?;
+
+                    Ok(CanonicalVariants::Canonical(
+                        block_type,
+                        block_number,
+                        bcf,
+                        crc_type,
+                        data,
+                        crc_data,
+                    ))
+                }
+            }
+        }
+
+        deserializer.deserialize_any(CanonicalVariantsVisitor)
+    }
 }
 
 /******************************

@@ -124,7 +124,7 @@ impl CanonicalBlock {
                 self.block_control_flags,
                 self.crc_type,
                 self.data.clone(),
-                self.crc.clone(),
+                CrcValue::CRC(self.crc.clone()),
             )
         }
     }
@@ -223,13 +223,15 @@ impl From<CanonicalVariants> for CanonicalBlock {
                 crc_type,
                 data,
                 crc,
-            ) => CanonicalBlock {
-                block_type,
-                block_number,
-                block_control_flags,
-                crc_type,
-                data,
-                crc,
+            ) => match crc {
+                CrcValue::CRC(c) => CanonicalBlock {
+                    block_type,
+                    block_number,
+                    block_control_flags,
+                    crc_type,
+                    data,
+                    crc: c,
+                },
             },
         }
     }

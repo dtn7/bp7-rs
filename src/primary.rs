@@ -85,7 +85,7 @@ impl PrimaryBlock {
                 self.report_to.clone(),
                 self.creation_timestamp.clone(),
                 self.lifetime,
-                self.crc.clone(),
+                CrcValue::CRC(self.crc.clone()),
             )
         } else {
             PrimaryVariants::FragmentedAndCrc(
@@ -99,7 +99,7 @@ impl PrimaryBlock {
                 self.lifetime,
                 self.fragmentation_offset,
                 self.total_data_length,
-                self.crc.clone(),
+                CrcValue::CRC(self.crc.clone()),
             )
         }
     }
@@ -198,18 +198,20 @@ impl From<PrimaryVariants> for PrimaryBlock {
                 creation_timestamp,
                 lifetime,
                 crc,
-            ) => PrimaryBlock {
-                version,
-                bundle_control_flags,
-                crc_type,
-                destination,
-                source,
-                report_to,
-                creation_timestamp,
-                lifetime,
-                fragmentation_offset: 0,
-                total_data_length: 0,
-                crc,
+            ) => match crc {
+                CrcValue::CRC(crc) => PrimaryBlock {
+                    version,
+                    bundle_control_flags,
+                    crc_type,
+                    destination,
+                    source,
+                    report_to,
+                    creation_timestamp,
+                    lifetime,
+                    fragmentation_offset: 0,
+                    total_data_length: 0,
+                    crc,
+                },
             },
             PrimaryVariants::FragmentedAndCrc(
                 version,
@@ -223,18 +225,20 @@ impl From<PrimaryVariants> for PrimaryBlock {
                 fragmentation_offset,
                 total_data_length,
                 crc,
-            ) => PrimaryBlock {
-                version,
-                bundle_control_flags,
-                crc_type,
-                destination,
-                source,
-                report_to,
-                creation_timestamp,
-                lifetime,
-                fragmentation_offset,
-                total_data_length,
-                crc,
+            ) => match crc {
+                CrcValue::CRC(crc) => PrimaryBlock {
+                    version,
+                    bundle_control_flags,
+                    crc_type,
+                    destination,
+                    source,
+                    report_to,
+                    creation_timestamp,
+                    lifetime,
+                    fragmentation_offset,
+                    total_data_length,
+                    crc,
+                },
             },
         }
     }
