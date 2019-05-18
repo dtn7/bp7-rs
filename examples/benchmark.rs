@@ -88,7 +88,11 @@ fn main() {
     let crc32 = bench_bundle_create(RUNS, crc::CRC_32);
     //print!("{:x?}", crcno[0]);
 
-    bench_bundle_load(RUNS, crc::CRC_NO, crcno);
-    bench_bundle_load(RUNS, crc::CRC_16, crc16);
-    bench_bundle_load(RUNS, crc::CRC_32, crc32);
+    bench_bundle_load(RUNS, crc::CRC_NO, crcno.clone());
+    bench_bundle_load(RUNS, crc::CRC_16, crc16.clone());
+    bench_bundle_load(RUNS, crc::CRC_32, crc32.clone());
+
+    dbg!(crcno[0].len());
+    dbg!(crc16[0].len());
+    dbg!(crc32[0].len());
 }
