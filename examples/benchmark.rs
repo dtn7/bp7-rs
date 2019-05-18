@@ -89,6 +89,9 @@ fn main() {
     //print!("{:x?}", crcno[0]);
 
     bench_bundle_load(RUNS, crc::CRC_NO, crcno);
-    bench_bundle_load(RUNS, crc::CRC_16, crc16);
+    bench_bundle_load(RUNS, crc::CRC_16, crc16.clone());
+
     bench_bundle_load(RUNS, crc::CRC_32, crc32);
+
+    dbg!(crc16[0].len());
 }
