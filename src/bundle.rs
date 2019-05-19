@@ -80,12 +80,6 @@ pub trait Block: Clone {
     fn to_cbor(&self) -> ByteBuffer;
 }
 
-/*#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
-pub enum CrcValue {
-    CRC(#[serde(with = "serde_bytes")] ByteBuffer),
-}*/
-
 /******************************
  *
  * Block Control Flags

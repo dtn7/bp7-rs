@@ -5,7 +5,6 @@ use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
-use serde_bytes;
 use std::fmt;
 
 /******************************
@@ -116,8 +115,9 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                 let crc: ByteBuffer = if crc_type == CRC_NO {
                     Vec::new()
                 } else {
-                    seq.next_element::<serde_bytes::ByteBuf>()?
+                    seq.next_element::<serde_bytes::Bytes>()?
                         .ok_or_else(|| de::Error::invalid_length(5, &self))?
+                        .to_owned()
                         .to_vec()
                 };
                 Ok(CanonicalBlock {
