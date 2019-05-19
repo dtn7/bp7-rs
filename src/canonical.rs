@@ -5,6 +5,7 @@ use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
+use serde_bytes;
 use std::fmt;
 
 /******************************
@@ -55,7 +56,7 @@ pub struct CanonicalBlock {
     pub block_control_flags: BlockControlFlags,
     pub crc_type: CRCType,
     data: CanonicalData,
-    crc: CrcValue,
+    crc: ByteBuffer,
 }
 
 impl Serialize for CanonicalBlock {
@@ -73,7 +74,7 @@ impl Serialize for CanonicalBlock {
         seq.serialize_element(&self.data.clone())?;
 
         if self.crc_type != CRC_NO {
-            seq.serialize_element(&self.crc)?;
+            seq.serialize_element(&serde_bytes::Bytes::new(&self.crc))?;
         }
 
         seq.end()
@@ -112,11 +113,12 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                 let data: CanonicalData = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(4, &self))?;
-                let crc: CrcValue = if crc_type == CRC_NO {
-                    CrcValue::CRC(Vec::new())
+                let crc: ByteBuffer = if crc_type == CRC_NO {
+                    Vec::new()
                 } else {
-                    seq.next_element()?
+                    seq.next_element::<serde_bytes::ByteBuf>()?
                         .ok_or_else(|| de::Error::invalid_length(5, &self))?
+                        .to_vec()
                 };
                 Ok(CanonicalBlock {
                     block_type,
@@ -141,7 +143,7 @@ impl Block for CanonicalBlock {
     fn has_crc(&self) -> bool {
         self.crc_type != CRC_NO
     }
-    fn crc(&self) -> CrcValue {
+    fn crc(&self) -> ByteBuffer {
         self.crc.clone()
     }
     fn set_crc_type(&mut self, crc_type: CRCType) {
@@ -151,7 +153,7 @@ impl Block for CanonicalBlock {
         self.crc_type
     }
     fn set_crc(&mut self, crc: ByteBuffer) {
-        self.crc = CrcValue::CRC(crc);
+        self.crc = crc;
     }
     fn to_cbor(&self) -> ByteBuffer {
         serde_cbor::to_vec(&self).unwrap()
@@ -170,7 +172,7 @@ pub fn new_canonical_block(
         block_control_flags,
         crc_type: CRC_NO,
         data,
-        crc: CrcValue::CRC(Vec::new()),
+        crc: Vec::new(),
     }
 }
 
@@ -182,7 +184,7 @@ impl CanonicalBlock {
             block_control_flags: 0,
             crc_type: CRC_NO,
             data: CanonicalData::Data(Vec::new()),
-            crc: CrcValue::CRC(Vec::new()),
+            crc: Vec::new(),
         }
     }
 

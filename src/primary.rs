@@ -28,7 +28,7 @@ pub struct PrimaryBlock {
     pub lifetime: LifetimeType,
     pub fragmentation_offset: FragOffsetType,
     pub total_data_length: TotalDataLengthType,
-    crc: CrcValue,
+    crc: ByteBuffer,
 }
 
 impl Serialize for PrimaryBlock {
@@ -61,7 +61,7 @@ impl Serialize for PrimaryBlock {
         }
 
         if self.crc_type != CRC_NO {
-            seq.serialize_element(&self.crc)?;
+            seq.serialize_element(&serde_bytes::Bytes::new(&self.crc))?;
         }
 
         seq.end()
@@ -123,11 +123,12 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                         .ok_or_else(|| de::Error::invalid_length(9, &self))?;
                 }
 
-                let crc: CrcValue = if crc_type == CRC_NO {
-                    CrcValue::CRC(Vec::new())
+                let crc: ByteBuffer = if crc_type == CRC_NO {
+                    Vec::new()
                 } else {
-                    seq.next_element()?
+                    seq.next_element::<serde_bytes::ByteBuf>()?
                         .ok_or_else(|| de::Error::invalid_length(7 + rest, &self))?
+                        .to_vec()
                 };
                 Ok(PrimaryBlock {
                     version,
@@ -166,7 +167,7 @@ impl PrimaryBlock {
             lifetime: 0,
             fragmentation_offset: 0,
             total_data_length: 0,
-            crc: CrcValue::CRC(Vec::new()),
+            crc: Vec::new(),
         }
     }
 
@@ -210,7 +211,7 @@ impl Block for PrimaryBlock {
     fn has_crc(&self) -> bool {
         self.crc_type != CRC_NO
     }
-    fn crc(&self) -> CrcValue {
+    fn crc(&self) -> ByteBuffer {
         self.crc.clone()
     }
     fn set_crc_type(&mut self, crc_type: CRCType) {
@@ -220,7 +221,7 @@ impl Block for PrimaryBlock {
         self.crc_type
     }
     fn set_crc(&mut self, crc: ByteBuffer) {
-        self.crc = CrcValue::CRC(crc);
+        self.crc = crc;
     }
     fn to_cbor(&self) -> ByteBuffer {
         //serde_cbor::to_vec(&self.to_pvariant()).unwrap()
@@ -247,6 +248,6 @@ pub fn new_primary_block(
         lifetime,
         fragmentation_offset: 0,
         total_data_length: 0,
-        crc: CrcValue::CRC(Vec::new()),
+        crc: Vec::new(),
     }
 }

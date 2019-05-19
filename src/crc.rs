@@ -66,5 +66,5 @@ pub fn check_crc<T: Block + Clone>(blck: &T) -> bool {
     if !blck.has_crc() {
         return blck.has_crc();
     }
-    (&blck).crc() == CrcValue::CRC(calculate_crc(blck))
+    (&blck).crc() == calculate_crc(blck)
 }
