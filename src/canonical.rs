@@ -2,7 +2,10 @@ use super::bundle::*;
 use super::crc::*;
 use super::eid::*;
 use derive_builder::Builder;
-use serde::{Deserialize, Serialize};
+use serde::de::{SeqAccess, Visitor};
+use serde::ser::{SerializeSeq, Serializer};
+use serde::{de, Deserialize, Deserializer, Serialize};
+use std::fmt;
 
 /******************************
  *
@@ -44,7 +47,7 @@ pub const BUNDLE_AGE_BLOCK: CanonicalBlockType = 8;
 pub const HOP_COUNT_BLOCK: CanonicalBlockType = 9;
 
 //#[derive(Debug, Serialize_tuple, Deserialize_tuple, Clone)]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Builder)]
+#[derive(Debug, Clone, PartialEq, Builder)]
 #[builder(default)]
 pub struct CanonicalBlock {
     pub block_type: CanonicalBlockType,
@@ -52,9 +55,83 @@ pub struct CanonicalBlock {
     pub block_control_flags: BlockControlFlags,
     pub crc_type: CRCType,
     data: CanonicalData,
-    crc: ByteBuffer,
+    crc: CrcValue,
 }
 
+impl Serialize for CanonicalBlock {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let num_elems = if self.crc_type == CRC_NO { 5 } else { 6 };
+
+        let mut seq = serializer.serialize_seq(Some(num_elems))?;
+        seq.serialize_element(&self.block_type)?;
+        seq.serialize_element(&self.block_number)?;
+        seq.serialize_element(&self.block_control_flags)?;
+        seq.serialize_element(&self.crc_type)?;
+        seq.serialize_element(&self.data.clone())?;
+
+        if self.crc_type != CRC_NO {
+            seq.serialize_element(&self.crc)?;
+        }
+
+        seq.end()
+    }
+}
+impl<'de> Deserialize<'de> for CanonicalBlock {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct CanonicalBlockVisitor;
+
+        impl<'de> Visitor<'de> for CanonicalBlockVisitor {
+            type Value = CanonicalBlock;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("packet")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let block_type: CanonicalBlockType = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let block_number: u64 = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let block_control_flags: BlockControlFlags = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let crc_type: CRCType = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(3, &self))?;
+                let data: CanonicalData = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(4, &self))?;
+                let crc: CrcValue = if crc_type == CRC_NO {
+                    CrcValue::CRC(Vec::new())
+                } else {
+                    seq.next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(5, &self))?
+                };
+                Ok(CanonicalBlock {
+                    block_type,
+                    block_number,
+                    block_control_flags,
+                    crc_type,
+                    data,
+                    crc,
+                })
+            }
+        }
+
+        deserializer.deserialize_any(CanonicalBlockVisitor)
+    }
+}
 impl Default for CanonicalBlock {
     fn default() -> Self {
         CanonicalBlock::new()
@@ -64,7 +141,7 @@ impl Block for CanonicalBlock {
     fn has_crc(&self) -> bool {
         self.crc_type != CRC_NO
     }
-    fn crc(&self) -> ByteBuffer {
+    fn crc(&self) -> CrcValue {
         self.crc.clone()
     }
     fn set_crc_type(&mut self, crc_type: CRCType) {
@@ -74,10 +151,10 @@ impl Block for CanonicalBlock {
         self.crc_type
     }
     fn set_crc(&mut self, crc: ByteBuffer) {
-        self.crc = crc;
+        self.crc = CrcValue::CRC(crc);
     }
     fn to_cbor(&self) -> ByteBuffer {
-        serde_cbor::to_vec(&self.to_cvariant()).unwrap()
+        serde_cbor::to_vec(&self).unwrap()
     }
 }
 
@@ -93,7 +170,7 @@ pub fn new_canonical_block(
         block_control_flags,
         crc_type: CRC_NO,
         data,
-        crc: Vec::new(),
+        crc: CrcValue::CRC(Vec::new()),
     }
 }
 
@@ -105,29 +182,10 @@ impl CanonicalBlock {
             block_control_flags: 0,
             crc_type: CRC_NO,
             data: CanonicalData::Data(Vec::new()),
-            crc: Vec::new(),
+            crc: CrcValue::CRC(Vec::new()),
         }
     }
-    pub fn to_cvariant(&self) -> CanonicalVariants {
-        if self.crc_type == CRC_NO {
-            CanonicalVariants::CanonicalWithoutCrc(
-                self.block_type,
-                self.block_number,
-                self.block_control_flags,
-                self.crc_type,
-                self.data.clone(),
-            )
-        } else {
-            CanonicalVariants::Canonical(
-                self.block_type,
-                self.block_number,
-                self.block_control_flags,
-                self.crc_type,
-                self.data.clone(),
-                CrcValue::CRC(self.crc.clone()),
-            )
-        }
-    }
+
     pub fn validation_errors(&self) -> Option<Bp7ErrorList> {
         let mut errors: Bp7ErrorList = Vec::new();
 
@@ -199,43 +257,6 @@ impl CanonicalBlock {
     }
 }
 
-impl From<CanonicalVariants> for CanonicalBlock {
-    fn from(item: CanonicalVariants) -> Self {
-        match item {
-            CanonicalVariants::CanonicalWithoutCrc(
-                block_type,
-                block_number,
-                block_control_flags,
-                crc_type,
-                data,
-            ) => CanonicalBlock {
-                block_type,
-                block_number,
-                block_control_flags,
-                crc_type,
-                data,
-                crc: Vec::new(),
-            },
-            CanonicalVariants::Canonical(
-                block_type,
-                block_number,
-                block_control_flags,
-                crc_type,
-                data,
-                crc,
-            ) => match crc {
-                CrcValue::CRC(c) => CanonicalBlock {
-                    block_type,
-                    block_number,
-                    block_control_flags,
-                    crc_type,
-                    data,
-                    crc: c,
-                },
-            },
-        }
-    }
-}
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
 pub enum CanonicalData {

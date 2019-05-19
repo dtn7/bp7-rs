@@ -75,7 +75,7 @@ pub trait Block: Clone {
     }
     fn set_crc_type(&mut self, crc_type: CRCType);
     fn crc_type(&self) -> CRCType;
-    fn crc(&self) -> ByteBuffer;
+    fn crc(&self) -> CrcValue;
     fn set_crc(&mut self, crc: ByteBuffer);
     fn to_cbor(&self) -> ByteBuffer;
 }
@@ -434,11 +434,67 @@ impl BundleValidation for BundleControlFlags {
 
 /// Bundle represents a bundle as defined in section 4.2.1. Each Bundle contains
 /// one primary block and multiple canonical blocks.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Builder)]
+#[derive(Debug, Clone, PartialEq, Builder)]
 #[builder(default)]
 pub struct Bundle {
     pub primary: PrimaryBlock,
     pub canonicals: Vec<CanonicalBlock>,
+}
+
+impl Serialize for Bundle {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(self.canonicals.len() + 1))?;
+        seq.serialize_element(&self.primary)?;
+        for e in &self.canonicals {
+            seq.serialize_element(&e)?;
+        }
+        seq.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Bundle {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct BundleVisitor;
+
+        impl<'de> Visitor<'de> for BundleVisitor {
+            type Value = Bundle;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("packet")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let primary: PrimaryBlock = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+
+                let mut canonicals: Vec<CanonicalBlock> = Vec::new();
+                while let next = seq.next_element::<CanonicalBlock>()? {
+                    if let Some(next) = next {
+                        canonicals.push(next);
+                    } else {
+                        break;
+                    }
+                }
+
+                Ok(Bundle {
+                    primary,
+                    canonicals,
+                })
+            }
+        }
+
+        deserializer.deserialize_any(BundleVisitor)
+    }
 }
 
 impl Default for Bundle {
@@ -595,18 +651,6 @@ impl Bundle {
         }
     }
 
-    fn bundle_packet(&mut self) -> BundlePacket {
-        self.primary.calculate_crc();
-        let mut canonicals: Vec<CanonicalVariants> = Vec::new();
-        for b in &mut self.canonicals {
-            b.calculate_crc();
-            canonicals.push(b.to_cvariant());
-        }
-        BundlePacket {
-            primary: self.primary.to_pvariant(),
-            canonicals,
-        }
-    }
     pub fn extension_block(
         &mut self,
         block_type: CanonicalBlockType,
@@ -622,9 +666,8 @@ impl Bundle {
 
     /// Serialize bundle as CBOR encoded byte buffer.
     pub fn to_cbor(&mut self) -> ByteBuffer {
-        //self.calculate_crc();
-        let mut bytebuf =
-            serde_cbor::to_vec(&self.bundle_packet()).expect("Error serializing bundle as cbor.");
+        self.calculate_crc();
+        let mut bytebuf = serde_cbor::to_vec(&self).expect("Error serializing bundle as cbor.");
         bytebuf[0] = 0x9f; // TODO: fix hack, indefinite-length array encoding
         bytebuf.push(0xff); // break mark
         bytebuf
@@ -632,8 +675,8 @@ impl Bundle {
 
     /// Serialize bundle as JSON encoded string.
     pub fn to_json(&mut self) -> String {
-        //self.calculate_crc();
-        serde_json::to_string(&self.bundle_packet()).unwrap()
+        self.calculate_crc();
+        serde_json::to_string(&self).unwrap()
     }
 
     /// ID returns a kind of uniquene representation of this bundle, containing
@@ -654,119 +697,16 @@ impl Bundle {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
-enum TheVariants {
-    Canonical(CanonicalVariants),
-    Primary(PrimaryVariants),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct BundlePacket {
-    primary: PrimaryVariants,
-    canonicals: Vec<CanonicalVariants>,
-}
-impl Serialize for BundlePacket {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut seq = serializer.serialize_seq(Some(self.canonicals.len() + 1))?;
-        seq.serialize_element(&self.primary)?;
-        for e in &self.canonicals {
-            seq.serialize_element(&e)?;
-        }
-        seq.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for BundlePacket {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct BundlePacketVisitor;
-
-        impl<'de> Visitor<'de> for BundlePacketVisitor {
-            type Value = BundlePacket;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("packet")
-            }
-
-            fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
-            where
-                V: SeqAccess<'de>,
-            {
-                let primary: PrimaryVariants = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-
-                let mut canonicals: Vec<CanonicalVariants> = Vec::new();
-                while let next = seq.next_element::<CanonicalVariants>()? {
-                    if let Some(next) = next {
-                        canonicals.push(next);
-                    } else {
-                        break;
-                    }
-                }
-
-                Ok(BundlePacket {
-                    primary,
-                    canonicals,
-                })
-            }
-        }
-
-        deserializer.deserialize_any(BundlePacketVisitor)
-    }
-}
 /// Deserialize from CBOR byte buffer.
 impl From<ByteBuffer> for Bundle {
-    /*fn from(item: ByteBuffer) -> Self {
-        let mut deserialized: WireBundle =
-            serde_cbor::from_slice(&item).expect("Decoding BlockVariant failed");
-        if let TheVariants::Primary(p) = deserialized.remove(0) {
-            let prim = PrimaryBlock::from(p);
-            let mut cblocks: Vec<CanonicalBlock> = Vec::new();
-            while !deserialized.is_empty() {
-                if let TheVariants::Canonical(c) = deserialized.remove(0) {
-                    cblocks.push(CanonicalBlock::from(c));
-                } else {
-                    panic!("Multiple primary blocks found");
-                }
-            }
-            Bundle::new(prim, cblocks)
-        } else {
-            panic!("Missing primary block");
-        }
-    }*/
     fn from(item: ByteBuffer) -> Self {
-        let mut deserialized: BundlePacket =
-            serde_cbor::from_slice(&item).expect("Decoding BlockVariant failed");
-        let prim = PrimaryBlock::from(deserialized.primary);
-        let mut cblocks: Vec<CanonicalBlock> = Vec::new();
-        while !deserialized.canonicals.is_empty() {
-            let c = deserialized.canonicals.remove(0);
-            cblocks.push(CanonicalBlock::from(c));
-        }
-
-        Bundle::new(prim, cblocks)
+        serde_cbor::from_slice(&item).expect("Decoding Bundle failed")
     }
 }
 
 /// Deserialize from JSON string.
 impl From<String> for Bundle {
     fn from(item: String) -> Self {
-        let mut deserialized: BundlePacket =
-            serde_json::from_str(&item).expect("Decoding BlockVariant failed");
-        let prim = PrimaryBlock::from(deserialized.primary);
-        let mut cblocks: Vec<CanonicalBlock> = Vec::new();
-        while !deserialized.canonicals.is_empty() {
-            let c = deserialized.canonicals.remove(0);
-            cblocks.push(CanonicalBlock::from(c));
-        }
-
-        Bundle::new(prim, cblocks)
+        serde_json::from_str(&item).expect("Decoding Bundle failed")
     }
 }

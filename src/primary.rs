@@ -3,8 +3,10 @@ use super::crc::*;
 use super::dtntime::*;
 use super::eid::*;
 use derive_builder::Builder;
-
-use serde::{Deserialize, Serialize};
+use serde::de::{SeqAccess, Visitor};
+use serde::ser::{SerializeSeq, Serializer};
+use serde::{de, Deserialize, Deserializer, Serialize};
+use std::fmt;
 
 /******************************
  *
@@ -13,7 +15,7 @@ use serde::{Deserialize, Serialize};
  ******************************/
 
 //#[derive(Debug, Serialize_tuple, Deserialize_tuple, Clone)]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Builder)]
+#[derive(Debug, Clone, PartialEq, Builder)]
 #[builder(default)]
 pub struct PrimaryBlock {
     version: DtnVersionType,
@@ -26,9 +28,126 @@ pub struct PrimaryBlock {
     pub lifetime: LifetimeType,
     pub fragmentation_offset: FragOffsetType,
     pub total_data_length: TotalDataLengthType,
-    crc: ByteBuffer,
+    crc: CrcValue,
 }
 
+impl Serialize for PrimaryBlock {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let num_elems = if self.crc_type == CRC_NO && !self.has_fragmentation() {
+            8
+        } else if self.crc_type != CRC_NO && !self.has_fragmentation() {
+            9
+        } else if self.crc_type == CRC_NO && self.has_fragmentation() {
+            10
+        } else {
+            11
+        };
+
+        let mut seq = serializer.serialize_seq(Some(num_elems))?;
+        seq.serialize_element(&self.version)?;
+        seq.serialize_element(&self.bundle_control_flags)?;
+        seq.serialize_element(&self.crc_type)?;
+        seq.serialize_element(&self.destination)?;
+        seq.serialize_element(&self.source)?;
+        seq.serialize_element(&self.report_to)?;
+        seq.serialize_element(&self.creation_timestamp)?;
+        seq.serialize_element(&self.lifetime)?;
+        if self.has_fragmentation() {
+            seq.serialize_element(&self.fragmentation_offset)?;
+            seq.serialize_element(&self.total_data_length)?;
+        }
+
+        if self.crc_type != CRC_NO {
+            seq.serialize_element(&self.crc)?;
+        }
+
+        seq.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for PrimaryBlock {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct PrimaryBlockVisitor;
+
+        impl<'de> Visitor<'de> for PrimaryBlockVisitor {
+            type Value = PrimaryBlock;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("packet")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let version: DtnVersionType = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let bundle_control_flags: BundleControlFlags = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let crc_type: CRCType = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let destination: EndpointID = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(3, &self))?;
+                let source: EndpointID = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(4, &self))?;
+                let report_to: EndpointID = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(5, &self))?;
+                let creation_timestamp: CreationTimestamp = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(6, &self))?;
+                let lifetime: LifetimeType = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(7, &self))?;
+
+                let rest = seq.size_hint().unwrap_or(0);
+                let mut fragmentation_offset: FragOffsetType = 0;
+                let mut total_data_length: TotalDataLengthType = 0;
+                if rest > 1 {
+                    fragmentation_offset = seq
+                        .next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(8, &self))?;
+                    total_data_length = seq
+                        .next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(9, &self))?;
+                }
+
+                let crc: CrcValue = if crc_type == CRC_NO {
+                    CrcValue::CRC(Vec::new())
+                } else {
+                    seq.next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(7 + rest, &self))?
+                };
+                Ok(PrimaryBlock {
+                    version,
+                    bundle_control_flags,
+                    crc_type,
+                    destination,
+                    source,
+                    report_to,
+                    creation_timestamp,
+                    lifetime,
+                    fragmentation_offset,
+                    total_data_length,
+                    crc,
+                })
+            }
+        }
+
+        deserializer.deserialize_any(PrimaryBlockVisitor)
+    }
+}
 impl Default for PrimaryBlock {
     fn default() -> Self {
         PrimaryBlock::new()
@@ -47,62 +166,10 @@ impl PrimaryBlock {
             lifetime: 0,
             fragmentation_offset: 0,
             total_data_length: 0,
-            crc: Vec::new(),
+            crc: CrcValue::CRC(Vec::new()),
         }
     }
-    pub fn to_pvariant(&self) -> PrimaryVariants {
-        if self.crc_type == CRC_NO && !self.has_fragmentation() {
-            PrimaryVariants::NotFragmentedAndNoCrc(
-                self.version,
-                self.bundle_control_flags,
-                self.crc_type,
-                self.destination.clone(),
-                self.source.clone(),
-                self.report_to.clone(),
-                self.creation_timestamp.clone(),
-                self.lifetime,
-            )
-        } else if self.crc_type == CRC_NO && self.has_fragmentation() {
-            PrimaryVariants::JustFragmented(
-                self.version,
-                self.bundle_control_flags,
-                self.crc_type,
-                self.destination.clone(),
-                self.source.clone(),
-                self.report_to.clone(),
-                self.creation_timestamp.clone(),
-                self.lifetime,
-                self.fragmentation_offset,
-                self.total_data_length,
-            )
-        } else if self.crc_type != CRC_NO && !self.has_fragmentation() {
-            PrimaryVariants::JustCrc(
-                self.version,
-                self.bundle_control_flags,
-                self.crc_type,
-                self.destination.clone(),
-                self.source.clone(),
-                self.report_to.clone(),
-                self.creation_timestamp.clone(),
-                self.lifetime,
-                CrcValue::CRC(self.crc.clone()),
-            )
-        } else {
-            PrimaryVariants::FragmentedAndCrc(
-                self.version,
-                self.bundle_control_flags,
-                self.crc_type,
-                self.destination.clone(),
-                self.source.clone(),
-                self.report_to.clone(),
-                self.creation_timestamp.clone(),
-                self.lifetime,
-                self.fragmentation_offset,
-                self.total_data_length,
-                CrcValue::CRC(self.crc.clone()),
-            )
-        }
-    }
+
     pub fn has_fragmentation(&self) -> bool {
         self.bundle_control_flags.has(BUNDLE_IS_FRAGMENT)
     }
@@ -139,115 +206,11 @@ impl PrimaryBlock {
     }
 }
 
-impl From<PrimaryVariants> for PrimaryBlock {
-    fn from(item: PrimaryVariants) -> Self {
-        match item {
-            PrimaryVariants::NotFragmentedAndNoCrc(
-                version,
-                bundle_control_flags,
-                crc_type,
-                destination,
-                source,
-                report_to,
-                creation_timestamp,
-                lifetime,
-            ) => PrimaryBlock {
-                version,
-                bundle_control_flags,
-                crc_type,
-                destination,
-                source,
-                report_to,
-                creation_timestamp,
-                lifetime,
-                fragmentation_offset: 0,
-                total_data_length: 0,
-                crc: Vec::new(),
-            },
-            PrimaryVariants::JustFragmented(
-                version,
-                bundle_control_flags,
-                crc_type,
-                destination,
-                source,
-                report_to,
-                creation_timestamp,
-                lifetime,
-                fragmentation_offset,
-                total_data_length,
-            ) => PrimaryBlock {
-                version,
-                bundle_control_flags,
-                crc_type,
-                destination,
-                source,
-                report_to,
-                creation_timestamp,
-                lifetime,
-                fragmentation_offset,
-                total_data_length,
-                crc: Vec::new(),
-            },
-            PrimaryVariants::JustCrc(
-                version,
-                bundle_control_flags,
-                crc_type,
-                destination,
-                source,
-                report_to,
-                creation_timestamp,
-                lifetime,
-                crc,
-            ) => match crc {
-                CrcValue::CRC(crc) => PrimaryBlock {
-                    version,
-                    bundle_control_flags,
-                    crc_type,
-                    destination,
-                    source,
-                    report_to,
-                    creation_timestamp,
-                    lifetime,
-                    fragmentation_offset: 0,
-                    total_data_length: 0,
-                    crc,
-                },
-            },
-            PrimaryVariants::FragmentedAndCrc(
-                version,
-                bundle_control_flags,
-                crc_type,
-                destination,
-                source,
-                report_to,
-                creation_timestamp,
-                lifetime,
-                fragmentation_offset,
-                total_data_length,
-                crc,
-            ) => match crc {
-                CrcValue::CRC(crc) => PrimaryBlock {
-                    version,
-                    bundle_control_flags,
-                    crc_type,
-                    destination,
-                    source,
-                    report_to,
-                    creation_timestamp,
-                    lifetime,
-                    fragmentation_offset,
-                    total_data_length,
-                    crc,
-                },
-            },
-        }
-    }
-}
 impl Block for PrimaryBlock {
     fn has_crc(&self) -> bool {
         self.crc_type != CRC_NO
     }
-    fn crc(&self) -> ByteBuffer {
+    fn crc(&self) -> CrcValue {
         self.crc.clone()
     }
     fn set_crc_type(&mut self, crc_type: CRCType) {
@@ -257,10 +220,11 @@ impl Block for PrimaryBlock {
         self.crc_type
     }
     fn set_crc(&mut self, crc: ByteBuffer) {
-        self.crc = crc;
+        self.crc = CrcValue::CRC(crc);
     }
     fn to_cbor(&self) -> ByteBuffer {
-        serde_cbor::to_vec(&self.to_pvariant()).unwrap()
+        //serde_cbor::to_vec(&self.to_pvariant()).unwrap()
+        serde_cbor::to_vec(&self).unwrap()
     }
 }
 pub fn new_primary_block(
@@ -283,6 +247,6 @@ pub fn new_primary_block(
         lifetime,
         fragmentation_offset: 0,
         total_data_length: 0,
-        crc: Vec::new(),
+        crc: CrcValue::CRC(Vec::new()),
     }
 }
