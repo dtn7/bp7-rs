@@ -115,10 +115,9 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                 let crc: ByteBuffer = if crc_type == CRC_NO {
                     Vec::new()
                 } else {
-                    seq.next_element::<serde_bytes::Bytes>()?
+                    seq.next_element::<serde_bytes::ByteBuf>()?
                         .ok_or_else(|| de::Error::invalid_length(5, &self))?
-                        .to_owned()
-                        .to_vec()
+                        .into_vec()
                 };
                 Ok(CanonicalBlock {
                     block_type,
