@@ -251,12 +251,8 @@ impl<'de> Deserialize<'de> for Bundle {
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
 
                 let mut canonicals: Vec<CanonicalBlock> = Vec::new();
-                while let next = seq.next_element::<CanonicalBlock>()? {
-                    if let Some(next) = next {
-                        canonicals.push(next);
-                    } else {
-                        break;
-                    }
+                while let Some(next) = seq.next_element::<CanonicalBlock>()? {
+                    canonicals.push(next);
                 }
 
                 Ok(Bundle {

@@ -1,5 +1,7 @@
 use super::bundle::*;
-use serde::{Deserialize, Serialize};
+use serde::de::{SeqAccess, Visitor};
+use serde::ser::{SerializeSeq, Serializer};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use std::convert::From;
 use std::fmt;
 use url::Url;
@@ -10,7 +12,6 @@ use url::Url;
  *
  ******************************/
 
-// TODO: implement IPN uri scheme
 pub const ENDPOINT_URI_SCHEME_DTN: u8 = 1;
 pub const ENDPOINT_URI_SCHEME_IPN: u8 = 2;
 
@@ -29,12 +30,84 @@ pub struct IpnAddress(pub u32, pub u32);
 /// assert_eq!(deserialized, EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, "node1/test".to_string()))
 ///
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Hash)]
 #[serde(untagged)]
 pub enum EndpointID {
     Dtn(u8, String), // Order of probable occurence, serde tries decoding in untagged enums in this order
     DtnNone(u8, u8),
     Ipn(u8, IpnAddress),
+}
+/*
+// manual implementation not really faster
+impl Serialize for EndpointID {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(2))?;
+        match self {
+            EndpointID::Dtn(eid_type, name) => {
+                seq.serialize_element(&eid_type)?;
+                seq.serialize_element(&name)?;
+            }
+            EndpointID::DtnNone(eid_type, name) => {
+                seq.serialize_element(&eid_type)?;
+                seq.serialize_element(&name)?;
+            }
+            EndpointID::Ipn(eid_type, ipnaddr) => {
+                seq.serialize_element(&eid_type)?;
+                seq.serialize_element(&ipnaddr)?;
+            }
+        }
+
+        seq.end()
+    }
+}*/
+impl<'de> Deserialize<'de> for EndpointID {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct EndpointIDVisitor;
+
+        impl<'de> Visitor<'de> for EndpointIDVisitor {
+            type Value = EndpointID;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("packet")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let eid_type: u8 = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                if eid_type == ENDPOINT_URI_SCHEME_DTN {
+                    // TODO: rewrite to check following typ, currently if not string return dtn:none
+                    let name: String = seq.next_element().unwrap_or_default().unwrap_or_default();
+                    if name == "" {
+                        Ok(EndpointID::with_dtn_none())
+                    } else {
+                        Ok(EndpointID::Dtn(eid_type, name))
+                    }
+                } else if eid_type == ENDPOINT_URI_SCHEME_IPN {
+                    let ipnaddr: IpnAddress = seq
+                        .next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                    Ok(EndpointID::with_ipn(ipnaddr))
+                } else {
+                    Err(de::Error::invalid_value(
+                        de::Unexpected::Unsigned(eid_type.into()),
+                        &self,
+                    ))
+                }
+            }
+        }
+
+        deserializer.deserialize_any(EndpointIDVisitor)
+    }
 }
 
 impl Default for EndpointID {
@@ -64,6 +137,9 @@ impl EndpointID {
     /// use bp7::eid::*;
     ///
     /// assert_eq!(EndpointID::with_dtn_none(), EndpointID::DtnNone(ENDPOINT_URI_SCHEME_DTN,0));
+    /// let encoded_eid = serde_cbor::to_vec(&EndpointID::with_dtn_none()).expect("Error serializing packet as cbor.");
+    /// println!("{:02x?}", &encoded_eid);
+    /// assert_eq!(EndpointID::with_dtn_none(), serde_cbor::from_slice(&encoded_eid).expect("Decoding packet failed"));
     /// ```
     pub fn with_dtn_none() -> EndpointID {
         EndpointID::DtnNone(ENDPOINT_URI_SCHEME_DTN, 0)
@@ -74,6 +150,11 @@ impl EndpointID {
     /// use bp7::eid::*;
     ///
     /// assert_eq!(EndpointID::with_ipn( IpnAddress(23, 42) ), EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, IpnAddress(23, 42)) );
+    ///
+    /// let ipn_eid = EndpointID::with_ipn(IpnAddress(23, 42));
+    /// let encoded_eid = serde_cbor::to_vec(&ipn_eid).expect("Error serializing packet as cbor.");
+    /// println!("{:02x?}", &encoded_eid);
+    /// assert_eq!(ipn_eid, serde_cbor::from_slice(&encoded_eid).expect("Decoding packet failed"));
     /// ```
     pub fn with_ipn(addr: IpnAddress) -> EndpointID {
         EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, addr)

@@ -114,6 +114,7 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                 let rest = seq.size_hint().unwrap_or(0);
                 let mut fragmentation_offset: FragOffsetType = 0;
                 let mut total_data_length: TotalDataLengthType = 0;
+
                 if rest > 1 {
                     fragmentation_offset = seq
                         .next_element()?
