@@ -1,6 +1,13 @@
 use super::*;
 use rand::Rng;
 
+pub fn hexify(buf: &[u8]) -> String {
+    let mut hexstr = String::new();
+    for &b in buf {
+        hexstr = format!("{}{:02x?}", hexstr, b);
+    }
+    hexstr
+}
 pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     let mut rng = rand::thread_rng();
     let dst_string = format!("node{}/inbox", rng.gen_range(1, 4));

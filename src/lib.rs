@@ -47,6 +47,7 @@ pub use bundle::{Bp7Error, Bp7ErrorList, Bundle, ByteBuffer};
 pub use canonical::*;
 pub use dtntime::{dtn_time_now, CreationTimestamp, DtnTime};
 pub use eid::{EndpointID, DTN_NONE};
+pub use helpers::hexify;
 
 #[cfg(test)]
 mod tests {

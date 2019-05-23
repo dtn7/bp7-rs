@@ -139,7 +139,9 @@ fn main() {
     let crcno = bench_bundle_create(RUNS, crc::CRC_NO);
     let crc16 = bench_bundle_create(RUNS, crc::CRC_16);
     let crc32 = bench_bundle_create(RUNS, crc::CRC_32);
+
     //print!("{:x?}", crcno[0]);
+    //println!("{}", bp7::hexify(&crcno[0]));
 
     bench_bundle_encode(RUNS, crc::CRC_NO);
     bench_bundle_encode(RUNS, crc::CRC_16);
