@@ -31,3 +31,84 @@ Loading 100000 bundles with CRC_32: 	497460 bundles/second
 ```
 
 These numbers were generated on a MBP 13" 2018 with i5 CPU and 16GB of ram.
+
+## bp7 helper tool
+
+For debugging a small helper tool is shipped:
+```
+$ cargo install bp7
+[...]
+$ bp7
+usage "bp7" <cmd> [args]
+	decode <hexstring>
+	rnd
+$ bp7 rnd
+9f8907000182016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f78821a247966ba001ad693a4004225b686010000014341424342237186080100010042dbccff
+
+$ bp7 decode 9f8907000182016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f78821a247966ba001ad693a4004225b686010000014341424342237186080100010042dbccff
+
+[src/main.rs:17] &bndl = Bundle {
+    primary: PrimaryBlock {
+        version: 7,
+        bundle_control_flags: 0,
+        crc_type: 1,
+        destination: Dtn(
+            1,
+            "node3/inbox"
+        ),
+        source: Dtn(
+            1,
+            "node3/inbox"
+        ),
+        report_to: Dtn(
+            1,
+            "node3/inbox"
+        ),
+        creation_timestamp: CreationTimestamp(
+            611935930,
+            0
+        ),
+        lifetime: 3600000000,
+        fragmentation_offset: 0,
+        total_data_length: 0,
+        crc: [
+            37,
+            182
+        ]
+    },
+    canonicals: [
+        CanonicalBlock {
+            block_type: 1,
+            block_number: 0,
+            block_control_flags: 0,
+            crc_type: 1,
+            data: Data(
+                [
+                    65,
+                    66,
+                    67
+                ]
+            ),
+            crc: [
+                35,
+                113
+            ]
+        },
+        CanonicalBlock {
+            block_type: 8,
+            block_number: 1,
+            block_control_flags: 0,
+            crc_type: 1,
+            data: BundleAge(
+                0
+            ),
+            crc: [
+                219,
+                204
+            ]
+        }
+    ]
+}
+```
+
+The generated hex string can also be directly discplayed as raw cbor on the awesome cbor.me website, e.g. http://cbor.me/?bytes=9f8907000182016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f78821a247966ba001ad693a4004225b686010000014341424342237186080100010042dbccff

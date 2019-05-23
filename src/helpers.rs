@@ -1,5 +1,6 @@
 use super::*;
 use rand::Rng;
+use std::num::ParseIntError;
 
 pub fn hexify(buf: &[u8]) -> String {
     let mut hexstr = String::new();
@@ -7,6 +8,12 @@ pub fn hexify(buf: &[u8]) -> String {
         hexstr = format!("{}{:02x?}", hexstr, b);
     }
     hexstr
+}
+pub fn unhexify(s: &str) -> Result<Vec<u8>, ParseIntError> {
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
+        .collect()
 }
 pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     let mut rng = rand::thread_rng();
@@ -30,7 +37,7 @@ pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
         .primary(pblock)
         .canonicals(vec![
             canonical::new_payload_block(0, b"ABC".to_vec()),
-            canonical::new_bundle_age_block(1, 0, dtn_time_now() as u64),
+            canonical::new_bundle_age_block(1, 0, 0),
         ])
         .build()
         .unwrap();

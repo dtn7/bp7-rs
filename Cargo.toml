@@ -1,6 +1,6 @@
 [package]
 name = "bp7"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["Lars Baumgaertner <baumgaertner@cs.tu-darmstadt.de>"]
 edition = "2018"
 description = "Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-13"
