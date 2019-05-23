@@ -70,7 +70,7 @@ impl Serialize for CanonicalBlock {
         seq.serialize_element(&self.block_number)?;
         seq.serialize_element(&self.block_control_flags)?;
         seq.serialize_element(&self.crc_type)?;
-        seq.serialize_element(&self.data.clone())?;
+        seq.serialize_element(&self.data)?;
 
         if self.crc_type != CRC_NO {
             seq.serialize_element(&serde_bytes::Bytes::new(&self.crc))?;
@@ -79,6 +79,7 @@ impl Serialize for CanonicalBlock {
         seq.end()
     }
 }
+
 impl<'de> Deserialize<'de> for CanonicalBlock {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -109,9 +110,31 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                 let crc_type: CRCType = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(3, &self))?;
-                let data: CanonicalData = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(4, &self))?;
+
+                let data = if block_type == PAYLOAD_BLOCK {
+                    CanonicalData::Data(
+                        seq.next_element::<serde_bytes::ByteBuf>()?
+                            .ok_or_else(|| de::Error::invalid_length(4, &self))?
+                            .into_vec(),
+                    )
+                } else if block_type == BUNDLE_AGE_BLOCK {
+                    CanonicalData::BundleAge(
+                        seq.next_element::<u64>()?
+                            .ok_or_else(|| de::Error::invalid_length(4, &self))?,
+                    )
+                } else if block_type == HOP_COUNT_BLOCK {
+                    let hc: (u32, u32) = seq
+                        .next_element::<(u32, u32)>()?
+                        .ok_or_else(|| de::Error::invalid_length(4, &self))?;
+                    CanonicalData::HopCount(hc.0, hc.1)
+                } else if block_type == PREVIOUS_NODE_BLOCK {
+                    CanonicalData::PreviousNode(
+                        seq.next_element::<EndpointID>()?
+                            .ok_or_else(|| de::Error::invalid_length(4, &self))?,
+                    )
+                } else {
+                    CanonicalData::DecodingError
+                };
                 let crc: ByteBuffer = if crc_type == CRC_NO {
                     Vec::new()
                 } else {
@@ -119,6 +142,7 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                         .ok_or_else(|| de::Error::invalid_length(5, &self))?
                         .into_vec()
                 };
+
                 Ok(CanonicalBlock {
                     block_type,
                     block_number,
@@ -204,7 +228,8 @@ impl CanonicalBlock {
         None
     }
     pub fn extension_validation_error(&self) -> Option<Bp7Error> {
-        match &self.data {
+        // TODO: reimpl checks
+        /*match &self.data {
             CanonicalData::Data(_) => {
                 if self.block_type != PAYLOAD_BLOCK {
                     return Some(Bp7Error::CanonicalBlockError(
@@ -241,7 +266,7 @@ impl CanonicalBlock {
                     return Some(err);
                 }
             }
-        }
+        }*/
         if (self.block_type > 9 && self.block_type < 192) || (self.block_type > 255) {
             return Some(Bp7Error::CanonicalBlockError(
                 "Unknown block type".to_string(),
@@ -250,7 +275,7 @@ impl CanonicalBlock {
 
         None
     }
-    pub fn get_data(&mut self) -> &CanonicalData {
+    pub fn get_data(&self) -> &CanonicalData {
         &self.data
     }
     pub fn set_data(&mut self, data: CanonicalData) {
@@ -261,10 +286,18 @@ impl CanonicalBlock {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
 pub enum CanonicalData {
+    HopCount(u32, u32),
     Data(#[serde(with = "serde_bytes")] ByteBuffer),
     BundleAge(u64),
-    HopCount(u32, u32),
     PreviousNode(EndpointID),
+    DecodingError,
+}
+impl CanonicalData {
+    pub fn to_cbor(&self) -> ByteBuffer {
+        serde_cbor::to_vec(&self)
+            .expect("CanonicalData encoding error")
+            .to_vec()
+    }
 }
 
 pub fn new_hop_count_block(

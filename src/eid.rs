@@ -357,3 +357,9 @@ impl From<String> for EndpointID {
         }
     }
 }
+
+impl From<&str> for EndpointID {
+    fn from(item: &str) -> Self {
+        EndpointID::from(String::from(item))
+    }
+}
