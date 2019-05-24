@@ -212,8 +212,8 @@ impl Block for PrimaryBlock {
     fn has_crc(&self) -> bool {
         self.crc_type != CRC_NO
     }
-    fn crc(&self) -> ByteBuffer {
-        self.crc.clone()
+    fn crc(&self) -> &[u8] {
+        &self.crc
     }
     fn set_crc_type(&mut self, crc_type: CRCType) {
         self.crc_type = crc_type;

@@ -76,7 +76,7 @@ fn bench_bundle_encode(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
     let bench_now = Instant::now();
     let dst = eid::EndpointID::with_dtn("node2/inbox".to_string());
     let src = eid::EndpointID::with_dtn("node1/123456".to_string());
-    let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);;
+    let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
     //let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
 
     let pblock = primary::PrimaryBlockBuilder::default()

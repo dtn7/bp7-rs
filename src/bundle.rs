@@ -75,7 +75,7 @@ pub trait Block: Clone {
     }
     fn set_crc_type(&mut self, crc_type: CRCType);
     fn crc_type(&self) -> CRCType;
-    fn crc(&self) -> ByteBuffer;
+    fn crc(&self) -> &[u8];
     fn set_crc(&mut self, crc: ByteBuffer);
     fn to_cbor(&self) -> ByteBuffer;
 }
