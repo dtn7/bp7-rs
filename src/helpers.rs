@@ -5,7 +5,7 @@ use std::num::ParseIntError;
 pub fn hexify(buf: &[u8]) -> String {
     let mut hexstr = String::new();
     for &b in buf {
-        hexstr = format!("{}{:02x?}", hexstr, b);
+        hexstr.push_str(&format!("{:02x?}", b));
     }
     hexstr
 }
