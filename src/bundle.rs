@@ -479,3 +479,30 @@ impl From<String> for Bundle {
         serde_json::from_str(&item).expect("Decoding Bundle failed")
     }
 }
+
+pub fn new_std_payload_bundle(src: EndpointID, dst : EndpointID, data : ByteBuffer) -> Bundle {
+    
+    let now = CreationTimestamp::now();
+    //let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
+
+    let pblock = PrimaryBlockBuilder::default()
+        .destination(dst)
+        .source(src.clone())
+        .report_to(src)
+        .creation_timestamp(now)
+        .lifetime(60 * 60 * 1_000_000)
+        .build()
+        .unwrap();
+
+    let mut b = BundleBuilder::default()
+        .primary(pblock)
+        .canonicals(vec![
+            new_payload_block(0, data),
+            new_bundle_age_block(1, 0, 0),
+        ])
+        .build()
+        .unwrap();
+    b.set_crc(CRC_32);        
+
+    b
+}
