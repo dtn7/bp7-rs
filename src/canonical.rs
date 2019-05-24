@@ -229,7 +229,7 @@ impl CanonicalBlock {
     }
     pub fn extension_validation_error(&self) -> Option<Bp7Error> {
         // TODO: reimpl checks
-        /*match &self.data {
+        match &self.data {
             CanonicalData::Data(_) => {
                 if self.block_type != PAYLOAD_BLOCK {
                     return Some(Bp7Error::CanonicalBlockError(
@@ -266,7 +266,10 @@ impl CanonicalBlock {
                     return Some(err);
                 }
             }
-        }*/
+            CanonicalData::DecodingError => {
+                return Some(Bp7Error::CanonicalBlockError("Unknown data".to_string()));
+            }
+        }
         if (self.block_type > 9 && self.block_type < 192) || (self.block_type > 255) {
             return Some(Bp7Error::CanonicalBlockError(
                 "Unknown block type".to_string(),
