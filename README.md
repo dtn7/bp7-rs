@@ -2,6 +2,9 @@
 
 [![Crates.io](https://img.shields.io/crates/v/bp7.svg)](https://crates.io/crates/bp7)
 [![Docs.rs](https://docs.rs/bp7/badge.svg)](https://docs.rs/bp7)
+[![Build status](https://api.travis-ci.org/gh0st42/bp7-rs.svg?branch=master)](https://travis-ci.org/gh0st42/bp7-rs)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE-MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE-APACHE)
 
 Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-13
 
@@ -112,3 +115,19 @@ $ bp7 decode 9f8907000182016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f788
 ```
 
 The generated hex string can also be directly discplayed as raw cbor on the awesome cbor.me website, e.g. http://cbor.me/?bytes=9f8907000182016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f78821a247966ba001ad693a4004225b686010000014341424342237186080100010042dbccff
+
+
+#### License
+
+<sup>
+Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
+2.0</a> or <a href="LICENSE-MIT">MIT license</a> at your option.
+</sup>
+
+<br>
+
+<sub>
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in bp7-rs by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
+</sub>
