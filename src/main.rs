@@ -1,19 +1,20 @@
+use bp7::dtntime::DtnTimeHelpers;
 use bp7::helpers::*;
 use bp7::*;
 use std::env;
 
-fn usage(filepath: &String) {
+fn usage(filepath: &str) {
     println!("usage {:?} <cmd> [args]", filepath);
     println!("\t decode <hexstring>");
-    println!("\t rnd");
+    println!("\t dtntime [dtntimestamp] - prints current time as dtntimestamp or prints dtntime human readable");
+    println!("\t d2u [dtntimestamp] - converts dtntime to unixstimestamp");
+    println!("\t rnd - return a hexencoded random bundle");
 }
 
-fn decode(bundle: &String) {
+fn decode(bundle: &str) {
     let buf = unhexify(bundle).unwrap();
     //println!("decode: {:02x?}", &buf);
-    dbg!(serde_cbor::from_slice::<serde_cbor::Value>(
-        &buf).unwrap()
-    );
+    dbg!(serde_cbor::from_slice::<serde_cbor::Value>(&buf).unwrap());
     let bndl: Bundle = buf.into();
     dbg!(&bndl);
 }
@@ -35,6 +36,22 @@ fn main() {
         "decode" => {
             if args.len() == 3 {
                 decode(&args[2]);
+            } else {
+                usage(&args[0]);
+            }
+        }
+        "dtntime" => {
+            if args.len() == 3 {
+                let ts: bp7::dtntime::DtnTime = args[2].parse::<u64>().expect("invalid timestamp");
+                println!("{}", ts.string());
+            } else {
+                println!("{}", bp7::dtn_time_now());
+            }
+        }
+        "d2u" => {
+            if args.len() == 3 {
+                let ts: bp7::dtntime::DtnTime = args[2].parse::<u64>().expect("invalid timestamp");
+                println!("{}", ts.unix());
             } else {
                 usage(&args[0]);
             }

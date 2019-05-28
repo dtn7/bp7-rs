@@ -2,7 +2,7 @@ use bp7::canonical;
 
 #[test]
 fn canonical_data_tests() {
-    let data = canonical::CanonicalData::Data("bla".as_bytes().to_vec());
+    let data = canonical::CanonicalData::Data(b"bla".to_vec());
     let encoded_data = serde_cbor::to_vec(&data).expect("encoding error");
     let decoded_data: canonical::CanonicalData =
         serde_cbor::from_slice(&encoded_data).expect("decoding error");
