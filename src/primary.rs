@@ -175,6 +175,10 @@ impl PrimaryBlock {
     pub fn has_fragmentation(&self) -> bool {
         self.bundle_control_flags.has(BUNDLE_IS_FRAGMENT)
     }
+    pub fn is_lifetime_exceeded(&self) -> bool {
+        let now = crate::dtn_time_now();
+        self.creation_timestamp.get_dtntime() + self.lifetime <= now
+    }
     pub fn validation_errors(&self) -> Option<Bp7ErrorList> {
         let mut errors: Bp7ErrorList = Vec::new();
 
