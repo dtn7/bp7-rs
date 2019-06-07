@@ -284,10 +284,67 @@ impl CanonicalBlock {
     pub fn set_data(&mut self, data: CanonicalData) {
         self.data = data;
     }
+
+    pub fn hop_count_get(&self) -> Option<(u32, u32)> {
+        if self.block_type == HOP_COUNT_BLOCK {
+            if let CanonicalData::HopCount(hc_limit, hc_count) = self.get_data() {
+                return Some((*hc_limit, *hc_count));
+            }
+        }
+        None
+    }
+    pub fn hop_count_increase(&mut self) -> bool {
+        if let Some((hc_limit, mut hc_count)) = self.hop_count_get() {
+            hc_count += 1;
+            self.set_data(CanonicalData::HopCount(hc_limit, hc_count));
+            return true;
+        }
+        false
+    }
+    pub fn hop_count_exceeded(&self) -> bool {
+        if self.block_type == HOP_COUNT_BLOCK {
+            if let CanonicalData::HopCount(hc_limit, hc_count) = self.get_data() {
+                if *hc_count > *hc_limit {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+    pub fn bundle_age_update(&mut self, age: u64) -> bool {
+        if let Some(_) = self.bundle_age_get() {
+            self.set_data(CanonicalData::BundleAge(age));
+            return true;
+        }
+        false
+    }
+    pub fn bundle_age_get(&self) -> Option<u64> {
+        if self.block_type == BUNDLE_AGE_BLOCK {
+            if let CanonicalData::BundleAge(age) = self.get_data() {
+                return Some(*age);
+            }
+        }
+        None
+    }
+    pub fn previous_node_update(&mut self, nodeid: EndpointID) -> bool {
+        if let Some(_) = self.previous_node_get() {
+            self.set_data(CanonicalData::PreviousNode(nodeid));
+            return true;
+        }
+        false
+    }
+    pub fn previous_node_get(&self) -> Option<&EndpointID> {
+        if self.block_type == PREVIOUS_NODE_BLOCK {
+            if let CanonicalData::PreviousNode(eid) = self.get_data() {
+                return Some(eid);
+            }
+        }
+        None
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order
+#[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order, circumvented by intelligent canonical deserializer
 pub enum CanonicalData {
     HopCount(u32, u32),
     Data(#[serde(with = "serde_bytes")] ByteBuffer),
@@ -312,7 +369,7 @@ pub fn new_hop_count_block(
         .block_type(HOP_COUNT_BLOCK)
         .block_number(block_number)
         .block_control_flags(bcf)
-        .data(CanonicalData::HopCount(0, limit))
+        .data(CanonicalData::HopCount(limit, 0))
         .build()
         .unwrap()
 }
