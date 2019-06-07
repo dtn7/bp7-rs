@@ -147,9 +147,9 @@ impl Serialize for BundleStatusItem {
         S: Serializer,
     {
         let num_elems = if self.asserted && self.status_requested {
-            1
-        } else {
             2
+        } else {
+            1
         };
 
         let mut seq = serializer.serialize_seq(Some(num_elems))?;
@@ -185,7 +185,7 @@ impl<'de> Deserialize<'de> for BundleStatusItem {
 
                 let mut status_requested = false;
 
-                let time = if seq.size_hint() == Some(1) {
+                let time: crate::DtnTime = if seq.size_hint() == Some(1) {
                     status_requested = true;
                     seq.next_element::<DtnTime>()?
                         .ok_or_else(|| de::Error::invalid_length(1, &self))?
@@ -297,7 +297,6 @@ impl<'de> Deserialize<'de> for StatusReport {
                 let status_information: Vec<BundleStatusItem> = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-
                 let report_reason: StatusReportReason = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(1, &self))?;
