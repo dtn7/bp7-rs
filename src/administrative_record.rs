@@ -136,9 +136,9 @@ pub const HOP_LIMIT_EXCEEDED: StatusReportReason = 9;
 // in the bundle status information array of each Bundle Status Report.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BundleStatusItem {
-    asserted: bool,
-    time: crate::DtnTime,
-    status_requested: bool,
+    pub asserted: bool,
+    pub time: crate::DtnTime,
+    pub status_requested: bool,
 }
 
 impl Serialize for BundleStatusItem {
@@ -249,12 +249,12 @@ pub const DELETED_BUNDLE: StatusInformationPos = 3;
 // StatusReport is the bundle status report, used in an administrative record.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StatusReport {
-    status_information: Vec<BundleStatusItem>,
-    report_reason: StatusReportReason,
-    source_node: EndpointID,
-    timestamp: CreationTimestamp,
-    frag_offset: u64,
-    frag_len: u64,
+    pub status_information: Vec<BundleStatusItem>,
+    pub report_reason: StatusReportReason,
+    pub source_node: EndpointID,
+    pub timestamp: CreationTimestamp,
+    pub frag_offset: u64,
+    pub frag_len: u64,
 }
 
 impl Serialize for StatusReport {
