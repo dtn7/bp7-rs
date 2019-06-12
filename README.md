@@ -8,9 +8,7 @@
 
 Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-13
 
-This library only handles encoding and decoding of bundles, not transmission or other processing of the data.
-
-This is more or less a port of the dtn7 golang implementation: https://github.com/dtn7/dtn7
+This library only handles encoding and decoding of bundles, not transmission or other processing of the data. A full daemon using this library can be found here: https://github.com/gh0st42/dtn7-rs
 
 **This code is not production ready!**
 
@@ -41,10 +39,11 @@ For debugging a small helper tool is shipped:
 ```
 $ cargo install bp7
 [...]
-$ bp7
-usage "bp7" <cmd> [args]
-	decode <hexstring>
-	rnd
+$ usage "bp7" <cmd> [args]
+	 decode <hexstring>
+	 dtntime [dtntimestamp] - prints current time as dtntimestamp or prints dtntime human readable
+	 d2u [dtntimestamp] - converts dtntime to unixstimestamp
+	 rnd - return a hexencoded random bundle
 $ bp7 rnd
 9f8907000182016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f78821a247966ba001ad693a4004225b686010000014341424342237186080100010042dbccff
 
