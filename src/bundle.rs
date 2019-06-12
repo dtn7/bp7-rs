@@ -464,6 +464,31 @@ impl Bundle {
         }
         id
     }
+
+    // Update extension blocks such as hop count, bundle age and previous node.
+    // Return true if all successful, omit missing blocks.
+    // Return false if hop count is exceeded, bundle age exceeds life time or bundle lifetime itself is exceeded
+    pub fn update_extensions(&mut self, local_node: EndpointID, residence_time: u64) -> bool {
+        if let Some(hcblock) = self.extension_block(HOP_COUNT_BLOCK) {
+            hcblock.hop_count_increase();
+            if hcblock.hop_count_exceeded() {
+                return false;
+            }
+        }
+        if let Some(pnblock) = self.extension_block(PREVIOUS_NODE_BLOCK) {
+            pnblock.previous_node_update(local_node);
+        }
+        if let Some(bablock) = self.extension_block(BUNDLE_AGE_BLOCK) {
+            if let Some(ba_orig) = bablock.bundle_age_get() {
+                bablock.bundle_age_update(ba_orig + residence_time);
+                if ba_orig + residence_time > self.primary.lifetime * 1000 {
+                    // lifetime exceeded
+                    return false;
+                }
+            }
+        }
+        !self.primary.is_lifetime_exceeded()
+    }
 }
 
 /// Deserialize from CBOR byte buffer.
@@ -480,8 +505,7 @@ impl From<String> for Bundle {
     }
 }
 
-pub fn new_std_payload_bundle(src: EndpointID, dst : EndpointID, data : ByteBuffer) -> Bundle {
-    
+pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer) -> Bundle {
     let now = CreationTimestamp::now();
     //let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
 
@@ -502,7 +526,7 @@ pub fn new_std_payload_bundle(src: EndpointID, dst : EndpointID, data : ByteBuff
         ])
         .build()
         .unwrap();
-    b.set_crc(CRC_32);        
+    b.set_crc(CRC_32);
 
     b
 }
