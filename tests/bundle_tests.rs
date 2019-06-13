@@ -82,6 +82,7 @@ fn new_complete_bundle_invalid(crc_type: bp7::crc::CRCType) -> Bundle {
     assert!(b.validation_errors().is_some());
     b
 }
+
 #[test]
 fn bundle_tests() {
     let mut bndl = new_complete_bundle(crc::CRC_NO);
