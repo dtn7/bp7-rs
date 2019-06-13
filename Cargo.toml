@@ -8,6 +8,13 @@ license = "MIT OR Apache-2.0"
 repository    = "https://github.com/gh0st42/bp7-rs"
 categories    = ["encoding"]
 
+[dev-dependencies]
+criterion = "0.2"
+
+[[bench]]
+name = "benchmark"
+harness = false
+
 [dependencies]
 chrono = "0.4"
 serde = { version = "1.0", features = ["derive"] }
