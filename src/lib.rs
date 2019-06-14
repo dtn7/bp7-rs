@@ -49,3 +49,51 @@ pub use canonical::*;
 pub use dtntime::{dtn_time_now, CreationTimestamp, DtnTime};
 pub use eid::{EndpointID, DTN_NONE};
 pub use helpers::hexify;
+
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+extern "C" {
+    fn alert(s: &str);
+}
+
+#[wasm_bindgen]
+pub fn greet(name: &str) {
+    alert(&format!("Hello, {}!", name));
+}
+
+#[wasm_bindgen]
+pub fn get_encoded_bundle_with_time(unix_time: u32, crc_type: crc::CRCType) -> ByteBuffer {
+    let dst = eid::EndpointID::with_dtn("node2/inbox".to_string());
+    let src = eid::EndpointID::with_dtn("node1/123456".to_string());
+    let now = dtntime::CreationTimestamp::with_time_and_seq(
+        unix_time as u64 - dtntime::SECONDS1970_TO2K,
+        0,
+    );;
+    //let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
+
+    let pblock = primary::PrimaryBlockBuilder::default()
+        .destination(dst)
+        .source(src.clone())
+        .report_to(src)
+        .creation_timestamp(now)
+        .lifetime(60 * 60 * 1_000_000)
+        .build()
+        .unwrap();
+
+    let mut b = bundle::BundleBuilder::default()
+        .primary(pblock)
+        .canonicals(vec![
+            canonical::new_payload_block(0, b"ABC".to_vec()),
+            canonical::new_bundle_age_block(
+                1, // block number
+                0, // flags
+                0, // time elapsed
+            ),
+        ])
+        .build()
+        .unwrap();
+    b.set_crc(crc_type);
+    b.validation_errors();
+    b.to_cbor()
+}

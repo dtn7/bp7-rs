@@ -19,3 +19,7 @@ Cargo.lock
 #Cargo.lock
 
 /devstuff
+
+/wasm/node_modules
+/wasm/bp7*
+package-lock.json

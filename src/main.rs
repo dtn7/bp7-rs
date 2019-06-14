@@ -12,7 +12,7 @@ fn usage(filepath: &str) {
 }
 
 fn decode(bundle: &str) {
-    let buf = unhexify(bundle).unwrap();
+    let buf: Vec<u8> = unhexify(bundle).unwrap();
     //println!("decode: {:02x?}", &buf);
     dbg!(serde_cbor::from_slice::<serde_cbor::Value>(&buf).unwrap());
     let bndl: Bundle = buf.into();
