@@ -50,6 +50,9 @@ pub use dtntime::{dtn_time_now, CreationTimestamp, DtnTime};
 pub use eid::{EndpointID, DTN_NONE};
 pub use helpers::hexify;
 
+use std::io::stdout;
+use std::io::Write;
+
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -60,6 +63,25 @@ extern "C" {
 #[wasm_bindgen]
 pub fn greet(name: &str) {
     alert(&format!("Hello, {}!", name));
+}
+
+#[wasm_bindgen]
+pub fn do_benchmark_load(runs: i32, crc_type: crc::CRCType) {
+    /*    let crcno = bench_bundle_create(RUNS, crc::CRC_NO);
+    let crc16 = bench_bundle_create(RUNS, crc::CRC_16);
+    let crc32 = bench_bundle_create(RUNS, crc::CRC_32);
+
+    //print!("{:x?}", crcno[0]);
+    //println!("{}", bp7::hexify(&crcno[0]));
+
+    bench_bundle_encode(RUNS, crc::CRC_NO);
+    bench_bundle_encode(RUNS, crc::CRC_16);
+    bench_bundle_encode(RUNS, crc::CRC_32);*/
+
+    //alert(&format!("benching {}!", runs));
+    benchmark_bundle_load(runs, crc_type);
+    //benchmark_bundle_load(runs, crc::CRC_16);
+    //benchmark_bundle_load(runs, crc::CRC_32);
 }
 
 #[wasm_bindgen]
@@ -96,4 +118,109 @@ pub fn get_encoded_bundle_with_time(unix_time: u32, crc_type: crc::CRCType) -> B
     b.set_crc(crc_type);
     b.validation_errors();
     b.to_cbor()
+}
+
+#[wasm_bindgen]
+pub fn benchmark_bundle_load(runs: i32, crc_type: crc::CRCType) {
+    let crc_str = match crc_type {
+        crc::CRC_NO => "CRC_NO",
+        crc::CRC_16 => "CRC_16",
+        crc::CRC_32 => "CRC_32",
+        _ => panic!("CRC_unknown"),
+    };
+    print!("Loading {} bundles with {}: \t", runs, crc_str);
+    stdout().flush().unwrap();
+
+    let dst = eid::EndpointID::with_dtn("node2/inbox".to_string());
+    let src = eid::EndpointID::with_dtn("node1/123456".to_string());
+
+    let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
+
+    let pblock = primary::PrimaryBlockBuilder::default()
+        .destination(dst)
+        .source(src.clone())
+        .report_to(src)
+        .creation_timestamp(now)
+        .lifetime(60 * 60 * 1_000_000)
+        .build()
+        .unwrap();
+
+    let mut b = bundle::BundleBuilder::default()
+        .primary(pblock)
+        .canonicals(vec![
+            canonical::new_payload_block(0, b"ABC".to_vec()),
+            canonical::new_bundle_age_block(
+                1, // block number
+                0, // flags
+                0, // time elapsed
+            ),
+        ])
+        .build()
+        .unwrap();
+    b.set_crc(crc_type);
+    b.validation_errors();
+    let bndl = b.to_cbor();
+
+    //use std::time::Instant;
+    //let bench_now = Instant::now();
+
+    for _x in 0..runs {
+        //let b = bundles.pop().unwrap();
+        let _deserialized: Bundle = Bundle::from(bndl.clone());
+        _deserialized.validation_errors();
+    }
+    //let elapsed = bench_now.elapsed();
+    //let sec = (elapsed.as_secs() as f64) + (f64::from(elapsed.subsec_nanos()) / 1_000_000_000.0);
+    //println!("{} bundles/second", (runs as f64 / sec) as i64);
+}
+
+#[wasm_bindgen]
+pub fn benchmark_bundle_encode(runs: i32, crc_type: crc::CRCType) {
+    let crc_str = match crc_type {
+        crc::CRC_NO => "CRC_NO",
+        crc::CRC_16 => "CRC_16",
+        crc::CRC_32 => "CRC_32",
+        _ => panic!("CRC_unknown"),
+    };
+    print!("Loading {} bundles with {}: \t", runs, crc_str);
+    stdout().flush().unwrap();
+
+    let dst = eid::EndpointID::with_dtn("node2/inbox".to_string());
+    let src = eid::EndpointID::with_dtn("node1/123456".to_string());
+
+    let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
+
+    let pblock = primary::PrimaryBlockBuilder::default()
+        .destination(dst)
+        .source(src.clone())
+        .report_to(src)
+        .creation_timestamp(now)
+        .lifetime(60 * 60 * 1_000_000)
+        .build()
+        .unwrap();
+
+    let mut b = bundle::BundleBuilder::default()
+        .primary(pblock)
+        .canonicals(vec![
+            canonical::new_payload_block(0, b"ABC".to_vec()),
+            canonical::new_bundle_age_block(
+                1, // block number
+                0, // flags
+                0, // time elapsed
+            ),
+        ])
+        .build()
+        .unwrap();
+    b.set_crc(crc_type);
+    b.validation_errors();
+
+    //use std::time::Instant;
+    //let bench_now = Instant::now();
+
+    for _x in 0..runs {
+        let bndl = b.to_cbor();
+    }
+    //let elapsed = bench_now.elapsed();
+    //let sec = (elapsed.as_secs() as f64) + (f64::from(elapsed.subsec_nanos()) / 1_000_000_000.0);
+    //println!("{} bundles/second", (runs as f64 / sec) as i64);
 }

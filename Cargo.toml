@@ -8,8 +8,8 @@ license = "MIT OR Apache-2.0"
 repository    = "https://github.com/gh0st42/bp7-rs"
 categories    = ["encoding"]
 
-#[lib]
-#crate-type = ["cdylib"]
+[lib]
+crate-type = ["cdylib"]
 
 [dev-dependencies]
 criterion = "0.2"
