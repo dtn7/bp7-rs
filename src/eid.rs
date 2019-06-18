@@ -74,7 +74,7 @@ impl<'de> Deserialize<'de> for EndpointID {
             type Value = EndpointID;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("packet")
+                formatter.write_str("EndpointID")
             }
 
             fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
@@ -128,8 +128,8 @@ impl EndpointID {
     ///
     /// assert_eq!(EndpointID::with_dtn("node1/endpoint1".to_string()),EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN,"node1/endpoint1".to_string()));
     /// ```
-    pub fn with_dtn(addr: String) -> EndpointID {
-        EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, addr)
+    pub fn with_dtn(addr: &str) -> EndpointID {
+        EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, addr.into())
     }
     /// # Examples
     ///
@@ -341,7 +341,7 @@ impl From<String> for EndpointID {
                 if host.ends_with('/') {
                     host.truncate(host.len() - 1);
                 }
-                EndpointID::with_dtn(host)
+                EndpointID::with_dtn(&host)
             }
             "ipn" => {
                 let fields: Vec<&str> = host.split('.').collect();

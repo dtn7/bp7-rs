@@ -1,8 +1,8 @@
 use bp7::*;
 
 fn new_complete_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
-    let dst = eid::EndpointID::with_dtn("node2/inbox".to_string());
-    let src = eid::EndpointID::with_dtn("node1/123456".to_string());
+    let dst = eid::EndpointID::with_dtn("node2/inbox");
+    let src = eid::EndpointID::with_dtn("node1/123456");
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
 
     let pblock = primary::PrimaryBlockBuilder::default()
@@ -42,8 +42,8 @@ fn new_complete_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
     b
 }
 fn new_complete_bundle_invalid(crc_type: bp7::crc::CRCType) -> Bundle {
-    let dst = eid::EndpointID::with_dtn("node2/inbox".to_string());
-    let src = eid::EndpointID::with_dtn("node1/123456".to_string());
+    let dst = eid::EndpointID::with_dtn("node2/inbox");
+    let src = eid::EndpointID::with_dtn("node1/123456");
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
 
     let pblock = primary::PrimaryBlockBuilder::default()

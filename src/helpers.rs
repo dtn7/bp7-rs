@@ -19,8 +19,8 @@ pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     let mut rng = rand::thread_rng();
     let dst_string = format!("node{}/inbox", rng.gen_range(1, 4));
     let src_string = format!("node{}/inbox", rng.gen_range(1, 4));
-    let dst = eid::EndpointID::with_dtn(dst_string);
-    let src = eid::EndpointID::with_dtn(src_string);
+    let dst = eid::EndpointID::with_dtn(&dst_string);
+    let src = eid::EndpointID::with_dtn(&src_string);
     //let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);;
     //let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
 
