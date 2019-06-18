@@ -64,7 +64,7 @@ pub trait Block: Clone {
         let new_crc = calculate_crc(self);
         self.set_crc(new_crc);
     }
-    fn check_crc(&self) -> bool {
+    fn check_crc(&mut self) -> bool {
         check_crc(self)
     }
     /// Reset crc field to an empty value
@@ -401,11 +401,11 @@ impl Bundle {
         }
     }
     /// Check whether a bundle has only valid CRC checksums in all blocks.
-    pub fn crc_valid(&self) -> bool {
+    pub fn crc_valid(&mut self) -> bool {
         if !self.primary.check_crc() {
             return false;
         }
-        for b in &self.canonicals {
+        for b in &mut self.canonicals {
             if !b.check_crc() {
                 return false;
             }

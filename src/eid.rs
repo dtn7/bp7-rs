@@ -85,7 +85,7 @@ impl<'de> Deserialize<'de> for EndpointID {
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
                 if eid_type == ENDPOINT_URI_SCHEME_DTN {
-                    // TODO: rewrite to check following typ, currently if not string return dtn:none
+                    // TODO: rewrite to check following type, currently if not string return dtn:none
                     let name: String = seq.next_element().unwrap_or_default().unwrap_or_default();
                     if name == "" {
                         Ok(EndpointID::with_dtn_none())

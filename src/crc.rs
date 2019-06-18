@@ -11,6 +11,7 @@ pub type CRCType = u8;
 use byteorder::{BigEndian, ByteOrder};
 use crc::{crc16, crc32};
 
+
 pub const CRC_NO: CRCType = 0;
 pub const CRC_16: CRCType = 1;
 pub const CRC_32: CRCType = 2;
@@ -37,21 +38,22 @@ pub fn empty_crc(crc_type: CRCType) -> Result<ByteBuffer, Bp7Error> {
     }
 }
 
-pub fn block_to_bytes<T: Block + Clone>(blck: &T) -> ByteBuffer {
-    let temp_blck = &mut blck.clone();
-    temp_blck.reset_crc();
-    temp_blck.to_cbor()
-}
-pub fn calculate_crc<T: Block + Clone>(blck: &T) -> ByteBuffer {
+pub fn calculate_crc<T: Block + Clone>(blck: &mut T) -> ByteBuffer {
     let mut output_crc = empty_crc(blck.crc_type()).unwrap();
-    let data = block_to_bytes(blck);
+
     match blck.crc_type() {
         CRC_NO => return output_crc,
         CRC_16 => {
+            blck.reset_crc();
+            let data = blck.to_cbor(); // TODO: optimize this encoding away
+                                       // also tried crc16 crate, not a bit faster
             let chksm = crc16::checksum_x25(&data);
             BigEndian::write_u16(&mut output_crc, chksm);
         }
         CRC_32 => {
+            blck.reset_crc();
+            let data = blck.to_cbor(); // TODO: optimize this encoding away
+                                       // also tried crc32fast, was not significantly faster
             let chksm = crc32::checksum_castagnoli(&data);
             BigEndian::write_u32(&mut output_crc, chksm);
         }
@@ -62,9 +64,9 @@ pub fn calculate_crc<T: Block + Clone>(blck: &T) -> ByteBuffer {
 
     output_crc
 }
-pub fn check_crc<T: Block + Clone>(blck: &T) -> bool {
+pub fn check_crc<T: Block + Clone>(blck: &mut T) -> bool {
     if !blck.has_crc() {
-        return blck.has_crc();
+        return !blck.has_crc();
     }
-    (&blck).crc() == calculate_crc(blck).as_slice()
+    blck.crc().to_vec() == calculate_crc(blck)
 }

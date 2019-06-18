@@ -10,6 +10,7 @@ fn get_bench_bundle(crc_type: crc::CRCType) -> Bundle {
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);;
     //let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
 
+    //let pblock = primary::new_primary_block("dtn:node2/inbox".to_string(), "dtn:node1/123456".to_string(), now, 60 * 60 * 1_000_000);
     let pblock = primary::PrimaryBlockBuilder::default()
         .destination(dst)
         .source(src.clone())
@@ -18,17 +19,18 @@ fn get_bench_bundle(crc_type: crc::CRCType) -> Bundle {
         .lifetime(60 * 60 * 1_000_000)
         .build()
         .unwrap();
-
+    let cblocks = vec![
+        canonical::new_payload_block(0, b"ABC".to_vec()),
+        canonical::new_bundle_age_block(
+            1, // block number
+            0, // flags
+            0, // time elapsed
+        ),
+    ];
+    //let mut b = bundle::Bundle::new(pblock, cblocks);
     let mut b = bundle::BundleBuilder::default()
         .primary(pblock)
-        .canonicals(vec![
-            canonical::new_payload_block(0, b"ABC".to_vec()),
-            canonical::new_bundle_age_block(
-                1, // block number
-                0, // flags
-                0, // time elapsed
-            ),
-        ])
+        .canonicals(cblocks)
         .build()
         .unwrap();
     b.set_crc(crc_type);
@@ -117,21 +119,21 @@ fn bench_bundle_load(runs: i64, crc_type: crc::CRCType, mut bundles: Vec<ByteBuf
 }
 fn main() {
     let crcno = bench_bundle_create(RUNS, crc::CRC_NO);
-    let crc16 = bench_bundle_create(RUNS, crc::CRC_16);
-    let crc32 = bench_bundle_create(RUNS, crc::CRC_32);
+    //let crc16 = bench_bundle_create(RUNS, crc::CRC_16);
+    //let crc32 = bench_bundle_create(RUNS, crc::CRC_32);
 
     //print!("{:x?}", crcno[0]);
     //println!("{}", bp7::hexify(&crcno[0]));
 
-    bench_bundle_encode(RUNS, crc::CRC_NO);
-    bench_bundle_encode(RUNS, crc::CRC_16);
-    bench_bundle_encode(RUNS, crc::CRC_32);
+    //bench_bundle_encode(RUNS, crc::CRC_NO);
+    //bench_bundle_encode(RUNS, crc::CRC_16);
+    //bench_bundle_encode(RUNS, crc::CRC_32);
 
     bench_bundle_load(RUNS, crc::CRC_NO, crcno.clone());
-    bench_bundle_load(RUNS, crc::CRC_16, crc16.clone());
-    bench_bundle_load(RUNS, crc::CRC_32, crc32.clone());
+    //bench_bundle_load(RUNS, crc::CRC_16, crc16.clone());
+    //bench_bundle_load(RUNS, crc::CRC_32, crc32.clone());
 
-    dbg!(crcno[0].len());
-    dbg!(crc16[0].len());
-    dbg!(crc32[0].len());
+    //dbg!(crcno[0].len());
+    //dbg!(crc16[0].len());
+    //dbg!(crc32[0].len());
 }
