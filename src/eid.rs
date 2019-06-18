@@ -124,9 +124,9 @@ impl EndpointID {
     /// ```
     /// use bp7::eid::*;
     ///
-    /// assert_eq!(EndpointID::with_dtn("node1".to_string()),EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN,"node1".to_string()));
+    /// assert_eq!(EndpointID::with_dtn("node1"),EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN,"node1".to_string()));
     ///
-    /// assert_eq!(EndpointID::with_dtn("node1/endpoint1".to_string()),EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN,"node1/endpoint1".to_string()));
+    /// assert_eq!(EndpointID::with_dtn("node1/endpoint1"),EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN,"node1/endpoint1".to_string()));
     /// ```
     pub fn with_dtn(addr: &str) -> EndpointID {
         EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, addr.into())

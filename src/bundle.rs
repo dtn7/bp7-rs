@@ -3,6 +3,7 @@ use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::fmt;
+use std::hash::Hash;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::canonical::*;
@@ -265,6 +266,14 @@ impl<'de> Deserialize<'de> for Bundle {
         deserializer.deserialize_any(BundleVisitor)
     }
 }
+fn has_unique_elements<T>(iter: T) -> bool
+where
+    T: IntoIterator,
+    T::Item: Eq + Hash,
+{
+    let mut uniq = std::collections::HashSet::new();
+    iter.into_iter().all(move |x| uniq.insert(x))
+}
 
 impl Default for Bundle {
     fn default() -> Self {
@@ -310,9 +319,15 @@ impl Bundle {
         b.set_crc(crate::crc::CRC_32);
         b
     }
+
     /// Validate bundle and optionally return list of errors.
     pub fn validation_errors(&self) -> Option<Bp7ErrorList> {
         let mut errors: Bp7ErrorList = Vec::new();
+        //let mut block_numbers: Vec<CanonicalBlockNumberType> = Vec::new();
+        //let mut block_types: Vec<CanonicalBlockType> = Vec::new();
+
+        let mut b_num = std::collections::HashSet::new();
+        let mut b_types = std::collections::HashSet::new();
 
         if let Some(mut err) = self.primary.validation_errors() {
             errors.append(&mut err);
@@ -321,34 +336,42 @@ impl Bundle {
             if let Some(mut err) = blck.validation_errors() {
                 errors.append(&mut err);
             }
-        }
-        if self
-            .primary
-            .bundle_control_flags
-            .has(BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
-            || self.primary.source == DTN_NONE
-        {
-            for cb in &self.canonicals {
-                if cb.block_control_flags.has(BLOCK_STATUS_REPORT) {
-                    errors.push(Bp7Error::BundleError(
+            if (self
+                .primary
+                .bundle_control_flags
+                .has(BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
+                || self.primary.source == DTN_NONE)
+                && blck.block_control_flags.has(BLOCK_STATUS_REPORT)
+            {
+                errors.push(Bp7Error::BundleError(
                         "Bundle Processing Control Flags indicate that this bundle's payload is an administrative record or the source node is omitted, but the \"Transmit status report if block cannot be processed\" Block Processing Control Flag was set in a Canonical Block".to_string()
                     ));
-                }
             }
+            if !b_num.insert(blck.block_number) {
+                errors.push(Bp7Error::BundleError(
+                    "Block numbers occurred multiple times".to_string(),
+                ));
+            }
+            if !b_types.insert(blck.block_type)
+                && (blck.block_type == BUNDLE_AGE_BLOCK
+                    || blck.block_type == HOP_COUNT_BLOCK
+                    || blck.block_type == PREVIOUS_NODE_BLOCK)
+            {
+                errors.push(Bp7Error::BundleError(
+                    "PreviousNode, BundleAge and HopCound blocks must not occure multiple times"
+                        .to_string(),
+                ));
+            }
+            //block_numbers.push(blck.block_number);
+            //block_types.push(blck.block_type);
         }
-        let block_numbers = self
-            .canonicals
-            .iter()
-            .map(|e| e.block_number)
-            .collect::<Vec<CanonicalBlockNumberType>>();
+        /*if !has_unique_elements(block_numbers) {
+            errors.push(Bp7Error::BundleError(
+                "Block numbers occurred multiple times".to_string(),
+            ));
+        }*/
 
-        let block_types = self
-            .canonicals
-            .iter()
-            .map(|e| e.block_number)
-            .collect::<Vec<CanonicalBlockNumberType>>();
-
-        if (1..block_numbers.len()).any(|i| block_numbers[i..].contains(&block_numbers[i - 1])) {
+        /*if (1..block_numbers.len()).any(|i| block_numbers[i..].contains(&block_numbers[i - 1])) {
             errors.push(Bp7Error::BundleError(
                 "Block numbers occurred multiple times".to_string(),
             ));
@@ -374,9 +397,8 @@ impl Bundle {
                 "PreviousNode, BundleAge and HopCound blocks must not occure multiple times"
                     .to_string(),
             ));
-        }
-        if self.primary.creation_timestamp.get_dtntime() == 0
-            && !block_types.contains(&BUNDLE_AGE_BLOCK)
+        }*/
+        if self.primary.creation_timestamp.get_dtntime() == 0 && b_types.contains(&BUNDLE_AGE_BLOCK)
         {
             errors.push(Bp7Error::BundleError(
                 "Creation Timestamp is zero, but no Bundle Age block is present".to_string(),

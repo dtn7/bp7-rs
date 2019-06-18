@@ -47,8 +47,7 @@ fn bench_bundle_create(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
         crc::CRC_32 => "CRC_32",
         _ => panic!("CRC_unknown"),
     };
-    let mut bundles: Vec<ByteBuffer> = Vec::new();
-    //let mut bundles: Vec<String> = Vec::new();
+    let mut bundles: Vec<ByteBuffer> = Vec::with_capacity(runs as usize);    
 
     print!("Creating {} bundles with {}: \t", RUNS, crc_str);
     stdout().flush().unwrap();
@@ -75,7 +74,7 @@ fn bench_bundle_encode(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
         crc::CRC_32 => "CRC_32",
         _ => panic!("CRC_unknown"),
     };
-    let mut bundles: Vec<ByteBuffer> = Vec::new();
+    let mut bundles: Vec<ByteBuffer> = Vec::with_capacity(runs as usize);
     //let mut bundles: Vec<String> = Vec::new();
 
     print!("Encoding {} bundles with {}: \t", RUNS, crc_str);

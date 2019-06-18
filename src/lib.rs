@@ -5,8 +5,8 @@
 //! ```
 //! use bp7::{bundle, canonical, crc, dtntime, eid, primary};
 //!
-//! let dst = eid::EndpointID::with_dtn("node2/inbox".to_string());
-//! let src = eid::EndpointID::with_dtn("node1/123456".to_string());
+//! let dst = eid::EndpointID::with_dtn("node2/inbox");
+//! let src = eid::EndpointID::with_dtn("node1/123456");
 //! //let now = dtntime::CreationTimestamp::now();
 //! let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);
 //! let pblock = primary::PrimaryBlockBuilder::default()
