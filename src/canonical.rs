@@ -354,9 +354,7 @@ pub enum CanonicalData {
 }
 impl CanonicalData {
     pub fn to_cbor(&self) -> ByteBuffer {
-        serde_cbor::to_vec(&self)
-            .expect("CanonicalData encoding error")
-            .to_vec()
+        serde_cbor::to_vec(&self).expect("CanonicalData encoding error")
     }
 }
 
@@ -403,6 +401,14 @@ pub fn new_bundle_age_block(
     bcf: BlockControlFlags,
     time: u64,
 ) -> CanonicalBlock {
+    /*CanonicalBlock {
+        block_type: BUNDLE_AGE_BLOCK,
+        crc_type: crate::crc::CRC_NO,
+        block_number,
+        block_control_flags: bcf,
+        data: CanonicalData::BundleAge(time),
+        crc: Vec::new(),
+    }*/
     CanonicalBlockBuilder::default()
         .block_type(BUNDLE_AGE_BLOCK)
         .block_number(block_number)

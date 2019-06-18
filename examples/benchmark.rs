@@ -29,12 +29,14 @@ fn get_bench_bundle(crc_type: crc::CRCType) -> Bundle {
             0, // time elapsed
         ),
     ];
-    //let mut b = bundle::Bundle::new(pblock, cblocks);
-    let mut b = bundle::BundleBuilder::default()
+    //let cblocks = Vec::new();
+    let mut b = bundle::Bundle::new(pblock, cblocks);
+    // bundle builder is significantly slower!
+    /*let mut b = bundle::BundleBuilder::default()
         .primary(pblock)
         .canonicals(cblocks)
         .build()
-        .unwrap();
+        .unwrap();*/
     b.set_crc(crc_type);
     b.validation_errors();
     b

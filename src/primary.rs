@@ -234,8 +234,8 @@ impl Block for PrimaryBlock {
     }
 }
 pub fn new_primary_block(
-    dst: String,
-    src: String,
+    dst: &str,
+    src: &str,
     creation_timestamp: CreationTimestamp,
     lifetime: u64,
 ) -> PrimaryBlock {
