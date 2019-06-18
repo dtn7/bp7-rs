@@ -23,18 +23,16 @@ fn bench_bundle_create(crc_type: crc::CRCType) -> ByteBuffer {
         .build()
         .unwrap();
 
-    let mut b = bundle::BundleBuilder::default()
-        .primary(pblock)
-        .canonicals(vec![
+    let cblocks = vec![
             canonical::new_payload_block(0, b"ABC".to_vec()),
             canonical::new_bundle_age_block(
                 1, // block number
                 0, // flags
                 0, // time elapsed
             ),
-        ])
-        .build()
-        .unwrap();
+        ];
+    let mut b = bundle::Bundle::new(pblock, cblocks);
+
     b.set_crc(crc_type);
     b.validation_errors();
     b.to_cbor()
