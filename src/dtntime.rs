@@ -1,8 +1,6 @@
-use chrono::prelude::DateTime;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicUsize, Ordering};
-
+use humantime::format_rfc3339;
 use std::fmt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -24,9 +22,8 @@ impl DtnTimeHelpers for DtnTime {
 
     /// Convert to human readable rfc3339 compliant time string.
     fn string(self) -> String {
-        let d = UNIX_EPOCH + Duration::from_secs(self + SECONDS1970_TO2K);
-        let datetime = DateTime::<Utc>::from(d);
-        datetime.to_rfc3339()
+        let d = UNIX_EPOCH + Duration::from_secs(self + SECONDS1970_TO2K);        
+        format_rfc3339(d).to_string()
     }
 }
 

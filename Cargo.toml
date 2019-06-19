@@ -1,6 +1,6 @@
 [package]
 name = "bp7"
-version = "0.2.15"
+version = "0.2.16"
 authors = ["Lars Baumgaertner <baumgaertner@cs.tu-darmstadt.de>"]
 edition = "2018"
 description = "Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-13"
@@ -19,7 +19,7 @@ name = "benchmark"
 harness = false
 
 [dependencies]
-chrono = "0.4"
+humantime = "1.2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0.85"
 serde_cbor = "0.9"

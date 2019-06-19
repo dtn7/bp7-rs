@@ -312,7 +312,7 @@ impl CanonicalBlock {
         false
     }
     pub fn bundle_age_update(&mut self, age: u64) -> bool {
-        if let Some(_) = self.bundle_age_get() {
+        if self.bundle_age_get().is_some() {
             self.set_data(CanonicalData::BundleAge(age));
             return true;
         }
@@ -327,7 +327,7 @@ impl CanonicalBlock {
         None
     }
     pub fn previous_node_update(&mut self, nodeid: EndpointID) -> bool {
-        if let Some(_) = self.previous_node_get() {
+        if self.previous_node_get().is_some() {
             self.set_data(CanonicalData::PreviousNode(nodeid));
             return true;
         }
