@@ -54,9 +54,8 @@ pub struct CanonicalBlock {
     pub block_type: CanonicalBlockType,
     pub block_number: u64,
     pub block_control_flags: BlockControlFlags,
-    pub crc_type: CRCType,
+    pub crc: CrcValue,
     data: CanonicalData,
-    crc: ByteBuffer,
 }
 
 impl Serialize for CanonicalBlock {
@@ -64,17 +63,17 @@ impl Serialize for CanonicalBlock {
     where
         S: Serializer,
     {
-        let num_elems = if self.crc_type == CRC_NO { 5 } else { 6 };
+        let num_elems = if self.crc.to_code() == CRC_NO { 5 } else { 6 };
 
         let mut seq = serializer.serialize_seq(Some(num_elems))?;
         seq.serialize_element(&self.block_type)?;
         seq.serialize_element(&self.block_number)?;
         seq.serialize_element(&self.block_control_flags)?;
-        seq.serialize_element(&self.crc_type)?;
+        seq.serialize_element(&self.crc.to_code())?;
         seq.serialize_element(&self.data)?;
 
-        if self.crc_type != CRC_NO {
-            seq.serialize_element(&serde_bytes::Bytes::new(&self.crc))?;
+        if self.crc.has_crc() {
+            seq.serialize_element(&serde_bytes::Bytes::new(&self.crc.get_bytes().unwrap()))?;
         }
 
         seq.end()
@@ -92,7 +91,7 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
             type Value = CanonicalBlock;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("packet")
+                formatter.write_str("CanonicalBlock")
             }
 
             fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
@@ -136,21 +135,36 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                 } else {
                     CanonicalData::DecodingError
                 };
-                let crc: ByteBuffer = if crc_type == CRC_NO {
-                    Vec::new()
-                } else {
-                    seq.next_element::<serde_bytes::ByteBuf>()?
+                let crc = if crc_type == CRC_NO {
+                    CrcValue::CrcNo
+                } else if crc_type == CRC_16 {
+                    let crcbuf: ByteBuffer = seq
+                        .next_element::<serde_bytes::ByteBuf>()?
                         .ok_or_else(|| de::Error::invalid_length(5, &self))?
-                        .into_vec()
+                        .into_vec();
+                    let mut outbuf: [u8; 2] = [0; 2];
+                    assert_eq!(crcbuf.len(), outbuf.len());
+                    outbuf.copy_from_slice(&crcbuf);
+                    CrcValue::Crc16(outbuf)
+                } else if crc_type == CRC_32 {
+                    let crcbuf: ByteBuffer = seq
+                        .next_element::<serde_bytes::ByteBuf>()?
+                        .ok_or_else(|| de::Error::invalid_length(5, &self))?
+                        .into_vec();
+                    let mut outbuf: [u8; 4] = [0; 4];
+                    assert_eq!(crcbuf.len(), outbuf.len());
+                    outbuf.copy_from_slice(&crcbuf);
+                    CrcValue::Crc32(outbuf)
+                } else {
+                    CrcValue::Unknown(crc_type)
                 };
 
                 Ok(CanonicalBlock {
                     block_type,
                     block_number,
                     block_control_flags,
-                    crc_type,
-                    data,
                     crc,
+                    data,
                 })
             }
         }
@@ -163,22 +177,15 @@ impl Default for CanonicalBlock {
         CanonicalBlock::new()
     }
 }
-impl Block for CanonicalBlock {
-    fn has_crc(&self) -> bool {
-        self.crc_type != CRC_NO
-    }
-    fn crc(&self) -> &[u8] {
+impl CrcBlock for CanonicalBlock {
+    fn crc_value(&self) -> &CrcValue {
         &self.crc
     }
-    fn set_crc_type(&mut self, crc_type: CRCType) {
-        self.crc_type = crc_type;
-    }
-    fn crc_type(&self) -> CRCType {
-        self.crc_type
-    }
-    fn set_crc(&mut self, crc: ByteBuffer) {
+    fn set_crc(&mut self, crc: CrcValue) {
         self.crc = crc;
     }
+}
+impl Block for CanonicalBlock {
     fn to_cbor(&self) -> ByteBuffer {
         serde_cbor::to_vec(&self).unwrap()
     }
@@ -194,9 +201,8 @@ pub fn new_canonical_block(
         block_type,
         block_number,
         block_control_flags,
-        crc_type: CRC_NO,
+        crc: CrcValue::CrcNo,
         data,
-        crc: Vec::new(),
     }
 }
 
@@ -206,9 +212,8 @@ impl CanonicalBlock {
             block_type: PAYLOAD_BLOCK,
             block_number: 0,
             block_control_flags: 0,
-            crc_type: CRC_NO,
+            crc: CrcValue::CrcNo,
             data: CanonicalData::Data(Vec::new()),
-            crc: Vec::new(),
         }
     }
 

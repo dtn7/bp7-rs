@@ -58,26 +58,9 @@ pub type Bp7ErrorList = Vec<Bp7Error>;
  *
  ******************************/
 
-pub trait Block: Clone {
+pub trait Block {
     /// Convert block struct to a serializable enum
-    fn has_crc(&self) -> bool;
-    fn calculate_crc(&mut self) {
-        let new_crc = calculate_crc(self);
-        self.set_crc(new_crc);
-    }
-    fn check_crc(&mut self) -> bool {
-        check_crc(self)
-    }
-    /// Reset crc field to an empty value
-    fn reset_crc(&mut self) {
-        let crc_type = self.crc_type();
-        let empty = empty_crc(crc_type).unwrap();
-        self.set_crc(empty);
-    }
-    fn set_crc_type(&mut self, crc_type: CRCType);
-    fn crc_type(&self) -> CRCType;
-    fn crc(&self) -> &[u8];
-    fn set_crc(&mut self, crc: ByteBuffer);
+    
     fn to_cbor(&self) -> ByteBuffer;
 }
 
@@ -436,9 +419,9 @@ impl Bundle {
     }
     /// Calculate crc for all blocks.
     pub fn calculate_crc(&mut self) {
-        self.primary.calculate_crc();
+        self.primary.update_crc();
         for b in &mut self.canonicals {
-            b.calculate_crc();
+            b.update_crc();
         }
     }
 

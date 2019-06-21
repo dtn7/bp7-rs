@@ -33,10 +33,10 @@ fn get_bench_bundle(crc_type: crc::CRCType) -> Bundle {
     let mut b = bundle::Bundle::new(pblock, cblocks);
     // bundle builder is significantly slower!
     /*let mut b = bundle::BundleBuilder::default()
-        .primary(pblock)
-        .canonicals(cblocks)
-        .build()
-        .unwrap();*/
+    .primary(pblock)
+    .canonicals(cblocks)
+    .build()
+    .unwrap();*/
     b.set_crc(crc_type);
     b.validation_errors();
     b
@@ -49,7 +49,7 @@ fn bench_bundle_create(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
         crc::CRC_32 => "CRC_32",
         _ => panic!("CRC_unknown"),
     };
-    let mut bundles: Vec<ByteBuffer> = Vec::with_capacity(runs as usize);    
+    let mut bundles: Vec<ByteBuffer> = Vec::with_capacity(runs as usize);
 
     print!("Creating {} bundles with {}: \t", RUNS, crc_str);
     stdout().flush().unwrap();
@@ -132,9 +132,9 @@ fn main() {
     bench_bundle_encode(RUNS, crc::CRC_16);
     bench_bundle_encode(RUNS, crc::CRC_32);
 
-    bench_bundle_load(RUNS, crc::CRC_NO, crcno);
-    bench_bundle_load(RUNS, crc::CRC_16, crc16);
-    bench_bundle_load(RUNS, crc::CRC_32, crc32);
+    bench_bundle_load(RUNS, crc::CRC_NO, crcno.clone());
+    bench_bundle_load(RUNS, crc::CRC_16, crc16.clone());
+    bench_bundle_load(RUNS, crc::CRC_32, crc32.clone());
 
     //dbg!(crcno[0].len());
     //dbg!(crc16[0].len());

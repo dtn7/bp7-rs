@@ -21,7 +21,7 @@ use std::fmt;
 pub struct PrimaryBlock {
     version: DtnVersionType,
     pub bundle_control_flags: BundleControlFlags,
-    pub crc_type: CRCType,
+    pub crc: CrcValue,
     pub destination: EndpointID,
     pub source: EndpointID,
     pub report_to: EndpointID,
@@ -29,7 +29,6 @@ pub struct PrimaryBlock {
     pub lifetime: LifetimeType,
     pub fragmentation_offset: FragOffsetType,
     pub total_data_length: TotalDataLengthType,
-    crc: ByteBuffer,
 }
 
 impl Serialize for PrimaryBlock {
@@ -37,11 +36,11 @@ impl Serialize for PrimaryBlock {
     where
         S: Serializer,
     {
-        let num_elems = if self.crc_type == CRC_NO && !self.has_fragmentation() {
+        let num_elems = if !self.crc.has_crc() && !self.has_fragmentation() {
             8
-        } else if self.crc_type != CRC_NO && !self.has_fragmentation() {
+        } else if self.crc.has_crc() && !self.has_fragmentation() {
             9
-        } else if self.crc_type == CRC_NO && self.has_fragmentation() {
+        } else if !self.crc.has_crc() && self.has_fragmentation() {
             10
         } else {
             11
@@ -50,7 +49,7 @@ impl Serialize for PrimaryBlock {
         let mut seq = serializer.serialize_seq(Some(num_elems))?;
         seq.serialize_element(&self.version)?;
         seq.serialize_element(&self.bundle_control_flags)?;
-        seq.serialize_element(&self.crc_type)?;
+        seq.serialize_element(&self.crc.to_code())?;
         seq.serialize_element(&self.destination)?;
         seq.serialize_element(&self.source)?;
         seq.serialize_element(&self.report_to)?;
@@ -61,8 +60,8 @@ impl Serialize for PrimaryBlock {
             seq.serialize_element(&self.total_data_length)?;
         }
 
-        if self.crc_type != CRC_NO {
-            seq.serialize_element(&serde_bytes::Bytes::new(&self.crc))?;
+        if self.crc.has_crc() {
+            seq.serialize_element(&serde_bytes::Bytes::new(self.crc.get_bytes().unwrap()))?;
         }
 
         seq.end()
@@ -80,7 +79,7 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
             type Value = PrimaryBlock;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("packet")
+                formatter.write_str("PrimaryBlock")
             }
 
             fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
@@ -125,17 +124,40 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                         .ok_or_else(|| de::Error::invalid_length(9, &self))?;
                 }
 
-                let crc: ByteBuffer = if crc_type == CRC_NO {
+                /*let crcbuf: ByteBuffer = if crc_type == CRC_NO {
                     Vec::new()
                 } else {
                     seq.next_element::<serde_bytes::ByteBuf>()?
                         .ok_or_else(|| de::Error::invalid_length(7 + rest, &self))?
                         .into_vec()
+                };*/
+                let crc = if crc_type == CRC_NO {
+                    CrcValue::CrcNo
+                } else if crc_type == CRC_16 {
+                    let crcbuf: ByteBuffer = seq
+                        .next_element::<serde_bytes::ByteBuf>()?
+                        .ok_or_else(|| de::Error::invalid_length(7 + rest, &self))?
+                        .into_vec();
+                    let mut outbuf: [u8; 2] = [0; 2];
+                    assert_eq!(crcbuf.len(), outbuf.len());
+                    outbuf.copy_from_slice(&crcbuf);
+                    CrcValue::Crc16(outbuf)
+                } else if crc_type == CRC_32 {
+                    let crcbuf: ByteBuffer = seq
+                        .next_element::<serde_bytes::ByteBuf>()?
+                        .ok_or_else(|| de::Error::invalid_length(7 + rest, &self))?
+                        .into_vec();
+                    let mut outbuf: [u8; 4] = [0; 4];
+                    assert_eq!(crcbuf.len(), outbuf.len());
+                    outbuf.copy_from_slice(&crcbuf);
+                    CrcValue::Crc32(outbuf)
+                } else {
+                    CrcValue::Unknown(crc_type)
                 };
                 Ok(PrimaryBlock {
                     version,
                     bundle_control_flags,
-                    crc_type,
+                    crc,
                     destination,
                     source,
                     report_to,
@@ -143,7 +165,6 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                     lifetime,
                     fragmentation_offset,
                     total_data_length,
-                    crc,
                 })
             }
         }
@@ -161,7 +182,7 @@ impl PrimaryBlock {
         PrimaryBlock {
             version: DTN_VERSION,
             bundle_control_flags: 0,
-            crc_type: CRC_NO,
+            crc: CrcValue::CrcNo,
             destination: EndpointID::new(),
             source: EndpointID::new(),
             report_to: EndpointID::new(),
@@ -169,7 +190,6 @@ impl PrimaryBlock {
             lifetime: 0,
             fragmentation_offset: 0,
             total_data_length: 0,
-            crc: Vec::new(),
         }
     }
 
@@ -213,22 +233,15 @@ impl PrimaryBlock {
     }
 }
 
-impl Block for PrimaryBlock {
-    fn has_crc(&self) -> bool {
-        self.crc_type != CRC_NO
-    }
-    fn crc(&self) -> &[u8] {
+impl CrcBlock for PrimaryBlock {
+    fn crc_value(&self) -> &CrcValue {
         &self.crc
     }
-    fn set_crc_type(&mut self, crc_type: CRCType) {
-        self.crc_type = crc_type;
-    }
-    fn crc_type(&self) -> CRCType {
-        self.crc_type
-    }
-    fn set_crc(&mut self, crc: ByteBuffer) {
+    fn set_crc(&mut self, crc: CrcValue) {
         self.crc = crc;
     }
+}
+impl Block for PrimaryBlock {
     fn to_cbor(&self) -> ByteBuffer {
         //serde_cbor::to_vec(&self.to_pvariant()).unwrap()
         serde_cbor::to_vec(&self).unwrap()
@@ -246,7 +259,7 @@ pub fn new_primary_block(
     PrimaryBlock {
         version: DTN_VERSION,
         bundle_control_flags: 0,
-        crc_type: CRC_NO,
+        crc: CrcValue::CrcNo,
         destination: dst_eid,
         source: src_eid.clone(),
         report_to: src_eid,
@@ -254,6 +267,5 @@ pub fn new_primary_block(
         lifetime,
         fragmentation_offset: 0,
         total_data_length: 0,
-        crc: Vec::new(),
     }
 }
