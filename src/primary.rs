@@ -17,6 +17,7 @@ use std::fmt;
 //#[derive(Debug, Serialize_tuple, Deserialize_tuple, Clone)]
 #[derive(Debug, Clone, PartialEq, Builder)]
 #[builder(default)]
+#[builder(pattern = "owned")]
 pub struct PrimaryBlock {
     version: DtnVersionType,
     pub bundle_control_flags: BundleControlFlags,

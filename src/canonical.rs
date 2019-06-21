@@ -49,6 +49,7 @@ pub const HOP_COUNT_BLOCK: CanonicalBlockType = 9;
 //#[derive(Debug, Serialize_tuple, Deserialize_tuple, Clone)]
 #[derive(Debug, Clone, PartialEq, Builder)]
 #[builder(default)]
+#[builder(pattern = "owned")]
 pub struct CanonicalBlock {
     pub block_type: CanonicalBlockType,
     pub block_number: u64,
