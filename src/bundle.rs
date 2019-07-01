@@ -1,9 +1,9 @@
+use core::fmt;
+use core::hash::Hash;
 use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
-use std::fmt;
-use std::hash::Hash;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::canonical::*;
@@ -60,7 +60,7 @@ pub type Bp7ErrorList = Vec<Bp7Error>;
 
 pub trait Block {
     /// Convert block struct to a serializable enum
-    
+
     fn to_cbor(&self) -> ByteBuffer;
 }
 

@@ -1,9 +1,9 @@
 use super::bundle::*;
+use core::convert::From;
+use core::fmt;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
-use std::convert::From;
-use std::fmt;
 use url::Url;
 
 /******************************

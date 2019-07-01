@@ -1,6 +1,6 @@
 use super::*;
+use core::num::ParseIntError;
 use rand::Rng;
-use std::num::ParseIntError;
 
 pub fn hexify(buf: &[u8]) -> String {
     let mut hexstr = String::new();

@@ -1,8 +1,9 @@
-use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use core::fmt;
+use core::sync::atomic::{AtomicUsize, Ordering};
+use core::time::Duration;
 use humantime::format_rfc3339;
-use std::fmt;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use serde::{Deserialize, Serialize};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub type DtnTime = u64;
 
@@ -22,7 +23,7 @@ impl DtnTimeHelpers for DtnTime {
 
     /// Convert to human readable rfc3339 compliant time string.
     fn string(self) -> String {
-        let d = UNIX_EPOCH + Duration::from_secs(self + SECONDS1970_TO2K);        
+        let d = UNIX_EPOCH + Duration::from_secs(self + SECONDS1970_TO2K);
         format_rfc3339(d).to_string()
     }
 }

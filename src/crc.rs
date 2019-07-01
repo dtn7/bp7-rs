@@ -67,7 +67,7 @@ impl CRCFuncations for CRCType {
     }
 }
 
-pub trait CrcBlock : Block + Clone{
+pub trait CrcBlock: Block + Clone {
     /// Convert block struct to a serializable enum
     fn has_crc(&self) -> bool {
         self.crc_value().has_crc()
@@ -111,7 +111,6 @@ pub trait CrcBlock : Block + Clone{
 }
 
 pub fn calculate_crc<T: CrcBlock + Block>(blck: &mut T) -> CrcValue {
-
     match blck.crc_type() {
         CRC_NO => CrcValue::CrcNo,
         CRC_16 => {

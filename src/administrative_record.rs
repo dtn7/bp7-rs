@@ -1,10 +1,9 @@
-
 use crate::bundle::ByteBuffer;
 use crate::*;
+use core::fmt;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
-use std::fmt;
 
 use crate::bundle::BUNDLE_REQUEST_STATUS_TIME;
 use crate::bundle::{Bundle, BundleValidation};
@@ -244,7 +243,6 @@ pub const DELIVERED_BUNDLE: StatusInformationPos = 2;
 
 // DELETED_BUNDLE is the fourth bundle status information entry, indicating the reporting node deleted this bundle.
 pub const DELETED_BUNDLE: StatusInformationPos = 3;
-
 
 // StatusReport is the bundle status report, used in an administrative record.
 #[derive(Debug, Clone, PartialEq)]
