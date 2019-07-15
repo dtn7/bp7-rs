@@ -1,6 +1,26 @@
 use bp7::{bundle, canonical, crc, dtntime, eid, primary, Bundle, ByteBuffer};
+use instant::Instant;
 use std::io::stdout;
 use std::io::Write;
+
+#[cfg(target_arch = "wasm32")]
+use stdweb::*;
+
+#[cfg(target_arch = "wasm32")]
+macro_rules! print {
+    ($($tt:tt)*) => {{
+        let msg = format!($($tt)*);
+        js! { console.log(@{ msg }) }
+    }}
+}
+
+#[cfg(target_arch = "wasm32")]
+macro_rules! println {
+    ($($tt:tt)*) => {{
+        let msg = format!($($tt)*);
+        js! { console.log(@{ msg }) }
+    }}
+}
 
 const RUNS: i64 = 100_000;
 
@@ -10,7 +30,7 @@ fn get_bench_bundle(crc_type: crc::CRCType) -> Bundle {
     //let dst = eid::EndpointID::with_ipn(eid::IpnAddress(1, 2));
     //let src = eid::EndpointID::with_ipn(eid::IpnAddress(2, 3));
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);;
-    //let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
+    //let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
 
     //let pblock = primary::new_primary_block("dtn:node2/inbox".to_string(), "dtn:node1/123456".to_string(), now, 60 * 60 * 1_000_000);
     let pblock = primary::PrimaryBlockBuilder::default()
@@ -54,7 +74,6 @@ fn bench_bundle_create(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
     print!("Creating {} bundles with {}: \t", RUNS, crc_str);
     stdout().flush().unwrap();
 
-    use std::time::Instant;
     let bench_now = Instant::now();
 
     for _x in 0..runs {
@@ -82,7 +101,6 @@ fn bench_bundle_encode(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
     print!("Encoding {} bundles with {}: \t", RUNS, crc_str);
     stdout().flush().unwrap();
 
-    use std::time::Instant;
     let bench_now = Instant::now();
 
     let mut b = get_bench_bundle(crc_type);
@@ -109,7 +127,6 @@ fn bench_bundle_load(runs: i64, crc_type: crc::CRCType, mut bundles: Vec<ByteBuf
     print!("Loading {} bundles with {}: \t", RUNS, crc_str);
     stdout().flush().unwrap();
 
-    use std::time::Instant;
     let bench_now = Instant::now();
     for _x in 0..runs {
         let b = bundles.pop().unwrap();

@@ -13,7 +13,20 @@ pub fn get_unix_timestamp() -> u64 {
 
 #[cfg(target_arch = "wasm32")]
 pub fn get_unix_timestamp() -> u64 {
-    (js_sys::Date::now() / 1000.0) as u64
+    (stdweb::web::Date::now() / 1000.0) as u64
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn get_ts_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards!!")
+        .as_millis()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn get_ts_ms() -> u128 {
+    (stdweb::web::Date::now()) as u128
 }
 
 pub fn hexify(buf: &[u8]) -> String {

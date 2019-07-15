@@ -19,6 +19,10 @@ fn decode(bundle: &str) {
     dbg!(&bndl);
 }
 
+#[cfg(target_arch = "wasm32")]
+fn main() {}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
     let args: Vec<String> = env::args().collect();
 

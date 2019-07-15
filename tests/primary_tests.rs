@@ -1,6 +1,5 @@
 use bp7::primary;
 
-
 #[test]
 fn test_lifetime() {
     let p1 = primary::new_primary_block(

@@ -115,7 +115,27 @@ $ bp7 decode 9f8907000182016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f788
 
 The generated hex string can also be directly discplayed as raw cbor on the awesome cbor.me website, e.g. http://cbor.me/?bytes=9f8907000182016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f78821a247966ba001ad693a4004225b686010000014341424342237186080100010042dbccff
 
+## wasm support
 
+The library should build for wasm even though nothing useful is exported. The example benchmark can also be used in the browser through the `cargo-web` crate:
+```
+cargo web start --target wasm32-unknown-unknown --example benchmark --release
+```
+
+Results should be shown in the javascript console on http://127.0.0.1:8000.
+
+The performance is quite similar to the native performance:
+```
+Creating 100000 bundles with CRC_NO: 	214845 bundles/second
+Creating 100000 bundles with CRC_16:    154404 bundles/second
+Creating 100000 bundles with CRC_32: 	194764 bundles/second
+Encoding 100000 bundles with CRC_NO: 	506611 bundles/second
+Encoding 100000 bundles with CRC_16: 	708415 bundles/second
+Encoding 100000 bundles with CRC_32: 	690297 bundles/second
+Loading 100000 bundles with CRC_NO: 	411870 bundles/second
+Loading 100000 bundles with CRC_16: 	390693 bundles/second
+Loading 100000 bundles with CRC_32: 	394166 bundles/second
+```
 #### License
 
 <sup>
