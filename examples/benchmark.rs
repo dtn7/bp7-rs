@@ -10,7 +10,10 @@ use stdweb::*;
 macro_rules! print {
     ($($tt:tt)*) => {{
         let msg = format!($($tt)*);
-        js! { console.log(@{ msg }) }
+        js! {
+            if(!window.tbuf) window.tbuf = "";
+            window.tbuf += @{msg};
+        }
     }}
 }
 
@@ -18,7 +21,11 @@ macro_rules! print {
 macro_rules! println {
     ($($tt:tt)*) => {{
         let msg = format!($($tt)*);
-        js! { console.log(@{ msg }) }
+        js! {
+            if(!window.tbuf) window.tbuf = "";
+            console.log(window.tbuf + @{ msg });
+            window.tbuf = "";
+        }
     }}
 }
 
