@@ -1,6 +1,20 @@
 use super::*;
 use core::num::ParseIntError;
 use rand::Rng;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn get_unix_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards!!")
+        .as_secs()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn get_unix_timestamp() -> u64 {
+    (js_sys::Date::now() / 1000.0) as u64
+}
 
 pub fn hexify(buf: &[u8]) -> String {
     let mut hexstr = String::new();

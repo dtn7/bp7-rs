@@ -3,7 +3,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use core::time::Duration;
 use humantime::format_rfc3339;
 use serde::{Deserialize, Serialize};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
 pub type DtnTime = u64;
 
@@ -30,11 +30,7 @@ impl DtnTimeHelpers for DtnTime {
 
 /// Get current time as DtnTime timestamp
 pub fn dtn_time_now() -> DtnTime {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards!!")
-        .as_secs()
-        - SECONDS1970_TO2K
+    crate::helpers::get_unix_timestamp() - SECONDS1970_TO2K
 }
 
 /// Timestamp when a bundle was created, consisting of the DtnTime and a sequence number.
