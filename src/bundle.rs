@@ -425,10 +425,16 @@ impl Bundle {
         }
     }
 
-    pub fn extension_block(
-        &mut self,
-        block_type: CanonicalBlockType,
-    ) -> Option<(&mut CanonicalBlock)> {
+    pub fn extension_block(&self, block_type: CanonicalBlockType) -> Option<(&CanonicalBlock)> {
+        for b in &self.canonicals {
+            if b.block_type == block_type && b.extension_validation_error().is_none() {
+                //let cdata = b.get_data().clone();
+                return Some(b);
+            }
+        }
+        None
+    }
+    pub fn extension_block_mut(&mut self, block_type: CanonicalBlockType) -> Option<(&mut CanonicalBlock)> {
         for b in &mut self.canonicals {
             if b.block_type == block_type && b.extension_validation_error().is_none() {
                 //let cdata = b.get_data().clone();
@@ -474,16 +480,16 @@ impl Bundle {
     // Return true if all successful, omit missing blocks.
     // Return false if hop count is exceeded, bundle age exceeds life time or bundle lifetime itself is exceeded
     pub fn update_extensions(&mut self, local_node: EndpointID, residence_time: u64) -> bool {
-        if let Some(hcblock) = self.extension_block(HOP_COUNT_BLOCK) {
+        if let Some(hcblock) = self.extension_block_mut(HOP_COUNT_BLOCK) {
             hcblock.hop_count_increase();
             if hcblock.hop_count_exceeded() {
                 return false;
             }
         }
-        if let Some(pnblock) = self.extension_block(PREVIOUS_NODE_BLOCK) {
+        if let Some(pnblock) = self.extension_block_mut(PREVIOUS_NODE_BLOCK) {
             pnblock.previous_node_update(local_node);
         }
-        if let Some(bablock) = self.extension_block(BUNDLE_AGE_BLOCK) {
+        if let Some(bablock) = self.extension_block_mut(BUNDLE_AGE_BLOCK) {
             if let Some(ba_orig) = bablock.bundle_age_get() {
                 bablock.bundle_age_update(ba_orig + residence_time);
                 if ba_orig + residence_time > self.primary.lifetime * 1000 {

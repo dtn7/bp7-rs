@@ -114,19 +114,19 @@ fn bundle_invalid_cblock_numbers_tests() {
 fn bundle_canonical_update_tests() {
     let mut bndl = new_complete_bundle(crc::CRC_NO);
     {
-        let hcblock = bndl.extension_block(HOP_COUNT_BLOCK).unwrap();
+        let hcblock = bndl.extension_block_mut(HOP_COUNT_BLOCK).unwrap();
         assert!(hcblock.hop_count_increase());
     }
-    let hcb2 = bndl.extension_block(HOP_COUNT_BLOCK).unwrap();
+    let hcb2 = bndl.extension_block_mut(HOP_COUNT_BLOCK).unwrap();
     assert!(hcb2.hop_count_get().unwrap() == (16, 1));
 
     let mut bndl = new_complete_bundle(crc::CRC_NO);
     assert!(bndl.update_extensions("dtn://newnode".into(), 23));
 
-    let cb = bndl.extension_block(HOP_COUNT_BLOCK).unwrap();
+    let cb = bndl.extension_block_mut(HOP_COUNT_BLOCK).unwrap();
     assert!(cb.hop_count_get().unwrap() == (16, 1));
-    let cb = bndl.extension_block(BUNDLE_AGE_BLOCK).unwrap();
+    let cb = bndl.extension_block_mut(BUNDLE_AGE_BLOCK).unwrap();
     assert!(cb.bundle_age_get().unwrap() == 23);
-    let cb = bndl.extension_block(PREVIOUS_NODE_BLOCK).unwrap();
+    let cb = bndl.extension_block_mut(PREVIOUS_NODE_BLOCK).unwrap();
     assert!(cb.previous_node_get().unwrap() == &EndpointID::from("dtn://newnode"));
 }
