@@ -378,7 +378,7 @@ pub fn new_status_report(
 }
 
 pub fn new_status_report_bundle(
-    orig_bundle: Bundle,
+    orig_bundle: &Bundle,
     src: EndpointID,
     crc_type: crc::CRCType,
     status: StatusInformationPos,
@@ -387,7 +387,7 @@ pub fn new_status_report_bundle(
     // TODO: implement sanity checks
 
     let adm_record = AdministrativeRecord::BundleStatusReport(new_status_report(
-        &orig_bundle,
+        orig_bundle,
         status,
         reason,
         dtn_time_now(),
