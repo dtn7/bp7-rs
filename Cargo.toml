@@ -7,6 +7,8 @@ description = "Rust implementation of dtn bundle protocol 7 draft https://tools.
 license = "MIT OR Apache-2.0"
 repository    = "https://github.com/gh0st42/bp7-rs"
 categories    = ["encoding"]
+readme = "README.md"
+
 
 #[profile.release]
 #debug = true
