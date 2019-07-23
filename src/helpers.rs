@@ -2,6 +2,8 @@ use super::*;
 use core::num::ParseIntError;
 use rand::Rng;
 use std::time::{SystemTime, UNIX_EPOCH};
+/*#[cfg(target_arch = "wasm32")]
+use stdweb::*;*/
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn get_unix_timestamp() -> u64 {
@@ -42,6 +44,8 @@ pub fn unhexify(s: &str) -> Result<Vec<u8>, ParseIntError> {
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
         .collect()
 }
+
+//#[cfg_attr(target_arch = "wasm32", stdweb::js_export)]
 pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     let mut rng = rand::thread_rng();
     let dst_string = format!("node{}/inbox", rng.gen_range(1, 4));

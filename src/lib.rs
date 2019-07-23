@@ -43,9 +43,14 @@ pub mod dtntime;
 pub mod eid;
 pub mod helpers;
 pub mod primary;
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
 
 pub use bundle::{Bp7Error, Bp7ErrorList, Bundle, ByteBuffer};
 pub use canonical::*;
 pub use dtntime::{dtn_time_now, CreationTimestamp, DtnTime};
 pub use eid::{EndpointID, DTN_NONE};
-pub use helpers::hexify;
+pub use helpers::{hexify, rnd_bundle};
+
+#[cfg(target_arch = "wasm32")]
+pub use wasm::*;

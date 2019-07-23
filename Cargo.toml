@@ -1,6 +1,6 @@
 [package]
 name = "bp7"
-version = "0.3.4"
+version = "0.3.5"
 authors = ["Lars Baumgaertner <baumgaertner@cs.tu-darmstadt.de>"]
 edition = "2018"
 description = "Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-13"
@@ -31,11 +31,12 @@ url = "1.7"
 crc = "^1.0.0"
 byteorder = "1"
 derive_builder = "0.7.1"
-rand = "0.7"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 instant = {version = "0.1", features = [ "now" ]}
+rand = {version = "0.7"}
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = "0.4"
 instant = {version = "0.1", features = [ "stdweb", "now" ]}
+rand = {version = "0.7", features = ["stdweb"]}

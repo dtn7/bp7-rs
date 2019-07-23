@@ -392,10 +392,20 @@ impl Bundle {
         }
         None
     }
+    // Checks whether the bundle is an administrative record
     pub fn is_administrative_record(&self) -> bool {
         self.primary
             .bundle_control_flags
             .has(BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
+    }
+    // Return payload of bundle if an payload block exists and carries data.
+    pub fn payload(&self) -> Option<&ByteBuffer> {
+        let pb = self.extension_block(crate::canonical::PAYLOAD_BLOCK);
+        if pb.is_some() {
+            pb.unwrap().get_payload_data()
+        } else {
+            None
+        }
     }
     /// Sets the given CRCType for each block. The crc value
     /// is calculated on-the-fly before serializing.
@@ -434,7 +444,10 @@ impl Bundle {
         }
         None
     }
-    pub fn extension_block_mut(&mut self, block_type: CanonicalBlockType) -> Option<(&mut CanonicalBlock)> {
+    pub fn extension_block_mut(
+        &mut self,
+        block_type: CanonicalBlockType,
+    ) -> Option<(&mut CanonicalBlock)> {
         for b in &mut self.canonicals {
             if b.block_type == block_type && b.extension_validation_error().is_none() {
                 //let cdata = b.get_data().clone();

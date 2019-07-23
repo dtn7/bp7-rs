@@ -117,7 +117,7 @@ The generated hex string can also be directly discplayed as raw cbor on the awes
 
 ## wasm support
 
-The library should build for wasm even though nothing useful is exported. The example benchmark can also be used in the browser through the `cargo-web` crate:
+The library should build for wasm even though only very few functions get exported. The example benchmark can also be used in the browser through the `cargo-web` crate:
 ```
 cargo web start --target wasm32-unknown-unknown --example benchmark --release
 ```
@@ -136,6 +136,24 @@ Loading 100000 bundles with CRC_NO: 	411870 bundles/second
 Loading 100000 bundles with CRC_16: 	390693 bundles/second
 Loading 100000 bundles with CRC_32: 	394166 bundles/second
 ```
+
+Some functions can easily be used from javascript (`cargo web deploy --release`):
+```javascript
+Rust.bp7.then(function(bp7) {
+  var b = bp7.rnd_bundle_now(); 
+  var enc = bp7.encode_to_cbor(b); 
+  var payload = bp7.payload_from_bundle(b)
+  console.log(payload); 
+  console.log(String.fromCharCode.apply(null, payload));
+  console.log(bp7.cbor_is_administrative_record(enc)); 
+  console.log(bp7.sender_from_cbor(enc)); 
+  console.log(bp7.recipient_from_bundle(b)); 
+  console.log(bp7.valid_bundle(b)); 
+});
+```
+
+Note that at the moment all functions have a variant working on the binary bundle and one working on the decoded bundle struct.
+
 #### License
 
 <sup>

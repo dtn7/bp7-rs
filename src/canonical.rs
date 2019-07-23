@@ -290,7 +290,12 @@ impl CanonicalBlock {
     pub fn set_data(&mut self, data: CanonicalData) {
         self.data = data;
     }
-
+    pub fn get_payload_data(&self) -> Option<&ByteBuffer> {
+        match &self.data {
+            CanonicalData::Data(data) => Some(&data),
+            _ => None
+        }
+    }
     pub fn hop_count_get(&self) -> Option<(u32, u32)> {
         if self.block_type == HOP_COUNT_BLOCK {
             if let CanonicalData::HopCount(hc_limit, hc_count) = self.get_data() {
