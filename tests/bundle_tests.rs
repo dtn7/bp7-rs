@@ -41,6 +41,31 @@ fn new_complete_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
     assert!(b.validation_errors().is_none());
     b
 }
+
+fn new_empty_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
+    let dst = eid::EndpointID::with_dtn("node2/inbox");
+    let src = eid::EndpointID::with_dtn("node1/123456");
+    let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
+
+    let pblock = primary::PrimaryBlockBuilder::default()
+        .destination(dst)
+        .source(src.clone())
+        .report_to(src)
+        .creation_timestamp(now)
+        .lifetime(60 * 60 * 1_000_000)
+        .build()
+        .unwrap();
+
+    let mut b = bundle::BundleBuilder::default()
+        .primary(pblock)
+        .canonicals(vec![            ])
+        .build()
+        .unwrap();
+    b.set_crc(crc_type);
+    b.calculate_crc();
+    assert!(b.validation_errors().is_none());
+    b
+}
 fn new_complete_bundle_invalid(crc_type: bp7::crc::CRCType) -> Bundle {
     let dst = eid::EndpointID::with_dtn("node2/inbox");
     let src = eid::EndpointID::with_dtn("node1/123456");
@@ -129,4 +154,41 @@ fn bundle_canonical_update_tests() {
     assert!(cb.bundle_age_get().unwrap() == 23);
     let cb = bndl.extension_block_mut(PREVIOUS_NODE_BLOCK).unwrap();
     assert!(cb.previous_node_get().unwrap() == &EndpointID::from("dtn://newnode"));
+}
+
+
+#[test]
+fn bundle_add_cblock() {
+    let mut b = new_empty_bundle(crc::CRC_NO);
+    assert!(b.canonicals.len() == 0);
+
+    b.add_canonical_block(canonical::new_hop_count_block(
+                666,  // block number
+                0,  // flags
+                16, // max hops
+            ));
+    assert!(b.canonicals.len() == 1);
+
+    b.add_canonical_block(canonical::new_hop_count_block(
+                666,  // block number
+                0,  // flags
+                16, // max hops
+            ));
+    // Already present, should be ignored
+    assert!(b.canonicals.len() == 1);
+
+    b.add_canonical_block(canonical::new_payload_block(0, b"ABC".to_vec()));
+    assert!(b.canonicals.len() == 2);
+
+    b.add_canonical_block(canonical::new_bundle_age_block(
+                666, // block number
+                0, // flags
+                0, // time elapsed
+            ));
+    assert!(b.canonicals.len() == 3);
+
+    let mut numbers : Vec<u64> = b.canonicals.iter().map(|c| c.block_number).collect();
+    //numbers.sort();
+    assert_eq!(numbers, vec![0,1,2]);
+
 }

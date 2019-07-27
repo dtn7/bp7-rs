@@ -1,5 +1,5 @@
 use super::bundle::*;
-use super::crc::{CRCFuncations, CRCType, CrcBlock, CrcValue, CRC_16, CRC_32, CRC_NO};
+use super::crc::{CRCType, CrcBlock, CrcValue, CRC_16, CRC_32, CRC_NO};
 use super::eid::*;
 use core::fmt;
 use derive_builder::Builder;

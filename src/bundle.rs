@@ -1,3 +1,4 @@
+use core::cmp;
 use core::fmt;
 use core::hash::Hash;
 use derive_builder::Builder;
@@ -391,6 +392,38 @@ impl Bundle {
             return Some(errors);
         }
         None
+    }
+    // Sort canonical blocks by block number
+    pub fn sort_canonicals(&mut self) {
+        self.canonicals.sort_by(|a, b| a.block_number.cmp(&b.block_number));
+
+    }
+    fn next_canonical_block_number(&self) -> u64 {
+        let mut highest_block_number = 0;
+        for c in self.canonicals.iter() {
+            highest_block_number = cmp::max(highest_block_number, c.block_number);
+        }
+        highest_block_number + 1
+    }
+
+    // Automatically assign a block number and add canonical block to bundle
+    pub fn add_canonical_block(&mut self, mut cblock : CanonicalBlock) {
+        // TODO: report errors
+        if cblock.block_type == PAYLOAD_BLOCK || cblock.block_type == HOP_COUNT_BLOCK || cblock.block_type == BUNDLE_AGE_BLOCK || cblock.block_type == PREVIOUS_NODE_BLOCK {
+            if self.extension_block(cblock.block_type).is_some() {
+                return
+            }
+        }
+        let mut block_num = self.next_canonical_block_number();
+
+        if cblock.block_type == PAYLOAD_BLOCK {
+            block_num = 0;
+        } else if block_num == 0 && cblock.block_type != PAYLOAD_BLOCK {
+            block_num = 1;
+        }
+        cblock.block_number = block_num;
+        self.canonicals.push(cblock);
+        self.sort_canonicals();
     }
     // Checks whether the bundle is an administrative record
     pub fn is_administrative_record(&self) -> bool {
