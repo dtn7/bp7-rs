@@ -33,10 +33,11 @@ fn main() {
 
     let cmd = &args[1];
     match cmd.as_str() {
-        "rnd" => println!(
-            "{}\n",
-            hexify(&rnd_bundle(bp7::CreationTimestamp::now()).to_cbor())
-        ),
+        "rnd" => {
+            let mut bndl = rnd_bundle(bp7::CreationTimestamp::now());
+            println!("{}", bndl.id());
+            println!("{}\n", hexify(&bndl.to_cbor()));
+        }
         "decode" => {
             if args.len() == 3 {
                 decode(&args[2]);

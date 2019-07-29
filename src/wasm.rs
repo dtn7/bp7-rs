@@ -21,7 +21,15 @@ fn encode_to_cbor(b : Bundle) -> crate::ByteBuffer {
 fn decode_from_cbor(buf : crate::ByteBuffer) -> Bundle {
     buf.into()
 }
+#[js_export]
+fn bid_from_bundle(b : Bundle) -> String {    
+    b.id()
+}
 
+#[js_export]
+fn bid_from_cbor(buf : crate::ByteBuffer) -> String {
+    bid_from_bundle(decode_from_cbor(buf))
+}
 #[js_export]
 fn payload_from_bundle(b : Bundle) -> Option<crate::ByteBuffer> {    
     b.payload().map(|d| d.clone())
