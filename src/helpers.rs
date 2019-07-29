@@ -1,9 +1,7 @@
-use super::*;
+use crate::{bundle, dtntime, eid};
 use core::num::ParseIntError;
 use rand::Rng;
 use std::time::{SystemTime, UNIX_EPOCH};
-/*#[cfg(target_arch = "wasm32")]
-use stdweb::*;*/
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn get_unix_timestamp() -> u64 {
@@ -31,6 +29,7 @@ pub fn get_ts_ms() -> u128 {
     (stdweb::web::Date::now()) as u128
 }
 
+/// Convert byte slice into a hex string
 pub fn hexify(buf: &[u8]) -> String {
     let mut hexstr = String::new();
     for &b in buf {
@@ -38,6 +37,7 @@ pub fn hexify(buf: &[u8]) -> String {
     }
     hexstr
 }
+/// Convert a hex string into a byte vector
 pub fn unhexify(s: &str) -> Result<Vec<u8>, ParseIntError> {
     (0..s.len())
         .step_by(2)
@@ -45,7 +45,6 @@ pub fn unhexify(s: &str) -> Result<Vec<u8>, ParseIntError> {
         .collect()
 }
 
-//#[cfg_attr(target_arch = "wasm32", stdweb::js_export)]
 pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     let mut rng = rand::thread_rng();
     let dst_string = format!("node{}/inbox", rng.gen_range(1, 4));
@@ -54,26 +53,7 @@ pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     let src = eid::EndpointID::with_dtn(&src_string);
     //let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);;
     //let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
-
-    let pblock = primary::PrimaryBlockBuilder::default()
-        .destination(dst)
-        .source(src.clone())
-        .report_to(src)
-        .creation_timestamp(now)
-        .lifetime(60 * 60 * 1_000_000)
-        .build()
-        .unwrap();
-
-    let mut b = bundle::BundleBuilder::default()
-        .primary(pblock)
-        .canonicals(vec![
-            canonical::new_payload_block(0, b"ABC".to_vec()),
-            canonical::new_bundle_age_block(1, 0, 0),
-        ])
-        .build()
-        .unwrap();
-    b.set_crc(crc::CRC_16);
-    b.calculate_crc();
-
+    let mut b = bundle::new_std_payload_bundle(src, dst, b"ABC".to_vec());
+    b.primary.creation_timestamp = now;
     b
 }

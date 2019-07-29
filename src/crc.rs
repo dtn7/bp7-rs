@@ -72,10 +72,12 @@ pub trait CrcBlock: Block + Clone {
     fn has_crc(&self) -> bool {
         self.crc_value().has_crc()
     }
+    /// Recalculate crc value
     fn update_crc(&mut self) {
         let new_crc = calculate_crc(self);
         self.set_crc(new_crc);
     }
+    /// Check if crc value is valid
     fn check_crc(&mut self) -> bool {
         check_crc(self)
     }
@@ -89,9 +91,12 @@ pub trait CrcBlock: Block + Clone {
             }
         }
     }
+    /// Returns raw crc checksum
     fn crc(&self) -> Option<&[u8]> {
         self.crc_value().get_bytes()
     }
+    /// Set crc type
+    /// CRC_NO, CRC_16, CRC_32
     fn set_crc_type(&mut self, crc_value: CRCType) {
         if crc_value == CRC_NO {
             self.set_crc(CrcValue::CrcNo);
@@ -103,6 +108,7 @@ pub trait CrcBlock: Block + Clone {
             self.set_crc(CrcValue::Unknown(crc_value));
         }
     }
+    /// Return the crc type code
     fn crc_type(&self) -> CRCType {
         self.crc_value().to_code()
     }

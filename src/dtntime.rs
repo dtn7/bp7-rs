@@ -7,7 +7,7 @@ use std::time::UNIX_EPOCH;
 
 pub type DtnTime = u64;
 
-const SECONDS1970_TO2K: u64 = 946_684_800;
+pub const SECONDS1970_TO2K: u64 = 946_684_800;
 pub const DTN_TIME_EPOCH: DtnTime = 0;
 
 pub trait DtnTimeHelpers {

@@ -1,6 +1,5 @@
 use core::cmp;
 use core::fmt;
-use core::hash::Hash;
 use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
@@ -61,7 +60,6 @@ pub type Bp7ErrorList = Vec<Bp7Error>;
 
 pub trait Block {
     /// Convert block struct to a serializable enum
-
     fn to_cbor(&self) -> ByteBuffer;
 }
 
@@ -250,14 +248,6 @@ impl<'de> Deserialize<'de> for Bundle {
         deserializer.deserialize_any(BundleVisitor)
     }
 }
-fn has_unique_elements<T>(iter: T) -> bool
-where
-    T: IntoIterator,
-    T::Item: Eq + Hash,
-{
-    let mut uniq = std::collections::HashSet::new();
-    iter.into_iter().all(move |x| uniq.insert(x))
-}
 
 impl Default for Bundle {
     fn default() -> Self {
@@ -273,35 +263,6 @@ impl Bundle {
             primary,
             canonicals,
         }
-    }
-    /// Creates a new bundle with the given endpoints, a bundle age block and a payload block.
-    /// CRC is set to CRC_32 by default and the lifetime is set to 60 * 60 seconds.
-    pub fn new_standard_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer) -> Bundle {
-        let pblock = crate::primary::PrimaryBlockBuilder::default()
-            .destination(dst)
-            .source(src.clone())
-            .report_to(src)
-            .creation_timestamp(CreationTimestamp::now())
-            .lifetime(60 * 60 * 1_000_000)
-            .build()
-            .unwrap();
-        let mut b = crate::bundle::BundleBuilder::default()
-            .primary(pblock)
-            .canonicals(vec![
-                crate::canonical::new_payload_block(0, data),
-                crate::canonical::new_bundle_age_block(
-                    1,
-                    0,
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .expect("Time went backwards")
-                        .as_millis() as u64,
-                ),
-            ])
-            .build()
-            .unwrap();
-        b.set_crc(crate::crc::CRC_32);
-        b
     }
 
     /// Validate bundle and optionally return list of errors.
@@ -346,42 +307,7 @@ impl Bundle {
                         .to_string(),
                 ));
             }
-            //block_numbers.push(blck.block_number);
-            //block_types.push(blck.block_type);
         }
-        /*if !has_unique_elements(block_numbers) {
-            errors.push(Bp7Error::BundleError(
-                "Block numbers occurred multiple times".to_string(),
-            ));
-        }*/
-
-        /*if (1..block_numbers.len()).any(|i| block_numbers[i..].contains(&block_numbers[i - 1])) {
-            errors.push(Bp7Error::BundleError(
-                "Block numbers occurred multiple times".to_string(),
-            ));
-        }
-
-        if block_types
-            .iter()
-            .filter(|&i| *i == BUNDLE_AGE_BLOCK)
-            .count()
-            > 1
-            || block_types
-                .iter()
-                .filter(|&i| *i == PREVIOUS_NODE_BLOCK)
-                .count()
-                > 1
-            || block_types
-                .iter()
-                .filter(|&i| *i == HOP_COUNT_BLOCK)
-                .count()
-                > 1
-        {
-            errors.push(Bp7Error::BundleError(
-                "PreviousNode, BundleAge and HopCound blocks must not occure multiple times"
-                    .to_string(),
-            ));
-        }*/
         if self.primary.creation_timestamp.get_dtntime() == 0 && b_types.contains(&BUNDLE_AGE_BLOCK)
         {
             errors.push(Bp7Error::BundleError(
@@ -393,10 +319,10 @@ impl Bundle {
         }
         None
     }
-    // Sort canonical blocks by block number
+    /// Sort canonical blocks by block number
     pub fn sort_canonicals(&mut self) {
-        self.canonicals.sort_by(|a, b| a.block_number.cmp(&b.block_number));
-
+        self.canonicals
+            .sort_by(|a, b| a.block_number.cmp(&b.block_number));
     }
     fn next_canonical_block_number(&self) -> u64 {
         let mut highest_block_number = 0;
@@ -406,13 +332,16 @@ impl Bundle {
         highest_block_number + 1
     }
 
-    // Automatically assign a block number and add canonical block to bundle
-    pub fn add_canonical_block(&mut self, mut cblock : CanonicalBlock) {
+    /// Automatically assign a block number and add canonical block to bundle
+    pub fn add_canonical_block(&mut self, mut cblock: CanonicalBlock) {
         // TODO: report errors
-        if cblock.block_type == PAYLOAD_BLOCK || cblock.block_type == HOP_COUNT_BLOCK || cblock.block_type == BUNDLE_AGE_BLOCK || cblock.block_type == PREVIOUS_NODE_BLOCK {
-            if self.extension_block(cblock.block_type).is_some() {
-                return
-            }
+        if (cblock.block_type == PAYLOAD_BLOCK
+            || cblock.block_type == HOP_COUNT_BLOCK
+            || cblock.block_type == BUNDLE_AGE_BLOCK
+            || cblock.block_type == PREVIOUS_NODE_BLOCK)
+            && self.extension_block(cblock.block_type).is_some()
+        {
+            return;
         }
         let mut block_num = self.next_canonical_block_number();
 
@@ -425,13 +354,13 @@ impl Bundle {
         self.canonicals.push(cblock);
         self.sort_canonicals();
     }
-    // Checks whether the bundle is an administrative record
+    /// Checks whether the bundle is an administrative record
     pub fn is_administrative_record(&self) -> bool {
         self.primary
             .bundle_control_flags
             .has(BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
     }
-    // Return payload of bundle if an payload block exists and carries data.
+    /// Return payload of bundle if an payload block exists and carries data.
     pub fn payload(&self) -> Option<&ByteBuffer> {
         let pb = self.extension_block(crate::canonical::PAYLOAD_BLOCK);
         if pb.is_some() {
@@ -468,6 +397,7 @@ impl Bundle {
         }
     }
 
+    /// Get first extension block matching the block type
     pub fn extension_block(&self, block_type: CanonicalBlockType) -> Option<(&CanonicalBlock)> {
         for b in &self.canonicals {
             if b.block_type == block_type && b.extension_validation_error().is_none() {
@@ -477,6 +407,7 @@ impl Bundle {
         }
         None
     }
+    /// Get mutable reference for first extension block matching the block type
     pub fn extension_block_mut(
         &mut self,
         block_type: CanonicalBlockType,
@@ -522,9 +453,9 @@ impl Bundle {
         id
     }
 
-    // Update extension blocks such as hop count, bundle age and previous node.
-    // Return true if all successful, omit missing blocks.
-    // Return false if hop count is exceeded, bundle age exceeds life time or bundle lifetime itself is exceeded
+    /// Update extension blocks such as hop count, bundle age and previous node.
+    /// Return true if all successful, omit missing blocks.
+    /// Return false if hop count is exceeded, bundle age exceeds life time or bundle lifetime itself is exceeded
     pub fn update_extensions(&mut self, local_node: EndpointID, residence_time: u64) -> bool {
         if let Some(hcblock) = self.extension_block_mut(HOP_COUNT_BLOCK) {
             hcblock.hop_count_increase();
@@ -562,6 +493,37 @@ impl From<String> for Bundle {
     }
 }
 
+/// Creates a new bundle with the given endpoints, a bundle age block, a hop count block
+///  and a payload block.
+/// CRC is set to CrcNo by default and the lifetime is set to 60 * 60 seconds.
+pub fn new_standard_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer) -> Bundle {
+    let pblock = crate::primary::PrimaryBlockBuilder::default()
+        .destination(dst)
+        .source(src.clone())
+        .report_to(src)
+        .creation_timestamp(CreationTimestamp::now())
+        .lifetime(60 * 60 * 1_000_000)
+        .build()
+        .unwrap();
+    let mut b = crate::bundle::BundleBuilder::default()
+        .primary(pblock)
+        .canonicals(vec![
+            crate::canonical::new_payload_block(0, data),
+            crate::canonical::new_bundle_age_block(
+                1,
+                0,
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Time went backwards")
+                    .as_millis() as u64,
+            ),
+        ])
+        .build()
+        .unwrap();
+    b.set_crc(crate::crc::CRC_32);
+    b
+}
+
 pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer) -> Bundle {
     let now = CreationTimestamp::now();
     //let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
@@ -580,10 +542,11 @@ pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer
         .canonicals(vec![
             new_payload_block(0, data),
             new_bundle_age_block(1, 0, 0),
+            new_hop_count_block(2, 0, 32),
         ])
         .build()
         .unwrap();
-    b.set_crc(CRC_32);
-
+    b.set_crc(CRC_NO);
+    b.sort_canonicals();
     b
 }
