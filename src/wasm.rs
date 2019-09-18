@@ -1,11 +1,20 @@
 use crate::bundle::Bundle;
-use crate::dtntime::CreationTimestamp;
+use crate::dtntime::{CreationTimestamp, DtnTimeHelpers};
 
 use stdweb::*;
 
 js_serializable!(Bundle);
 js_deserializable!(Bundle);
 
+
+#[js_export]
+fn new_std_bundle_now(src : String, dst : String, payload : String) -> Bundle {    
+    crate::bundle::new_std_payload_bundle(
+        src.into(),
+        dst.into(),
+        payload.into(),
+    )
+}
 
 #[js_export]
 fn rnd_bundle_now() -> Bundle {
@@ -68,6 +77,16 @@ fn recipient_from_bundle(b : Bundle) -> String {
 #[js_export]
 fn recipient_from_cbor(buf : crate::ByteBuffer) -> String {
     recipient_from_bundle(decode_from_cbor(buf))
+}
+
+#[js_export]
+fn timestamp_from_bundle(b : Bundle) -> String {
+    b.primary.creation_timestamp.to_owned().to_string()
+}
+
+#[js_export]
+fn timestamp_from_cbor(buf : crate::ByteBuffer) -> String {
+    timestamp_from_bundle(decode_from_cbor(buf))
 }
 
 #[js_export]
