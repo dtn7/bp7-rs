@@ -5,7 +5,7 @@ authors = ["Lars Baumgaertner <baumgaertner@cs.tu-darmstadt.de>"]
 edition = "2018"
 description = "Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-13"
 license = "MIT OR Apache-2.0"
-repository    = "https://github.com/gh0st42/bp7-rs"
+repository    = "https://github.com/dtn7/bp7-rs"
 categories    = ["encoding"]
 readme = "README.md"
 

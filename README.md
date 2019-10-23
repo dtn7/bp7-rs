@@ -8,9 +8,9 @@
 
 Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-13
 
-This library only handles encoding and decoding of bundles, not transmission or other processing of the data. A full daemon using this library can be found here: https://github.com/gh0st42/dtn7-rs
+This library only handles encoding and decoding of bundles, not transmission or other processing of the data. A full daemon using this library can be found here: https://github.com/dtn7/dtn7-rs
 
-**This code is not production ready!**
+**This code is (probably) not production ready!**
 
 ## Benchmarking
 
