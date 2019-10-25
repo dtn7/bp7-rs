@@ -30,7 +30,7 @@ impl DtnTimeHelpers for DtnTime {
 
 /// Get current time as DtnTime timestamp
 pub fn dtn_time_now() -> DtnTime {
-    crate::helpers::get_unix_timestamp() - SECONDS1970_TO2K
+    crate::helpers::unix_timestamp() - SECONDS1970_TO2K
 }
 
 /// Timestamp when a bundle was created, consisting of the DtnTime and a sequence number.
@@ -50,10 +50,10 @@ impl CreationTimestamp {
     pub fn with_time_and_seq(t: DtnTime, seqno: u64) -> CreationTimestamp {
         CreationTimestamp(t, seqno)
     }
-    pub fn get_seqno(&self) -> u64 {
+    pub fn seqno(&self) -> u64 {
         self.1
     }
-    pub fn get_dtntime(&self) -> DtnTime {
+    pub fn dtntime(&self) -> DtnTime {
         self.0
     }
     /// Create a new timestamp with automatic sequence counting
@@ -66,12 +66,12 @@ impl CreationTimestamp {
     /// let time1 = CreationTimestamp::now();
     /// let time2 = CreationTimestamp::now();
     ///
-    /// assert_eq!(time1.get_dtntime(), time2.get_dtntime());
-    /// assert_ne!(time1.get_seqno(), time2.get_seqno());
+    /// assert_eq!(time1.dtntime(), time2.dtntime());
+    /// assert_ne!(time1.seqno(), time2.seqno());
     ///
     /// thread::sleep(time::Duration::from_secs(1));
     /// let time3 = CreationTimestamp::now();
-    /// assert_eq!(time3.get_seqno(), 0);
+    /// assert_eq!(time3.seqno(), 0);
     /// ```
     pub fn now() -> CreationTimestamp {
         static LAST_CREATION_TIMESTAMP: AtomicUsize = AtomicUsize::new(0);

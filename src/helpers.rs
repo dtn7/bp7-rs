@@ -4,7 +4,7 @@ use rand::Rng;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn get_unix_timestamp() -> u64 {
+pub fn unix_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards!!")
@@ -12,12 +12,12 @@ pub fn get_unix_timestamp() -> u64 {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn get_unix_timestamp() -> u64 {
+pub fn unix_timestamp() -> u64 {
     (stdweb::web::Date::now() / 1000.0) as u64
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn get_ts_ms() -> u128 {
+pub fn ts_ms() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards!!")
@@ -25,7 +25,7 @@ pub fn get_ts_ms() -> u128 {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn get_ts_ms() -> u128 {
+pub fn ts_ms() -> u128 {
     (stdweb::web::Date::now()) as u128
 }
 

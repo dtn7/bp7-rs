@@ -161,14 +161,14 @@ impl EndpointID {
         EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, addr)
     }
 
-    pub fn get_scheme(&self) -> String {
+    pub fn scheme(&self) -> String {
         match self {
             EndpointID::DtnNone(_, _) => "dtn".to_string(),
             EndpointID::Dtn(_, _) => "dtn".to_string(),
             EndpointID::Ipn(_, _) => "ipn".to_string(),
         }
     }
-    pub fn get_scheme_specific_part_dtn(&self) -> Option<String> {
+    pub fn scheme_specific_part_dtn(&self) -> Option<String> {
         match self {
             EndpointID::Dtn(_, ssp) => Some(ssp.to_string()),
             _ => None,
@@ -177,8 +177,8 @@ impl EndpointID {
     pub fn to_string(&self) -> String {
         let result = format!(
             "{}://{}",
-            self.get_scheme(),
-            self.get_scheme_specific_part_dtn()
+            self.scheme(),
+            self.scheme_specific_part_dtn()
                 .unwrap_or_else(|| "none".to_string())
         );
         result

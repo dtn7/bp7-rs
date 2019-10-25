@@ -308,8 +308,7 @@ impl Bundle {
                 ));
             }
         }
-        if self.primary.creation_timestamp.get_dtntime() == 0 && b_types.contains(&BUNDLE_AGE_BLOCK)
-        {
+        if self.primary.creation_timestamp.dtntime() == 0 && b_types.contains(&BUNDLE_AGE_BLOCK) {
             errors.push(Bp7Error::BundleError(
                 "Creation Timestamp is zero, but no Bundle Age block is present".to_string(),
             ));
@@ -364,7 +363,7 @@ impl Bundle {
     pub fn payload(&self) -> Option<&ByteBuffer> {
         let pb = self.extension_block(crate::canonical::PAYLOAD_BLOCK);
         if pb.is_some() {
-            pb.unwrap().get_payload_data()
+            pb.unwrap().payload_data()
         } else {
             None
         }
@@ -443,8 +442,8 @@ impl Bundle {
         let mut id = format!(
             "{}-{}-{}-{}",
             self.primary.source,
-            self.primary.creation_timestamp.get_dtntime(),
-            self.primary.creation_timestamp.get_seqno(),
+            self.primary.creation_timestamp.dtntime(),
+            self.primary.creation_timestamp.seqno(),
             self.primary.destination
         );
         if self.primary.has_fragmentation() {

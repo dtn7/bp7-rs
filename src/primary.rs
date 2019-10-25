@@ -61,7 +61,7 @@ impl Serialize for PrimaryBlock {
         }
 
         if self.crc.has_crc() {
-            seq.serialize_element(&serde_bytes::Bytes::new(self.crc.get_bytes().unwrap()))?;
+            seq.serialize_element(&serde_bytes::Bytes::new(self.crc.bytes().unwrap()))?;
         }
 
         seq.end()
@@ -198,7 +198,7 @@ impl PrimaryBlock {
     }
     pub fn is_lifetime_exceeded(&self) -> bool {
         let now = crate::dtn_time_now();
-        self.creation_timestamp.get_dtntime() + self.lifetime <= now
+        self.creation_timestamp.dtntime() + self.lifetime <= now
     }
     pub fn validation_errors(&self) -> Option<Bp7ErrorList> {
         let mut errors: Bp7ErrorList = Vec::new();
