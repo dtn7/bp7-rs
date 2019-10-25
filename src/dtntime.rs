@@ -74,6 +74,8 @@ impl CreationTimestamp {
     /// assert_eq!(time3.get_seqno(), 0);
     /// ```
     pub fn now() -> CreationTimestamp {
+        static LAST_CREATION_TIMESTAMP: AtomicUsize = AtomicUsize::new(0);
+        static LAST_CREATION_SEQ: AtomicUsize = AtomicUsize::new(0);
         let now = dtn_time_now();
         if now != LAST_CREATION_TIMESTAMP.swap(now as usize, Ordering::Relaxed) as u64 {
             LAST_CREATION_SEQ.store(0, Ordering::SeqCst)
@@ -83,6 +85,3 @@ impl CreationTimestamp {
         CreationTimestamp::with_time_and_seq(now, seq as u64)
     }
 }
-
-static LAST_CREATION_TIMESTAMP: AtomicUsize = AtomicUsize::new(0);
-static LAST_CREATION_SEQ: AtomicUsize = AtomicUsize::new(0);
