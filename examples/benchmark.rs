@@ -1,5 +1,6 @@
 use bp7::{bundle, canonical, crc, dtntime, eid, primary, Bundle, ByteBuffer};
 use instant::Instant;
+use std::convert::TryFrom;
 use std::io::stdout;
 use std::io::Write;
 
@@ -36,8 +37,8 @@ fn get_bench_bundle(crc_type: crc::CRCType) -> Bundle {
     let src = eid::EndpointID::with_dtn("node1/123456");
     //let dst = eid::EndpointID::with_ipn(eid::IpnAddress(1, 2));
     //let src = eid::EndpointID::with_ipn(eid::IpnAddress(2, 3));
-    let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);;
-    //let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
+    let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
+    //let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);
 
     //let pblock = primary::new_primary_block("dtn:node2/inbox".to_string(), "dtn:node1/123456".to_string(), now, 60 * 60 * 1_000_000);
     let pblock = primary::PrimaryBlockBuilder::default()
@@ -137,7 +138,7 @@ fn bench_bundle_load(runs: i64, crc_type: crc::CRCType, mut bundles: Vec<ByteBuf
     let bench_now = Instant::now();
     for _x in 0..runs {
         let b = bundles.pop().unwrap();
-        let _deserialized: Bundle = Bundle::from(b);
+        let _deserialized: Bundle = Bundle::try_from(b).unwrap();
         _deserialized.validation_errors();
     }
     let elapsed = bench_now.elapsed();

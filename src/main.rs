@@ -1,6 +1,7 @@
 use bp7::dtntime::DtnTimeHelpers;
 use bp7::helpers::*;
 use bp7::*;
+use std::convert::TryInto;
 use std::env;
 
 fn usage(filepath: &str) {
@@ -15,7 +16,7 @@ fn decode(bundle: &str) {
     let buf = unhexify(bundle).unwrap();
     //println!("decode: {:02x?}", &buf);
     dbg!(serde_cbor::from_slice::<serde_cbor::Value>(&buf).unwrap());
-    let bndl: Bundle = buf.into();
+    let bndl: Bundle = buf.try_into().expect("Error decoding bundle!");
     dbg!(&bndl);
 }
 

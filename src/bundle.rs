@@ -4,6 +4,7 @@ use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
+use std::convert::TryFrom;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::canonical::*;
@@ -480,16 +481,26 @@ impl Bundle {
 }
 
 /// Deserialize from CBOR byte buffer.
-impl From<ByteBuffer> for Bundle {
-    fn from(item: ByteBuffer) -> Self {
-        serde_cbor::from_slice(&item).expect("Decoding Bundle failed")
+impl TryFrom<ByteBuffer> for Bundle {
+    type Error = String;
+
+    fn try_from(item: ByteBuffer) -> Result<Self, Self::Error> {
+        match serde_cbor::from_slice(&item) {
+            Ok(bndl) => Ok(bndl),
+            Err(err) => Err(format!("Decoding bundle failed: {:?}", err)),
+        }
     }
 }
 
 /// Deserialize from JSON string.
-impl From<String> for Bundle {
-    fn from(item: String) -> Self {
-        serde_json::from_str(&item).expect("Decoding Bundle failed")
+impl TryFrom<String> for Bundle {
+    type Error = String;
+
+    fn try_from(item: String) -> Result<Self, Self::Error> {
+        match serde_json::from_str(&item) {
+            Ok(bndl) => Ok(bndl),
+            Err(err) => Err(format!("Decoding bundle failed: {:?}", err)),
+        }
     }
 }
 
