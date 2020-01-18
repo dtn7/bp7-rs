@@ -3,8 +3,8 @@ use core::convert::From;
 use core::fmt;
 use serde::de::{SeqAccess, Visitor};
 //use serde::ser::{SerializeSeq, Serializer};
+use crate::helpers::Url;
 use serde::{de, Deserialize, Deserializer, Serialize};
-use url::Url;
 
 /******************************
  *
@@ -174,20 +174,17 @@ impl EndpointID {
             _ => None,
         }
     }
-    pub fn to_string(&self) -> String {
-        let result = format!(
-            "{}://{}",
-            self.scheme(),
-            self.scheme_specific_part_dtn()
-                .unwrap_or_else(|| "none".to_string())
-        );
-        result
-    }
 }
 
 impl fmt::Display for EndpointID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(
+            f,
+            "{}://{}",
+            self.scheme(),
+            self.scheme_specific_part_dtn()
+                .unwrap_or_else(|| "none".to_string())
+        )
     }
 }
 
@@ -331,7 +328,7 @@ impl From<String> for EndpointID {
             item.replace(":", "://")
         };
         let u = Url::parse(&item).expect("EndpointID url parsing error");
-        let host = u.host_str().expect("EndpointID host parsing error");
+        let host = u.host();
 
         match u.scheme() {
             "dtn" => {

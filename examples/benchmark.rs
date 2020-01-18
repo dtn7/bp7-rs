@@ -36,7 +36,7 @@ fn get_bench_bundle(crc_type: crc::CRCType) -> Bundle {
     let src = eid::EndpointID::with_dtn("node1/123456");
     //let dst = eid::EndpointID::with_ipn(eid::IpnAddress(1, 2));
     //let src = eid::EndpointID::with_ipn(eid::IpnAddress(2, 3));
-    let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);;
+    let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
     //let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
 
     //let pblock = primary::new_primary_block("dtn:node2/inbox".to_string(), "dtn:node1/123456".to_string(), now, 60 * 60 * 1_000_000);
@@ -156,9 +156,9 @@ fn main() {
     bench_bundle_encode(RUNS, crc::CRC_16);
     bench_bundle_encode(RUNS, crc::CRC_32);
 
-    bench_bundle_load(RUNS, crc::CRC_NO, crcno.clone());
-    bench_bundle_load(RUNS, crc::CRC_16, crc16.clone());
-    bench_bundle_load(RUNS, crc::CRC_32, crc32.clone());
+    bench_bundle_load(RUNS, crc::CRC_NO, crcno);
+    bench_bundle_load(RUNS, crc::CRC_16, crc16);
+    bench_bundle_load(RUNS, crc::CRC_32, crc32);
 
     //dbg!(crcno[0].len());
     //dbg!(crc16[0].len());
