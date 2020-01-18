@@ -157,9 +157,9 @@ fn main() {
     bench_bundle_encode(RUNS, crc::CRC_16);
     bench_bundle_encode(RUNS, crc::CRC_32);
 
-    bench_bundle_load(RUNS, crc::CRC_NO, crcno.clone());
-    bench_bundle_load(RUNS, crc::CRC_16, crc16.clone());
-    bench_bundle_load(RUNS, crc::CRC_32, crc32.clone());
+    bench_bundle_load(RUNS, crc::CRC_NO, crcno);
+    bench_bundle_load(RUNS, crc::CRC_16, crc16);
+    bench_bundle_load(RUNS, crc::CRC_32, crc32);
 
     //dbg!(crcno[0].len());
     //dbg!(crc16[0].len());

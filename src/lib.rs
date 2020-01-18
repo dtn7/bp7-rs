@@ -35,6 +35,8 @@
 //!
 //!
 
+#![forbid(unsafe_code)]
+
 pub mod administrative_record;
 pub mod bundle;
 pub mod canonical;

@@ -73,7 +73,7 @@ impl Serialize for CanonicalBlock {
         seq.serialize_element(&self.data)?;
 
         if self.crc.has_crc() {
-            seq.serialize_element(&serde_bytes::Bytes::new(&self.crc.get_bytes().unwrap()))?;
+            seq.serialize_element(&serde_bytes::Bytes::new(&self.crc.bytes().unwrap()))?;
         }
 
         seq.end()
@@ -284,21 +284,21 @@ impl CanonicalBlock {
 
         None
     }
-    pub fn get_data(&self) -> &CanonicalData {
+    pub fn data(&self) -> &CanonicalData {
         &self.data
     }
     pub fn set_data(&mut self, data: CanonicalData) {
         self.data = data;
     }
-    pub fn get_payload_data(&self) -> Option<&ByteBuffer> {
+    pub fn payload_data(&self) -> Option<&ByteBuffer> {
         match &self.data {
             CanonicalData::Data(data) => Some(&data),
-            _ => None
+            _ => None,
         }
     }
     pub fn hop_count_get(&self) -> Option<(u32, u32)> {
         if self.block_type == HOP_COUNT_BLOCK {
-            if let CanonicalData::HopCount(hc_limit, hc_count) = self.get_data() {
+            if let CanonicalData::HopCount(hc_limit, hc_count) = self.data() {
                 return Some((*hc_limit, *hc_count));
             }
         }
@@ -314,7 +314,7 @@ impl CanonicalBlock {
     }
     pub fn hop_count_exceeded(&self) -> bool {
         if self.block_type == HOP_COUNT_BLOCK {
-            if let CanonicalData::HopCount(hc_limit, hc_count) = self.get_data() {
+            if let CanonicalData::HopCount(hc_limit, hc_count) = self.data() {
                 if *hc_count > *hc_limit {
                     return true;
                 }
@@ -331,7 +331,7 @@ impl CanonicalBlock {
     }
     pub fn bundle_age_get(&self) -> Option<u64> {
         if self.block_type == BUNDLE_AGE_BLOCK {
-            if let CanonicalData::BundleAge(age) = self.get_data() {
+            if let CanonicalData::BundleAge(age) = self.data() {
                 return Some(*age);
             }
         }
@@ -346,7 +346,7 @@ impl CanonicalBlock {
     }
     pub fn previous_node_get(&self) -> Option<&EndpointID> {
         if self.block_type == PREVIOUS_NODE_BLOCK {
-            if let CanonicalData::PreviousNode(eid) = self.get_data() {
+            if let CanonicalData::PreviousNode(eid) = self.data() {
                 return Some(eid);
             }
         }

@@ -168,7 +168,7 @@ fn bundle_canonical_update_tests() {
 #[test]
 fn bundle_add_cblock() {
     let mut b = new_empty_bundle(crc::CRC_NO);
-    assert!(b.canonicals.len() == 0);
+    assert!(b.canonicals.is_empty());
 
     b.add_canonical_block(canonical::new_hop_count_block(
         666, // block number
@@ -195,7 +195,7 @@ fn bundle_add_cblock() {
     ));
     assert!(b.canonicals.len() == 3);
 
-    let mut numbers: Vec<u64> = b.canonicals.iter().map(|c| c.block_number).collect();
+    let numbers: Vec<u64> = b.canonicals.iter().map(|c| c.block_number).collect();
     //numbers.sort();
     assert_eq!(numbers, vec![0, 1, 2]);
 }

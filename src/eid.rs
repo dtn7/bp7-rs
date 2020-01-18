@@ -3,8 +3,8 @@ use core::convert::From;
 use core::fmt;
 use serde::de::{SeqAccess, Visitor};
 //use serde::ser::{SerializeSeq, Serializer};
+use crate::helpers::Url;
 use serde::{de, Deserialize, Deserializer, Serialize};
-use url::Url;
 
 /******************************
  *
@@ -161,33 +161,30 @@ impl EndpointID {
         EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, addr)
     }
 
-    pub fn get_scheme(&self) -> String {
+    pub fn scheme(&self) -> String {
         match self {
             EndpointID::DtnNone(_, _) => "dtn".to_string(),
             EndpointID::Dtn(_, _) => "dtn".to_string(),
             EndpointID::Ipn(_, _) => "ipn".to_string(),
         }
     }
-    pub fn get_scheme_specific_part_dtn(&self) -> Option<String> {
+    pub fn scheme_specific_part_dtn(&self) -> Option<String> {
         match self {
             EndpointID::Dtn(_, ssp) => Some(ssp.to_string()),
             _ => None,
         }
     }
-    pub fn to_string(&self) -> String {
-        let result = format!(
-            "{}://{}",
-            self.get_scheme(),
-            self.get_scheme_specific_part_dtn()
-                .unwrap_or_else(|| "none".to_string())
-        );
-        result
-    }
 }
 
 impl fmt::Display for EndpointID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(
+            f,
+            "{}://{}",
+            self.scheme(),
+            self.scheme_specific_part_dtn()
+                .unwrap_or_else(|| "none".to_string())
+        )
     }
 }
 
@@ -331,7 +328,7 @@ impl From<String> for EndpointID {
             item.replace(":", "://")
         };
         let u = Url::parse(&item).expect("EndpointID url parsing error");
-        let host = u.host_str().expect("EndpointID host parsing error");
+        let host = u.host();
 
         match u.scheme() {
             "dtn" => {

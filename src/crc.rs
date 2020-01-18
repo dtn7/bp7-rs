@@ -35,7 +35,7 @@ impl CrcValue {
             CrcValue::Unknown(code) => *code,
         }
     }
-    pub fn get_bytes(&self) -> Option<&[u8]> {
+    pub fn bytes(&self) -> Option<&[u8]> {
         match self {
             CrcValue::Unknown(_) => None,
             CrcValue::CrcNo => None,
@@ -93,7 +93,7 @@ pub trait CrcBlock: Block + Clone {
     }
     /// Returns raw crc checksum
     fn crc(&self) -> Option<&[u8]> {
-        self.crc_value().get_bytes()
+        self.crc_value().bytes()
     }
     /// Set crc type
     /// CRC_NO, CRC_16, CRC_32
@@ -150,5 +150,5 @@ pub fn check_crc<T: CrcBlock + Block>(blck: &mut T) -> bool {
     if !blck.has_crc() {
         return !blck.has_crc();
     }
-    calculate_crc(blck).get_bytes() == blck.crc()
+    calculate_crc(blck).bytes() == blck.crc()
 }

@@ -33,9 +33,9 @@ fn encode_decode_test_canonical(data: CanonicalBlock) {
         serde_cbor::from_slice(&encoded_data).expect("decoding error");
     assert_eq!(data, decoded_data);
 
-    println!("{:?}", decoded_data.get_data());
-    assert_eq!(decoded_data.get_data(), data.get_data());
-    if *decoded_data.get_data() == CanonicalData::DecodingError {
+    println!("{:?}", decoded_data.data());
+    assert_eq!(decoded_data.data(), data.data());
+    if *decoded_data.data() == CanonicalData::DecodingError {
         panic!("Wrong Payload");
     }
 }
@@ -62,7 +62,7 @@ fn hopcount_tests() {
     assert_eq!(block.block_type, bp7::HOP_COUNT_BLOCK);
     assert_eq!(block.hop_count_exceeded(), false);
 
-    if let CanonicalData::HopCount(hc_limit, hc_count) = block.get_data() {
+    if let CanonicalData::HopCount(hc_limit, hc_count) = block.data() {
         assert!(*hc_limit == 1);
         assert!(*hc_count == 0);
     } else {
