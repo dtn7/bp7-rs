@@ -1,19 +1,13 @@
 use crate::bundle::Bundle;
 use crate::dtntime::{CreationTimestamp, DtnTimeHelpers};
-
 use stdweb::*;
 
 js_serializable!(Bundle);
 js_deserializable!(Bundle);
 
-
 #[js_export]
-fn new_std_bundle_now(src : String, dst : String, payload : String) -> Bundle {    
-    crate::bundle::new_std_payload_bundle(
-        src.into(),
-        dst.into(),
-        payload.into(),
-    )
+fn new_std_bundle_now(src: String, dst: String, payload: String) -> Bundle {
+    crate::bundle::new_std_payload_bundle(src.into(), dst.into(), payload.into())
 }
 
 #[js_export]
@@ -22,79 +16,80 @@ fn rnd_bundle_now() -> Bundle {
 }
 
 #[js_export]
-fn encode_to_cbor(b : Bundle) -> crate::ByteBuffer {
+fn encode_to_cbor(b: Bundle) -> crate::ByteBuffer {
     b.clone().to_cbor()
 }
 
 #[js_export]
-fn decode_from_cbor(buf : crate::ByteBuffer) -> Bundle {
-    buf.into()
+fn decode_from_cbor(buf: crate::ByteBuffer) -> Bundle {
+    // TODO: correct error handling for javascript
+    std::convert::TryInto::try_into(buf).expect("error decoding bundle")
 }
 #[js_export]
-fn bid_from_bundle(b : Bundle) -> String {    
+fn bid_from_bundle(b: Bundle) -> String {
     b.id()
 }
 
 #[js_export]
-fn bid_from_cbor(buf : crate::ByteBuffer) -> String {
+fn bid_from_cbor(buf: crate::ByteBuffer) -> String {
     bid_from_bundle(decode_from_cbor(buf))
 }
 #[js_export]
-fn payload_from_bundle(b : Bundle) -> Option<crate::ByteBuffer> {    
+fn payload_from_bundle(b: Bundle) -> Option<crate::ByteBuffer> {
     b.payload().map(|d| d.clone())
 }
 
 #[js_export]
-fn payload_from_cbor(buf : crate::ByteBuffer) -> Option<crate::ByteBuffer> {
+fn payload_from_cbor(buf: crate::ByteBuffer) -> Option<crate::ByteBuffer> {
     payload_from_bundle(decode_from_cbor(buf))
 }
 
 #[js_export]
-fn valid_bundle(b : Bundle) -> bool {
+fn valid_bundle(b: Bundle) -> bool {
     !b.primary.is_lifetime_exceeded() && b.validation_errors().is_none()
 }
 
 #[js_export]
-fn valid_cbor(buf : crate::ByteBuffer) -> bool {
+fn valid_cbor(buf: crate::ByteBuffer) -> bool {
     valid_bundle(decode_from_cbor(buf))
 }
 
 #[js_export]
-fn sender_from_bundle(b : Bundle) -> String {
+fn sender_from_bundle(b: Bundle) -> String {
     b.primary.source.to_string()
 }
 
 #[js_export]
-fn sender_from_cbor(buf : crate::ByteBuffer) -> String {
+fn sender_from_cbor(buf: crate::ByteBuffer) -> String {
     sender_from_bundle(decode_from_cbor(buf))
 }
 
 #[js_export]
-fn recipient_from_bundle(b : Bundle) -> String {
+fn recipient_from_bundle(b: Bundle) -> String {
     b.primary.destination.to_string()
 }
 
 #[js_export]
-fn recipient_from_cbor(buf : crate::ByteBuffer) -> String {
+fn recipient_from_cbor(buf: crate::ByteBuffer) -> String {
     recipient_from_bundle(decode_from_cbor(buf))
 }
 
 #[js_export]
-fn timestamp_from_bundle(b : Bundle) -> String {
+fn timestamp_from_bundle(b: Bundle) -> String {
     b.primary.creation_timestamp.to_owned().to_string()
 }
 
 #[js_export]
-fn timestamp_from_cbor(buf : crate::ByteBuffer) -> String {
+fn timestamp_from_cbor(buf: crate::ByteBuffer) -> String {
     timestamp_from_bundle(decode_from_cbor(buf))
 }
 
 #[js_export]
-fn bundle_is_administrative_record(b : Bundle) -> bool {
+fn bundle_is_administrative_record(b: Bundle) -> bool {
     b.is_administrative_record()
 }
 
 #[js_export]
-fn cbor_is_administrative_record(buf : crate::ByteBuffer) -> bool {
+fn cbor_is_administrative_record(buf: crate::ByteBuffer) -> bool {
     bundle_is_administrative_record(decode_from_cbor(buf))
 }

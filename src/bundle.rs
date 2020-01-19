@@ -398,7 +398,7 @@ impl Bundle {
     }
 
     /// Get first extension block matching the block type
-    pub fn extension_block(&self, block_type: CanonicalBlockType) -> Option<(&CanonicalBlock)> {
+    pub fn extension_block(&self, block_type: CanonicalBlockType) -> Option<&CanonicalBlock> {
         for b in &self.canonicals {
             if b.block_type == block_type && b.extension_validation_error().is_none() {
                 //let cdata = b.get_data().clone();
@@ -411,7 +411,7 @@ impl Bundle {
     pub fn extension_block_mut(
         &mut self,
         block_type: CanonicalBlockType,
-    ) -> Option<(&mut CanonicalBlock)> {
+    ) -> Option<&mut CanonicalBlock> {
         for b in &mut self.canonicals {
             if b.block_type == block_type && b.extension_validation_error().is_none() {
                 //let cdata = b.get_data().clone();
