@@ -87,7 +87,7 @@ impl Url {
             return Err("Error parsing url: host missing");
         } else {
         }
-        let host = dbg!(String::from(uri[0]));
+        let host = String::from(uri[0]);
         if uri.len() > 1 {
             path = String::from("/") + &uri[1..].join("/");
         }
