@@ -139,7 +139,9 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                         .ok_or_else(|| de::Error::invalid_length(7 + rest, &self))?
                         .into_vec();
                     let mut outbuf: [u8; 2] = [0; 2];
-                    assert_eq!(crcbuf.len(), outbuf.len());
+                    if crcbuf.len() != outbuf.len() {
+                        return Err(de::Error::invalid_length(7 + rest, &self));
+                    }
                     outbuf.copy_from_slice(&crcbuf);
                     CrcValue::Crc16(outbuf)
                 } else if crc_type == CRC_32 {
@@ -148,7 +150,9 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                         .ok_or_else(|| de::Error::invalid_length(7 + rest, &self))?
                         .into_vec();
                     let mut outbuf: [u8; 4] = [0; 4];
-                    assert_eq!(crcbuf.len(), outbuf.len());
+                    if crcbuf.len() != outbuf.len() {
+                        return Err(de::Error::invalid_length(7 + rest, &self));
+                    }
                     outbuf.copy_from_slice(&crcbuf);
                     CrcValue::Crc32(outbuf)
                 } else {
