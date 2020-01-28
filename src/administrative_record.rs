@@ -1,8 +1,6 @@
-use crate::bundle::{ByteBuffer};
+use crate::bundle::ByteBuffer;
+use crate::{bundle, crc, dtn_time_now, primary};
 use core::fmt;
-use crate::{dtn_time_now, bundle};
-use crate::primary;
-use crate::crc;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};

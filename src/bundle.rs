@@ -39,12 +39,6 @@ pub enum Bp7Error {
 
 impl fmt::Display for Bp7Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        /*match self {
-            CanonicalBlockError(err) => {
-                write!(f, "CanonicalBlock: {:?}", self, )
-            }
-        } */
-
         write!(f, "{:?}", self)
         // or, alternatively:
         // fmt::Debug::fmt(self, f)

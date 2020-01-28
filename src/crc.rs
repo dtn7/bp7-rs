@@ -8,7 +8,6 @@ use super::bundle::*;
 
 pub type CRCType = u8;
 
-use byteorder::{BigEndian, ByteOrder};
 use crc::{crc16, crc32};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -125,8 +124,7 @@ pub fn calculate_crc<T: CrcBlock + Block>(blck: &mut T) -> CrcValue {
             let data = blck.to_cbor(); // TODO: optimize this encoding away
                                        // also tried crc16 crate, not a bit faster
             let chksm = crc16::checksum_x25(&data);
-            let mut output_crc: [u8; 2] = [0; 2];
-            BigEndian::write_u16(&mut output_crc, chksm);
+            let output_crc = chksm.to_be_bytes();
             blck.set_crc(crc_bak); // restore orginal crc
             CrcValue::Crc16(output_crc)
         }
@@ -136,8 +134,7 @@ pub fn calculate_crc<T: CrcBlock + Block>(blck: &mut T) -> CrcValue {
             let data = blck.to_cbor(); // TODO: optimize this encoding away
                                        // also tried crc32fast, was not significantly faster
             let chksm = crc32::checksum_castagnoli(&data);
-            let mut output_crc: [u8; 4] = [0; 4];
-            BigEndian::write_u32(&mut output_crc, chksm);
+            let output_crc = chksm.to_be_bytes();
             blck.set_crc(crc_bak); // restore orginal crc
             CrcValue::Crc32(output_crc)
         }
