@@ -65,17 +65,18 @@ pub trait Block {
 
 pub type BlockControlFlags = u8;
 
-/// Bundle must be deleted if this block can't be processed.
-pub const BLOCK_DELETE_BUNDLE: BlockControlFlags = 0x08;
-
-/// Transmission of a status report is requested if this block can't be processed.
-pub const BLOCK_STATUS_REPORT: BlockControlFlags = 0x04;
-
-/// Block must be removed from the bundle if it can't be processed.
-pub const BLOCK_REMOVE: BlockControlFlags = 0x02;
-
 /// This block must be replicated in every fragment.
 pub const BLOCK_REPLICATE: BlockControlFlags = 0x01;
+
+/// Transmission of a status report is requested if this block can't be processed.
+pub const BLOCK_STATUS_REPORT: BlockControlFlags = 0x02;
+
+/// Bundle must be deleted if this block can't be processed.
+pub const BLOCK_DELETE_BUNDLE: BlockControlFlags = 0x04;
+
+/// Block must be removed from the bundle if it can't be processed.
+pub const BLOCK_REMOVE: BlockControlFlags = 0x10;
+
 
 pub const BLOCK_CFRESERVED_FIELDS: BlockControlFlags = 0xF0;
 
@@ -103,22 +104,22 @@ impl BlockValidation for BlockControlFlags {
  *
  ******************************/
 
-pub type BundleControlFlags = u16;
+pub type BundleControlFlags = u64;
 
 /// Request reporting of bundle deletion.
-pub const BUNDLE_STATUS_REQUEST_DELETION: BundleControlFlags = 0x1000;
+pub const BUNDLE_STATUS_REQUEST_DELETION: BundleControlFlags = 0x040000;
 
 /// Request reporting of bundle delivery.
-pub const BUNDLE_STATUS_REQUEST_DELIVERY: BundleControlFlags = 0x0800;
+pub const BUNDLE_STATUS_REQUEST_DELIVERY: BundleControlFlags = 0x020000;
 
 /// Request reporting of bundle forwarding.
-pub const BUNDLE_STATUS_REQUEST_FORWARD: BundleControlFlags = 0x0400;
+pub const BUNDLE_STATUS_REQUEST_FORWARD: BundleControlFlags = 0x010000;
 
 /// Request reporting of bundle reception.
-pub const BUNDLE_STATUS_REQUEST_RECEPTION: BundleControlFlags = 0x0100;
+pub const BUNDLE_STATUS_REQUEST_RECEPTION: BundleControlFlags = 0x004000;
 
-/// The bundle contains a "manifest" extension block.
-pub const BUNDLE_CONTAINS_MANIFEST: BundleControlFlags = 0x0080;
+// / The bundle contains a "manifest" extension block.
+//pub const BUNDLE_CONTAINS_MANIFEST: BundleControlFlags = 0x0080;
 
 /// Status time is requested in all status reports.
 pub const BUNDLE_REQUEST_STATUS_TIME: BundleControlFlags = 0x0040;
@@ -134,6 +135,7 @@ pub const BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD: BundleControlFlags = 0x0002;
 
 /// The bundle is a fragment.
 pub const BUNDLE_IS_FRAGMENT: BundleControlFlags = 0x0001;
+
 
 pub const BUNDLE_CFRESERVED_FIELDS: BundleControlFlags = 0xE218;
 
@@ -265,8 +267,8 @@ impl Bundle {
         //let mut block_numbers: Vec<CanonicalBlockNumberType> = Vec::new();
         //let mut block_types: Vec<CanonicalBlockType> = Vec::new();
 
-        let mut b_num = std::collections::HashSet::new();
-        let mut b_types = std::collections::HashSet::new();
+        let mut b_num : std::collections::HashSet<u64> = std::collections::HashSet::with_capacity(15);
+        let mut b_types : std::collections::HashSet<u64> = std::collections::HashSet::with_capacity(15);
 
         if let Some(mut err) = self.primary.validation_errors() {
             errors.append(&mut err);
@@ -507,8 +509,8 @@ pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer
     let mut b = crate::bundle::BundleBuilder::default()
         .primary(pblock)
         .canonicals(vec![
-            new_payload_block(0, data),
-            new_hop_count_block(1, 0, 32),
+            new_payload_block(1, data),
+            new_hop_count_block(2, 0, 32),
         ])
         .build()
         .unwrap();

@@ -101,35 +101,38 @@ impl AdministrativeRecord {
 
 pub type StatusReportReason = u32;
 
-// NO_INFORMATION is the "No additional information" bundle status report reason code.
+/// NO_INFORMATION is the "No additional information" bundle status report reason code.
 pub const NO_INFORMATION: StatusReportReason = 0;
 
-// LIFETIME_EXPIRED is the "Lifetime expired" bundle status report reason code.
+/// LIFETIME_EXPIRED is the "Lifetime expired" bundle status report reason code.
 pub const LIFETIME_EXPIRED: StatusReportReason = 1;
 
-// FORWARD_UNIDIRECTIONAL_LINK is the "Forwarded over unidirectional link" bundle status report reason code.
+/// FORWARD_UNIDIRECTIONAL_LINK is the "Forwarded over unidirectional link" bundle status report reason code.
 pub const FORWARD_UNIDIRECTIONAL_LINK: StatusReportReason = 2;
 
-// TRANSMISSION_CANCELED is the "Transmission canceled" bundle status report reason code.
+/// TRANSMISSION_CANCELED is the "Transmission canceled" bundle status report reason code.
 pub const TRANSMISSION_CANCELED: StatusReportReason = 3;
 
-// DEPLETED_STORAGE is the "Depleted storage" bundle status report reason code.
+/// DEPLETED_STORAGE is the "Depleted storage" bundle status report reason code.
 pub const DEPLETED_STORAGE: StatusReportReason = 4;
 
-// DEST_ENDPOINT_UNINTELLIGIBLE is the "Destination endpoint ID unintelligible" bundle status report reason code.
+/// DEST_ENDPOINT_UNINTELLIGIBLE is the "Destination endpoint ID unintelligible" bundle status report reason code.
 pub const DEST_ENDPOINT_UNINTELLIGIBLE: StatusReportReason = 5;
 
-// NO_ROUTE_TO_DESTINATION is the "No known route to destination from here" bundle status report reason code.
+/// NO_ROUTE_TO_DESTINATION is the "No known route to destination from here" bundle status report reason code.
 pub const NO_ROUTE_TO_DESTINATION: StatusReportReason = 6;
 
-// NO_NEXT_NODE_CONTACT is the "No timely contact with next node on route" bundle status report reason code.
+/// NO_NEXT_NODE_CONTACT is the "No timely contact with next node on route" bundle status report reason code.
 pub const NO_NEXT_NODE_CONTACT: StatusReportReason = 7;
 
-// BLOCK_UNINTELLIGIBLE is the "Block unintelligible" bundle status report reason code.
+/// BLOCK_UNINTELLIGIBLE is the "Block unintelligible" bundle status report reason code.
 pub const BLOCK_UNINTELLIGIBLE: StatusReportReason = 8;
 
-// HOP_LIMIT_EXCEEDED is the "Hop limit exceeded" bundle status report reason code.
+/// HOP_LIMIT_EXCEEDED is the "Hop limit exceeded" bundle status report reason code.
 pub const HOP_LIMIT_EXCEEDED: StatusReportReason = 9;
+
+/// TRAFFIC_PARED bundle status report reason code.
+pub const TRAFFIC_PARED: StatusReportReason = 10;
 
 // BundleStatusItem represents the a bundle status item, as used as an element
 // in the bundle status information array of each Bundle Status Report.

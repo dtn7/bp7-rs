@@ -18,7 +18,7 @@ pub const ENDPOINT_URI_SCHEME_IPN: u8 = 2;
 pub const DTN_NONE: EndpointID = EndpointID::DtnNone(ENDPOINT_URI_SCHEME_DTN, 0);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct IpnAddress(pub u32, pub u32);
+pub struct IpnAddress(pub u64, pub u64);
 
 /// # Examples
 ///
@@ -346,8 +346,8 @@ impl From<String> for EndpointID {
                 if fields.len() != 2 {
                     panic!("wrong number of fields in IPN address");
                 }
-                let p1: u32 = fields[0].parse().unwrap();
-                let p2: u32 = fields[1].parse().unwrap();
+                let p1: u64 = fields[0].parse().unwrap();
+                let p2: u64 = fields[1].parse().unwrap();
 
                 EndpointID::with_ipn(IpnAddress(p1, p2))
             }

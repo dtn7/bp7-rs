@@ -17,7 +17,7 @@ pub type CanonicalBlockType = u64;
 
 // PAYLOAD_BLOCK is a BlockType for a payload block as defined in 4.2.3.
 pub const PAYLOAD_BLOCK: CanonicalBlockType = 1;
-
+/*
 // INTEGRITY_BLOCK is a BlockType defined in the Bundle Security Protocol
 // specifiation.
 pub const INTEGRITY_BLOCK: CanonicalBlockType = 2;
@@ -33,18 +33,18 @@ pub const MANIFEST_BLOCK: CanonicalBlockType = 4;
 // FLOW_LABEL_BLOCK is a BlockType defined in the Flow Label Extension Block
 // specification.
 pub const FLOW_LABEL_BLOCK: CanonicalBlockType = 6;
-
+*/
 // PREVIOUS_NODE_BLOCK is a BlockType for a Previous Node block as defined
 // in section 4.3.1.
-pub const PREVIOUS_NODE_BLOCK: CanonicalBlockType = 7;
+pub const PREVIOUS_NODE_BLOCK: CanonicalBlockType = 6;
 
 // BUNDLE_AGE_BLOCK is a BlockType for a Bundle Age block as defined in
 // section 4.3.2.
-pub const BUNDLE_AGE_BLOCK: CanonicalBlockType = 8;
+pub const BUNDLE_AGE_BLOCK: CanonicalBlockType = 7;
 
 // HOP_COUNT_BLOCK is a BlockType for a Hop Count block as defined in
 // section 4.3.3.
-pub const HOP_COUNT_BLOCK: CanonicalBlockType = 9;
+pub const HOP_COUNT_BLOCK: CanonicalBlockType = 10;
 
 //#[derive(Debug, Serialize_tuple, Deserialize_tuple, Clone)]
 #[derive(Debug, Clone, PartialEq, Builder)]
@@ -63,13 +63,14 @@ impl Serialize for CanonicalBlock {
     where
         S: Serializer,
     {
-        let num_elems = if self.crc.to_code() == CRC_NO { 5 } else { 6 };
+        let crc_code = self.crc.to_code();
+        let num_elems = if crc_code == CRC_NO { 5 } else { 6 };
 
         let mut seq = serializer.serialize_seq(Some(num_elems))?;
         seq.serialize_element(&self.block_type)?;
         seq.serialize_element(&self.block_number)?;
         seq.serialize_element(&self.block_control_flags)?;
-        seq.serialize_element(&self.crc.to_code())?;
+        seq.serialize_element(&crc_code)?;
         seq.serialize_element(&self.data)?;
 
         if self.crc.has_crc() {
@@ -133,7 +134,11 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                             .ok_or_else(|| de::Error::invalid_length(4, &self))?,
                     )
                 } else {
-                    CanonicalData::DecodingError
+                    CanonicalData::Unknown(
+                        seq.next_element::<serde_bytes::ByteBuf>()?
+                            .ok_or_else(|| de::Error::invalid_length(4, &self))?
+                            .into_vec(),
+                    )
                 };
                 let crc = if crc_type == CRC_NO {
                     CrcValue::CrcNo
@@ -246,7 +251,7 @@ impl CanonicalBlock {
                         "Payload data not matching payload type".to_string(),
                     ));
                 }
-                if self.block_number != 0 {
+                if self.block_number != 1 {
                     return Some(Bp7Error::CanonicalBlockError(
                         "Payload Block's block number is not zero".to_string(),
                     ));
@@ -276,15 +281,18 @@ impl CanonicalBlock {
                     return Some(err);
                 }
             }
+            CanonicalData::Unknown(_) => {
+                return Some(Bp7Error::CanonicalBlockError(format!("Unknown data for block type {}", self.block_type)));
+            }
             CanonicalData::DecodingError => {
                 return Some(Bp7Error::CanonicalBlockError("Unknown data".to_string()));
             }
         }
-        if (self.block_type > 9 && self.block_type < 192) || (self.block_type > 255) {
+        /*if (self.block_type > 9 && self.block_type < 192) || (self.block_type > 255) {
             return Some(Bp7Error::CanonicalBlockError(
                 "Unknown block type".to_string(),
             ));
-        }
+        }*/
 
         None
     }
@@ -365,6 +373,7 @@ pub enum CanonicalData {
     Data(#[serde(with = "serde_bytes")] ByteBuffer),
     BundleAge(u64),
     PreviousNode(EndpointID),
+    Unknown(#[serde(with = "serde_bytes")] ByteBuffer),
     DecodingError,
 }
 impl CanonicalData {
@@ -390,7 +399,7 @@ pub fn new_hop_count_block(
 pub fn new_payload_block(bcf: BlockControlFlags, data: ByteBuffer) -> CanonicalBlock {
     CanonicalBlockBuilder::default()
         .block_type(PAYLOAD_BLOCK)
-        .block_number(0)
+        .block_number(1)
         .block_control_flags(bcf)
         .data(CanonicalData::Data(data))
         .build()

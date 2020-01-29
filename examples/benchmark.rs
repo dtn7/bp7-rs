@@ -52,7 +52,7 @@ fn get_bench_bundle(crc_type: crc::CRCType) -> Bundle {
     let cblocks = vec![
         canonical::new_payload_block(0, b"ABC".to_vec()),
         canonical::new_bundle_age_block(
-            1, // block number
+            2, // block number
             0, // flags
             0, // time elapsed
         ),

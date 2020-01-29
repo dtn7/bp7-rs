@@ -20,17 +20,17 @@ fn new_complete_bundle(crc_type : bp7::crc::CRCType) -> Bundle {
         .canonicals(vec![
             canonical::new_payload_block(0, b"ABC".to_vec()),
             canonical::new_bundle_age_block(
-                1, // block number
+                2, // block number
                 0, // flags
                 0, // time elapsed
             ),
             canonical::new_hop_count_block(
-                2, // block number
+                3, // block number
                 0, // flags
                 16, // max hops
             ),
             canonical::new_previous_node_block(
-                3, // block number
+                4, // block number
                 0, // flags
                 "dtn://node23".into(), // previous node EID
             ),
