@@ -126,15 +126,15 @@ Results should be shown in the javascript console on http://127.0.0.1:8000.
 
 The performance is quite similar to the native performance:
 ```
-Creating 100000 bundles with CRC_NO: 	214845 bundles/second
-Creating 100000 bundles with CRC_16:    154404 bundles/second
-Creating 100000 bundles with CRC_32: 	194764 bundles/second
-Encoding 100000 bundles with CRC_NO: 	506611 bundles/second
-Encoding 100000 bundles with CRC_16: 	708415 bundles/second
-Encoding 100000 bundles with CRC_32: 	690297 bundles/second
-Loading 100000 bundles with CRC_NO: 	411870 bundles/second
-Loading 100000 bundles with CRC_16: 	390693 bundles/second
-Loading 100000 bundles with CRC_32: 	394166 bundles/second
+Creating 100000 bundles with CRC_NO: 	441696 bundles/second
+Creating 100000 bundles with CRC_16: 	416484 bundles/second
+Creating 100000 bundles with CRC_32: 	405022 bundles/second
+Encoding 100000 bundles with CRC_NO: 	1647039 bundles/second
+Encoding 100000 bundles with CRC_16: 	908059 bundles/second
+Encoding 100000 bundles with CRC_32: 	867603 bundles/second
+Loading 100000 bundles with CRC_NO: 	401727 bundles/second
+Loading 100000 bundles with CRC_16: 	388394 bundles/second
+Loading 100000 bundles with CRC_32: 	384186 bundles/second
 ```
 
 Some functions can easily be used from javascript (`cargo web deploy --release`):
