@@ -32,7 +32,6 @@ pub enum Bp7Error {
     DtnTimeError(String),
     CrcError(String),
     BundleError(String),
-    StcpError(String),
     BundleControlFlagError(String),
     BlockControlFlagError(String),
 }
@@ -217,7 +216,7 @@ impl<'de> Deserialize<'de> for Bundle {
             type Value = Bundle;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("packet")
+                formatter.write_str("bundle")
             }
 
             fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
@@ -356,12 +355,8 @@ impl Bundle {
     }
     /// Return payload of bundle if an payload block exists and carries data.
     pub fn payload(&self) -> Option<&ByteBuffer> {
-        let pb = self.extension_block(crate::canonical::PAYLOAD_BLOCK);
-        if pb.is_some() {
-            pb.unwrap().payload_data()
-        } else {
-            None
-        }
+        self.extension_block(crate::canonical::PAYLOAD_BLOCK)?
+            .payload_data()
     }
     /// Sets the given CRCType for each block. The crc value
     /// is calculated on-the-fly before serializing.
@@ -497,10 +492,10 @@ impl TryFrom<String> for Bundle {
     }
 }
 
-/// Creates a new bundle with the given endpoints, a bundle age block, a hop count block
+/// Creates a new bundle with the given endpoints, a hop count block
 ///  and a payload block.
 /// CRC is set to CrcNo by default and the lifetime is set to 60 * 60 seconds.
-pub fn new_standard_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer) -> Bundle {
+pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer) -> Bundle {
     let pblock = crate::primary::PrimaryBlockBuilder::default()
         .destination(dst)
         .source(src.clone())
@@ -512,45 +507,12 @@ pub fn new_standard_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer) -
     let mut b = crate::bundle::BundleBuilder::default()
         .primary(pblock)
         .canonicals(vec![
-            crate::canonical::new_payload_block(0, data),
-            crate::canonical::new_bundle_age_block(
-                1,
-                0,
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("Time went backwards")
-                    .as_millis() as u64,
-            ),
-        ])
-        .build()
-        .unwrap();
-    b.set_crc(crate::crc::CRC_32);
-    b
-}
-
-pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer) -> Bundle {
-    let now = CreationTimestamp::now();
-    //let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
-
-    let pblock = PrimaryBlockBuilder::default()
-        .destination(dst)
-        .source(src.clone())
-        .report_to(src)
-        .creation_timestamp(now)
-        .lifetime(60 * 60 * 1_000_000)
-        .build()
-        .unwrap();
-
-    let mut b = BundleBuilder::default()
-        .primary(pblock)
-        .canonicals(vec![
             new_payload_block(0, data),
-            new_bundle_age_block(1, 0, 0),
-            new_hop_count_block(2, 0, 32),
+            new_hop_count_block(1, 0, 32),
         ])
         .build()
         .unwrap();
-    b.set_crc(CRC_NO);
+    b.set_crc(crate::crc::CRC_NO);
     b.sort_canonicals();
     b
 }
