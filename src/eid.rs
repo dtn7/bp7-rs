@@ -20,6 +20,12 @@ pub const DTN_NONE: EndpointID = EndpointID::DtnNone(ENDPOINT_URI_SCHEME_DTN, 0)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct IpnAddress(pub u64, pub u64);
 
+impl fmt::Display for IpnAddress {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}.{}", self.0, self.1)
+    }
+}
+
 /// # Examples
 ///
 /// ```
@@ -174,17 +180,22 @@ impl EndpointID {
             _ => None,
         }
     }
+    pub fn scheme_specific_part_ipn(&self) -> Option<IpnAddress> {
+        match self {
+            EndpointID::Ipn(_, ssp) => Some(ssp.to_owned()),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for EndpointID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}://{}",
-            self.scheme(),
-            self.scheme_specific_part_dtn()
-                .unwrap_or_else(|| "none".to_string())
-        )
+        let addr = match self {
+            EndpointID::Ipn(_, ssp) => ssp.to_string(),
+            EndpointID::Dtn(_, ssp) => ssp.to_string(),
+            _ => "none".to_string(),
+        };
+        write!(f, "{}://{}", self.scheme(), addr)
     }
 }
 
