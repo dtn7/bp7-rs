@@ -77,7 +77,6 @@ pub const BLOCK_DELETE_BUNDLE: BlockControlFlags = 0x04;
 /// Block must be removed from the bundle if it can't be processed.
 pub const BLOCK_REMOVE: BlockControlFlags = 0x10;
 
-
 pub const BLOCK_CFRESERVED_FIELDS: BlockControlFlags = 0xF0;
 
 pub trait BlockValidation {
@@ -135,7 +134,6 @@ pub const BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD: BundleControlFlags = 0x0002;
 
 /// The bundle is a fragment.
 pub const BUNDLE_IS_FRAGMENT: BundleControlFlags = 0x0001;
-
 
 pub const BUNDLE_CFRESERVED_FIELDS: BundleControlFlags = 0xE218;
 
@@ -267,8 +265,10 @@ impl Bundle {
         //let mut block_numbers: Vec<CanonicalBlockNumberType> = Vec::new();
         //let mut block_types: Vec<CanonicalBlockType> = Vec::new();
 
-        let mut b_num : std::collections::HashSet<u64> = std::collections::HashSet::with_capacity(15);
-        let mut b_types : std::collections::HashSet<u64> = std::collections::HashSet::with_capacity(15);
+        let mut b_num: std::collections::HashSet<u64> =
+            std::collections::HashSet::with_capacity(15);
+        let mut b_types: std::collections::HashSet<u64> =
+            std::collections::HashSet::with_capacity(15);
 
         if let Some(mut err) = self.primary.validation_errors() {
             errors.append(&mut err);
@@ -432,11 +432,11 @@ impl Bundle {
     /// offset is also present.
     pub fn id(&self) -> String {
         let mut id = format!(
-            "{}-{}-{}-{}",
+            "{}-{}-{}",
             self.primary.source,
             self.primary.creation_timestamp.dtntime(),
             self.primary.creation_timestamp.seqno(),
-            self.primary.destination
+            //self.primary.destination
         );
         if self.primary.has_fragmentation() {
             id = format!("{}-{}", id, self.primary.fragmentation_offset);
@@ -467,6 +467,12 @@ impl Bundle {
             }
         }
         !self.primary.is_lifetime_exceeded()
+    }
+}
+
+impl fmt::Display for Bundle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}_{}", self.id(), self.primary.destination)
     }
 }
 
