@@ -129,6 +129,14 @@ fn bundle_tests() {
 }
 
 #[test]
+fn bundle_helpers() {
+    let bndl = new_complete_bundle(crc::CRC_NO);
+    assert!(bndl.previous_node().is_some());
+
+    let bndl = new_empty_bundle(crc::CRC_NO);
+    assert!(bndl.previous_node().is_none());
+}
+#[test]
 fn bundle_invalid_cbor() {
     let invalid_cbor_bytes = vec![0x41, 0x41];
     let maybe_bundle = Bundle::try_from(invalid_cbor_bytes);

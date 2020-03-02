@@ -468,6 +468,12 @@ impl Bundle {
         }
         !self.primary.is_lifetime_exceeded()
     }
+
+    /// Return the previous node of a bundle should a Previous Node Block exist
+    pub fn previous_node(&self) -> Option<&EndpointID> {
+        let pnblock = self.extension_block(PREVIOUS_NODE_BLOCK)?;
+        pnblock.previous_node_get()
+    }
 }
 
 impl fmt::Display for Bundle {
