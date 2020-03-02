@@ -48,12 +48,13 @@ fn status_report_tests() {
     bndl.primary.bundle_control_flags |= bp7::bundle::BUNDLE_STATUS_REQUEST_DELETION;
     assert!(!bndl.is_administrative_record());
 
-    let sr1 = dbg!(new_status_report(
-        &bndl,
-        DELETED_BUNDLE,
-        LIFETIME_EXPIRED,
-        dtn_time_now()
-    ));
+    let sr1 = dbg!(new_status_report(&bndl, DELETED_BUNDLE, LIFETIME_EXPIRED,));
+
+    let expected_refbundle = format!(
+        "dtn://node1/123456-{}-0",
+        bndl.primary.creation_timestamp.dtntime()
+    );
+    assert_eq!(sr1.refbundle(), expected_refbundle);
 
     let encoded_sr1 = serde_cbor::to_vec(&sr1).unwrap();
 
@@ -64,12 +65,7 @@ fn status_report_tests() {
     let mut bndl = new_complete_bundle(crc::CRC_NO);
     bndl.primary.bundle_control_flags |= bp7::bundle::BUNDLE_STATUS_REQUEST_DELETION;
     bndl.primary.bundle_control_flags |= bp7::bundle::BUNDLE_REQUEST_STATUS_TIME;
-    let sr2 = dbg!(new_status_report(
-        &bndl,
-        DELETED_BUNDLE,
-        LIFETIME_EXPIRED,
-        dtn_time_now()
-    ));
+    let sr2 = dbg!(new_status_report(&bndl, DELETED_BUNDLE, LIFETIME_EXPIRED));
 
     let encoded_sr2 = serde_cbor::to_vec(&sr2).unwrap();
 

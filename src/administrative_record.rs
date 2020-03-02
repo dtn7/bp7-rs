@@ -259,6 +259,21 @@ pub struct StatusReport {
     pub frag_len: u64,
 }
 
+impl StatusReport {
+    pub fn refbundle(&self) -> String {
+        let mut id = format!(
+            "{}-{}-{}",
+            self.source_node,
+            self.timestamp.dtntime(),
+            self.timestamp.seqno(),
+            //self.primary.destination
+        );
+        if self.frag_len > 0 {
+            id = format!("{}-{}", id, self.frag_offset);
+        }
+        id
+    }
+}
 impl Serialize for StatusReport {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -346,7 +361,6 @@ pub fn new_status_report(
     bndl: &Bundle,
     status_item: StatusInformationPos,
     reason: StatusReportReason,
-    time: DtnTime,
 ) -> StatusReport {
     let mut sr = StatusReport {
         status_information: Vec::new(),
@@ -370,7 +384,7 @@ pub fn new_status_report(
                 .has(BUNDLE_REQUEST_STATUS_TIME)
         {
             sr.status_information
-                .push(new_time_reporting_bundle_status_item(time));
+                .push(new_time_reporting_bundle_status_item(dtn_time_now()));
         } else if i == status_item {
             sr.status_information.push(new_bundle_status_item(true));
         } else {
@@ -390,12 +404,8 @@ pub fn new_status_report_bundle(
 ) -> Bundle {
     // TODO: implement sanity checks
 
-    let adm_record = AdministrativeRecord::BundleStatusReport(new_status_report(
-        orig_bundle,
-        status,
-        reason,
-        dtn_time_now(),
-    ));
+    let adm_record =
+        AdministrativeRecord::BundleStatusReport(new_status_report(orig_bundle, status, reason));
 
     let pblock = primary::PrimaryBlockBuilder::default()
         .destination(orig_bundle.primary.report_to.clone())
