@@ -1,4 +1,5 @@
 use crate::bundle::ByteBuffer;
+use crate::bundle::BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD;
 use crate::{bundle, crc, dtn_time_now, primary};
 use core::fmt;
 use serde::de::{SeqAccess, Visitor};
@@ -400,6 +401,7 @@ pub fn new_status_report_bundle(
         .destination(orig_bundle.primary.report_to.clone())
         .source(src.clone())
         .report_to(src)
+        .bundle_control_flags(BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
         .creation_timestamp(CreationTimestamp::now())
         .lifetime(60 * 60 * 1_000_000)
         .build()
