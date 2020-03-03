@@ -413,7 +413,7 @@ pub fn new_status_report_bundle(
         .report_to(src)
         .bundle_control_flags(BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
         .creation_timestamp(CreationTimestamp::now())
-        .lifetime(60 * 60 * 1_000_000)
+        .lifetime(orig_bundle.primary.lifetime)
         .build()
         .unwrap();
 

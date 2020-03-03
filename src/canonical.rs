@@ -6,6 +6,7 @@ use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
+use std::convert::TryInto;
 
 /******************************
  *
@@ -282,7 +283,10 @@ impl CanonicalBlock {
                 }
             }
             CanonicalData::Unknown(_) => {
-                return Some(Bp7Error::CanonicalBlockError(format!("Unknown data for block type {}", self.block_type)));
+                return Some(Bp7Error::CanonicalBlockError(format!(
+                    "Unknown data for block type {}",
+                    self.block_type
+                )));
             }
             CanonicalData::DecodingError => {
                 return Some(Bp7Error::CanonicalBlockError("Unknown data".to_string()));
@@ -334,17 +338,17 @@ impl CanonicalBlock {
         }
         false
     }
-    pub fn bundle_age_update(&mut self, age: u64) -> bool {
+    pub fn bundle_age_update(&mut self, age: u128) -> bool {
         if self.bundle_age_get().is_some() {
-            self.set_data(CanonicalData::BundleAge(age));
+            self.set_data(CanonicalData::BundleAge(age.try_into().unwrap()));
             return true;
         }
         false
     }
-    pub fn bundle_age_get(&self) -> Option<u64> {
+    pub fn bundle_age_get(&self) -> Option<u128> {
         if self.block_type == BUNDLE_AGE_BLOCK {
             if let CanonicalData::BundleAge(age) = self.data() {
-                return Some(*age);
+                return Some((*age).into());
             }
         }
         None
@@ -423,7 +427,7 @@ pub fn new_previous_node_block(
 pub fn new_bundle_age_block(
     block_number: u64,
     bcf: BlockControlFlags,
-    time: u64,
+    time_in_micros: u128,
 ) -> CanonicalBlock {
     /*CanonicalBlock {
         block_type: BUNDLE_AGE_BLOCK,
@@ -437,7 +441,7 @@ pub fn new_bundle_age_block(
         .block_type(BUNDLE_AGE_BLOCK)
         .block_number(block_number)
         .block_control_flags(bcf)
-        .data(CanonicalData::BundleAge(time))
+        .data(CanonicalData::BundleAge(time_in_micros.try_into().unwrap()))
         .build()
         .unwrap()
 }

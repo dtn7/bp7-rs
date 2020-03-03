@@ -21,7 +21,7 @@ pub type ByteBuffer = Vec<u8>;
 pub type DtnVersionType = u32;
 pub type CanonicalBlockNumberType = u64;
 pub type FragOffsetType = u64;
-pub type LifetimeType = u64;
+pub type LifetimeType = u128;
 pub type TotalDataLengthType = u64;
 
 #[derive(Debug, Clone)]
@@ -447,7 +447,7 @@ impl Bundle {
     /// Update extension blocks such as hop count, bundle age and previous node.
     /// Return true if all successful, omit missing blocks.
     /// Return false if hop count is exceeded, bundle age exceeds life time or bundle lifetime itself is exceeded
-    pub fn update_extensions(&mut self, local_node: EndpointID, residence_time: u64) -> bool {
+    pub fn update_extensions(&mut self, local_node: EndpointID, residence_time: u128) -> bool {
         if let Some(hcblock) = self.extension_block_mut(HOP_COUNT_BLOCK) {
             hcblock.hop_count_increase();
             if hcblock.hop_count_exceeded() {
@@ -460,8 +460,8 @@ impl Bundle {
         if let Some(bablock) = self.extension_block_mut(BUNDLE_AGE_BLOCK) {
             if let Some(ba_orig) = bablock.bundle_age_get() {
                 bablock.bundle_age_update(ba_orig + residence_time);
-                if ba_orig + residence_time > self.primary.lifetime * 1000 {
-                    // lifetime exceeded
+                if ba_orig + residence_time > self.primary.lifetime {
+                    // TODO: check lifetime exceeded calculations with rfc
                     return false;
                 }
             }

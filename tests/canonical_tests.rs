@@ -8,7 +8,7 @@ fn canonical_data_tests() {
         serde_cbor::from_slice(&encoded_data).expect("decoding error");
     assert_eq!(data, decoded_data);
 
-    let bundleage = CanonicalData::BundleAge(23);
+    let bundleage = dbg!(CanonicalData::BundleAge(23));
     let encoded_bundleage = serde_cbor::to_vec(&bundleage).expect("encoding error");
     let decoded_bundleage: CanonicalData =
         serde_cbor::from_slice(&encoded_bundleage).expect("decoding error");

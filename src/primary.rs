@@ -201,8 +201,18 @@ impl PrimaryBlock {
         self.bundle_control_flags.has(BUNDLE_IS_FRAGMENT)
     }
     pub fn is_lifetime_exceeded(&self) -> bool {
-        let now = crate::dtn_time_now();
-        self.creation_timestamp.dtntime() + self.lifetime <= now
+        if self.creation_timestamp.dtntime() == 0 {
+            return false;
+        }
+        if let Ok(now) =
+            std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH)
+        {
+            //let now = crate::dtn_time_now();
+            self.creation_timestamp.dtntime().unix() as u128 * 1_000_000 + self.lifetime
+                <= now.as_micros()
+        } else {
+            false
+        }
     }
     pub fn validation_errors(&self) -> Option<Bp7ErrorList> {
         let mut errors: Bp7ErrorList = Vec::new();
@@ -254,7 +264,7 @@ pub fn new_primary_block(
     dst: &str,
     src: &str,
     creation_timestamp: CreationTimestamp,
-    lifetime: u64,
+    lifetime: u128,
 ) -> PrimaryBlock {
     let dst_eid = EndpointID::from(dst);
     let src_eid = EndpointID::from(src);
