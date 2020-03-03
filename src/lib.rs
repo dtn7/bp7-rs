@@ -4,6 +4,7 @@
 //!
 //! ```
 //! use bp7::{bundle, canonical, crc, dtntime, eid, primary};
+//! use std::time::Duration;
 //!
 //! let dst = eid::EndpointID::with_dtn("node2/inbox");
 //! let src = eid::EndpointID::with_dtn("node1/123456");
@@ -14,7 +15,7 @@
 //!     .source(src.clone())
 //!     .report_to(src)
 //!     .creation_timestamp(day0)
-//!     .lifetime(60 * 60 * 1_000_000)
+//!     .lifetime(Duration::from_secs(60 * 60))
 //!     .build()
 //!     .unwrap();
 //! let mut b = bundle::BundleBuilder::default()

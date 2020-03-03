@@ -46,7 +46,7 @@ fn get_bench_bundle(crc_type: crc::CRCType) -> Bundle {
         .source(src.clone())
         .report_to(src)
         .creation_timestamp(now)
-        .lifetime(60 * 60 * 1_000_000)
+        .lifetime(std::time::Duration::from_secs(60 * 60))
         .build()
         .unwrap();
     let cblocks = vec![
@@ -114,7 +114,7 @@ fn bench_bundle_encode(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
     let mut b = get_bench_bundle(crc_type);
 
     for _x in 0..runs {
-        b.primary.lifetime += 1;
+        b.primary.lifetime += std::time::Duration::new(0, 1);
         let _serialized = b.to_cbor();
         //let _serialized = b.to_json();
         bundles.push(_serialized);

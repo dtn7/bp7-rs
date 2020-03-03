@@ -21,7 +21,6 @@ pub type ByteBuffer = Vec<u8>;
 pub type DtnVersionType = u32;
 pub type CanonicalBlockNumberType = u64;
 pub type FragOffsetType = u64;
-pub type LifetimeType = u128;
 pub type TotalDataLengthType = u64;
 
 #[derive(Debug, Clone)]
@@ -320,7 +319,7 @@ impl Bundle {
             .sort_by(|a, b| a.block_number.cmp(&b.block_number));
     }
     fn next_canonical_block_number(&self) -> u64 {
-        let mut highest_block_number = 0;
+        let mut highest_block_number = 1;
         for c in self.canonicals.iter() {
             highest_block_number = cmp::max(highest_block_number, c.block_number);
         }
@@ -334,17 +333,15 @@ impl Bundle {
             || cblock.block_type == HOP_COUNT_BLOCK
             || cblock.block_type == BUNDLE_AGE_BLOCK
             || cblock.block_type == PREVIOUS_NODE_BLOCK)
-            && self.extension_block(cblock.block_type).is_some()
+            && self.extension_block_by_type(cblock.block_type).is_some()
         {
             return;
         }
-        let mut block_num = self.next_canonical_block_number();
-
-        if cblock.block_type == PAYLOAD_BLOCK {
-            block_num = 0;
-        } else if block_num == 0 && cblock.block_type != PAYLOAD_BLOCK {
-            block_num = 1;
-        }
+        let block_num = if cblock.block_type == PAYLOAD_BLOCK {
+            crate::canonical::PAYLOAD_BLOCK_NUMBER
+        } else {
+            self.next_canonical_block_number()
+        };
         cblock.block_number = block_num;
         self.canonicals.push(cblock);
         self.sort_canonicals();
@@ -357,8 +354,25 @@ impl Bundle {
     }
     /// Return payload of bundle if an payload block exists and carries data.
     pub fn payload(&self) -> Option<&ByteBuffer> {
-        self.extension_block(crate::canonical::PAYLOAD_BLOCK)?
+        self.extension_block_by_type(crate::canonical::PAYLOAD_BLOCK)?
             .payload_data()
+    }
+
+    /// Sets or updates the payload block
+    pub fn set_payload_block(&mut self, payload: CanonicalBlock) {
+        self.canonicals
+            .retain(|c| c.block_type != crate::canonical::PAYLOAD_BLOCK);
+        self.add_canonical_block(payload);
+    }
+
+    /// Sets or updates the payload
+    pub fn set_payload(&mut self, payload: ByteBuffer) {
+        if let Some(pb) = self.extension_block_by_type_mut(crate::canonical::PAYLOAD_BLOCK) {
+            pb.set_data(crate::canonical::CanonicalData::Data(payload));
+        } else {
+            let new_payload = crate::canonical::new_payload_block(0, payload);
+            self.set_payload_block(new_payload);
+        }
     }
     /// Sets the given CRCType for each block. The crc value
     /// is calculated on-the-fly before serializing.
@@ -389,7 +403,10 @@ impl Bundle {
     }
 
     /// Get first extension block matching the block type
-    pub fn extension_block(&self, block_type: CanonicalBlockType) -> Option<&CanonicalBlock> {
+    pub fn extension_block_by_type(
+        &self,
+        block_type: CanonicalBlockType,
+    ) -> Option<&CanonicalBlock> {
         for b in &self.canonicals {
             if b.block_type == block_type && b.extension_validation_error().is_none() {
                 //let cdata = b.get_data().clone();
@@ -399,7 +416,7 @@ impl Bundle {
         None
     }
     /// Get mutable reference for first extension block matching the block type
-    pub fn extension_block_mut(
+    pub fn extension_block_by_type_mut(
         &mut self,
         block_type: CanonicalBlockType,
     ) -> Option<&mut CanonicalBlock> {
@@ -448,19 +465,19 @@ impl Bundle {
     /// Return true if all successful, omit missing blocks.
     /// Return false if hop count is exceeded, bundle age exceeds life time or bundle lifetime itself is exceeded
     pub fn update_extensions(&mut self, local_node: EndpointID, residence_time: u128) -> bool {
-        if let Some(hcblock) = self.extension_block_mut(HOP_COUNT_BLOCK) {
+        if let Some(hcblock) = self.extension_block_by_type_mut(HOP_COUNT_BLOCK) {
             hcblock.hop_count_increase();
             if hcblock.hop_count_exceeded() {
                 return false;
             }
         }
-        if let Some(pnblock) = self.extension_block_mut(PREVIOUS_NODE_BLOCK) {
+        if let Some(pnblock) = self.extension_block_by_type_mut(PREVIOUS_NODE_BLOCK) {
             pnblock.previous_node_update(local_node);
         }
-        if let Some(bablock) = self.extension_block_mut(BUNDLE_AGE_BLOCK) {
+        if let Some(bablock) = self.extension_block_by_type_mut(BUNDLE_AGE_BLOCK) {
             if let Some(ba_orig) = bablock.bundle_age_get() {
                 bablock.bundle_age_update(ba_orig + residence_time);
-                if ba_orig + residence_time > self.primary.lifetime {
+                if ba_orig + residence_time > self.primary.lifetime.as_micros() {
                     // TODO: check lifetime exceeded calculations with rfc
                     return false;
                 }
@@ -471,7 +488,7 @@ impl Bundle {
 
     /// Return the previous node of a bundle should a Previous Node Block exist
     pub fn previous_node(&self) -> Option<&EndpointID> {
-        let pnblock = self.extension_block(PREVIOUS_NODE_BLOCK)?;
+        let pnblock = self.extension_block_by_type(PREVIOUS_NODE_BLOCK)?;
         pnblock.previous_node_get()
     }
 }
@@ -515,7 +532,7 @@ pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer
         .source(src.clone())
         .report_to(src)
         .creation_timestamp(CreationTimestamp::now())
-        .lifetime(60 * 60 * 1_000_000)
+        .lifetime(std::time::Duration::from_secs(60 * 60))
         .build()
         .unwrap();
     let mut b = crate::bundle::BundleBuilder::default()

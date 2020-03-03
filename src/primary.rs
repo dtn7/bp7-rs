@@ -7,6 +7,7 @@ use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
+use std::time::Duration;
 
 /******************************
  *
@@ -26,7 +27,7 @@ pub struct PrimaryBlock {
     pub source: EndpointID,
     pub report_to: EndpointID,
     pub creation_timestamp: CreationTimestamp,
-    pub lifetime: LifetimeType,
+    pub lifetime: Duration,
     pub fragmentation_offset: FragOffsetType,
     pub total_data_length: TotalDataLengthType,
 }
@@ -54,7 +55,7 @@ impl Serialize for PrimaryBlock {
         seq.serialize_element(&self.source)?;
         seq.serialize_element(&self.report_to)?;
         seq.serialize_element(&self.creation_timestamp)?;
-        seq.serialize_element(&self.lifetime)?;
+        seq.serialize_element(&(self.lifetime.as_micros() as u64))?;
         if self.has_fragmentation() {
             seq.serialize_element(&self.fragmentation_offset)?;
             seq.serialize_element(&self.total_data_length)?;
@@ -107,9 +108,10 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                 let creation_timestamp: CreationTimestamp = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(6, &self))?;
-                let lifetime: LifetimeType = seq
+                let lifetime_u64: u64 = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(7, &self))?;
+                let lifetime = Duration::from_micros(lifetime_u64);
 
                 let rest = seq.size_hint().unwrap_or(0);
                 let mut fragmentation_offset: FragOffsetType = 0;
@@ -191,7 +193,7 @@ impl PrimaryBlock {
             source: EndpointID::new(),
             report_to: EndpointID::new(),
             creation_timestamp: CreationTimestamp::new(),
-            lifetime: 0,
+            lifetime: Duration::new(0, 0),
             fragmentation_offset: 0,
             total_data_length: 0,
         }
@@ -208,7 +210,7 @@ impl PrimaryBlock {
             std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH)
         {
             //let now = crate::dtn_time_now();
-            self.creation_timestamp.dtntime().unix() as u128 * 1_000_000 + self.lifetime
+            self.creation_timestamp.dtntime().unix() as u128 * 1_000_000 + self.lifetime.as_micros()
                 <= now.as_micros()
         } else {
             false
@@ -264,7 +266,7 @@ pub fn new_primary_block(
     dst: &str,
     src: &str,
     creation_timestamp: CreationTimestamp,
-    lifetime: u128,
+    lifetime: Duration,
 ) -> PrimaryBlock {
     let dst_eid = EndpointID::from(dst);
     let src_eid = EndpointID::from(src);

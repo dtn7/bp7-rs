@@ -16,6 +16,8 @@ use std::convert::TryInto;
 
 pub type CanonicalBlockType = u64;
 
+pub(crate) const PAYLOAD_BLOCK_NUMBER: CanonicalBlockType = 1;
+
 // PAYLOAD_BLOCK is a BlockType for a payload block as defined in 4.2.3.
 pub const PAYLOAD_BLOCK: CanonicalBlockType = 1;
 /*
@@ -403,7 +405,7 @@ pub fn new_hop_count_block(
 pub fn new_payload_block(bcf: BlockControlFlags, data: ByteBuffer) -> CanonicalBlock {
     CanonicalBlockBuilder::default()
         .block_type(PAYLOAD_BLOCK)
-        .block_number(1)
+        .block_number(PAYLOAD_BLOCK_NUMBER)
         .block_control_flags(bcf)
         .data(CanonicalData::Data(data))
         .build()

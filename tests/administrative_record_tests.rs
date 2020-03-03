@@ -1,5 +1,6 @@
 use bp7::administrative_record::*;
 use bp7::*;
+use std::time::Duration;
 
 fn new_complete_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
     let dst = eid::EndpointID::with_dtn("node2/inbox");
@@ -11,7 +12,7 @@ fn new_complete_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
         .source(src.clone())
         .report_to(src)
         .creation_timestamp(now)
-        .lifetime(60 * 60 * 1_000_000)
+        .lifetime(Duration::from_secs(60 * 60))
         .build()
         .unwrap();
     let mut b = bundle::BundleBuilder::default()

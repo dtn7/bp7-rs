@@ -1,6 +1,7 @@
 use bp7::*;
 use std::convert::TryFrom;
 use std::convert::TryInto;
+use std::time::Duration;
 
 fn new_complete_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
     let dst = eid::EndpointID::with_dtn("node2/inbox");
@@ -12,7 +13,7 @@ fn new_complete_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
         .source(src.clone())
         .report_to(src)
         .creation_timestamp(now)
-        .lifetime(60 * 60 * 1_000_000)
+        .lifetime(Duration::from_secs(60 * 60))
         .build()
         .unwrap();
 
@@ -54,7 +55,7 @@ fn new_empty_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
         .source(src.clone())
         .report_to(src)
         .creation_timestamp(now)
-        .lifetime(60 * 60 * 1_000_000)
+        .lifetime(Duration::from_secs(60 * 60))
         .build()
         .unwrap();
 
@@ -78,7 +79,7 @@ fn new_complete_bundle_invalid(crc_type: bp7::crc::CRCType) -> Bundle {
         .source(src.clone())
         .report_to(src)
         .creation_timestamp(now)
-        .lifetime(60 * 60 * 1_000_000)
+        .lifetime(Duration::from_secs(60 * 60))
         .build()
         .unwrap();
 
@@ -156,20 +157,22 @@ fn bundle_invalid_cblock_numbers_tests() {
 fn bundle_canonical_update_tests() {
     let mut bndl = new_complete_bundle(crc::CRC_NO);
     {
-        let hcblock = bndl.extension_block_mut(HOP_COUNT_BLOCK).unwrap();
+        let hcblock = bndl.extension_block_by_type_mut(HOP_COUNT_BLOCK).unwrap();
         assert!(hcblock.hop_count_increase());
     }
-    let hcb2 = bndl.extension_block_mut(HOP_COUNT_BLOCK).unwrap();
+    let hcb2 = bndl.extension_block_by_type_mut(HOP_COUNT_BLOCK).unwrap();
     assert!(hcb2.hop_count_get().unwrap() == (16, 1));
 
     let mut bndl = new_complete_bundle(crc::CRC_NO);
     assert!(bndl.update_extensions("dtn://newnode".into(), 23));
 
-    let cb = bndl.extension_block_mut(HOP_COUNT_BLOCK).unwrap();
+    let cb = bndl.extension_block_by_type_mut(HOP_COUNT_BLOCK).unwrap();
     assert!(cb.hop_count_get().unwrap() == (16, 1));
-    let cb = bndl.extension_block_mut(BUNDLE_AGE_BLOCK).unwrap();
+    let cb = bndl.extension_block_by_type_mut(BUNDLE_AGE_BLOCK).unwrap();
     assert!(cb.bundle_age_get().unwrap() == 23);
-    let cb = bndl.extension_block_mut(PREVIOUS_NODE_BLOCK).unwrap();
+    let cb = bndl
+        .extension_block_by_type_mut(PREVIOUS_NODE_BLOCK)
+        .unwrap();
     assert!(cb.previous_node_get().unwrap() == &EndpointID::from("dtn://newnode"));
 }
 
@@ -205,5 +208,16 @@ fn bundle_add_cblock() {
 
     let numbers: Vec<u64> = b.canonicals.iter().map(|c| c.block_number).collect();
     //numbers.sort();
-    assert_eq!(numbers, vec![0, 1, 2]);
+    assert_eq!(numbers, vec![1, 2, 3]);
+
+    let mut b = new_complete_bundle(crc::CRC_NO);
+    assert_eq!(b.payload().unwrap(), b"ABC");
+    let pl = b
+        .extension_block_by_type_mut(bp7::canonical::PAYLOAD_BLOCK)
+        .unwrap();
+    pl.set_data(bp7::canonical::CanonicalData::Data(b"XYZ".to_vec()));
+    assert_eq!(b.payload().unwrap(), b"XYZ");
+
+    b.set_payload("123".into());
+    assert_eq!(b.payload().unwrap(), b"123");
 }
