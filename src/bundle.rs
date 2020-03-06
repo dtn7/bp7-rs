@@ -528,6 +528,7 @@ impl TryFrom<String> for Bundle {
 /// CRC is set to CrcNo by default and the lifetime is set to 60 * 60 seconds.
 pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer) -> Bundle {
     let pblock = crate::primary::PrimaryBlockBuilder::default()
+        .bundle_control_flags(BUNDLE_MUST_NOT_FRAGMENTED | BUNDLE_STATUS_REQUEST_DELIVERY)
         .destination(dst)
         .source(src.clone())
         .report_to(src)
@@ -538,7 +539,7 @@ pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer
     let mut b = crate::bundle::BundleBuilder::default()
         .primary(pblock)
         .canonicals(vec![
-            new_payload_block(1, data),
+            new_payload_block(0, data),
             new_hop_count_block(2, 0, 32),
         ])
         .build()
