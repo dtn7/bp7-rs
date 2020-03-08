@@ -12,6 +12,7 @@ use crate::bundle::{Bundle, BundleValidation};
 use crate::dtntime::CreationTimestamp;
 use crate::dtntime::DtnTime;
 use crate::eid::EndpointID;
+
 pub type AdministrativeRecordTypeCode = u32;
 
 pub const BUNDLE_STATUS_REPORT_TYPE_CODE: AdministrativeRecordTypeCode = 1;

@@ -1,7 +1,6 @@
 use crate::{bundle, dtntime, eid};
 use core::num::ParseIntError;
 use rand::Rng;
-use std::error::Error;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(not(target_arch = "wasm32"))]

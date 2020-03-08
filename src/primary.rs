@@ -125,14 +125,6 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(9, &self))?;
                 }
-
-                /*let crcbuf: ByteBuffer = if crc_type == CRC_NO {
-                    Vec::new()
-                } else {
-                    seq.next_element::<serde_bytes::ByteBuf>()?
-                        .ok_or_else(|| de::Error::invalid_length(7 + rest, &self))?
-                        .into_vec()
-                };*/
                 let crc = if crc_type == CRC_NO {
                     CrcValue::CrcNo
                 } else if crc_type == CRC_16 {

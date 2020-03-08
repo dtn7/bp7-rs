@@ -1,11 +1,10 @@
 use core::cmp;
+use core::convert::TryFrom;
 use core::fmt;
 use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
-use std::convert::TryFrom;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::canonical::*;
 use super::crc::*;
@@ -105,16 +104,16 @@ impl BlockValidation for BlockControlFlags {
 pub type BundleControlFlags = u64;
 
 /// Request reporting of bundle deletion.
-pub const BUNDLE_STATUS_REQUEST_DELETION: BundleControlFlags = 0x040000;
+pub const BUNDLE_STATUS_REQUEST_DELETION: BundleControlFlags = 0x0004_0000;
 
 /// Request reporting of bundle delivery.
-pub const BUNDLE_STATUS_REQUEST_DELIVERY: BundleControlFlags = 0x020000;
+pub const BUNDLE_STATUS_REQUEST_DELIVERY: BundleControlFlags = 0x0002_0000;
 
 /// Request reporting of bundle forwarding.
-pub const BUNDLE_STATUS_REQUEST_FORWARD: BundleControlFlags = 0x010000;
+pub const BUNDLE_STATUS_REQUEST_FORWARD: BundleControlFlags = 0x0001_0000;
 
 /// Request reporting of bundle reception.
-pub const BUNDLE_STATUS_REQUEST_RECEPTION: BundleControlFlags = 0x004000;
+pub const BUNDLE_STATUS_REQUEST_RECEPTION: BundleControlFlags = 0x0000_4000;
 
 // / The bundle contains a "manifest" extension block.
 //pub const BUNDLE_CONTAINS_MANIFEST: BundleControlFlags = 0x0080;
