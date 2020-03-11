@@ -167,6 +167,53 @@ impl EndpointID {
         EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, addr)
     }
 
+    /// Generate a new Endpoint ID with a specific endpoint
+    /// Keeps scheme and host specific parts
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bp7::eid::*;
+    ///
+    /// let ipn_addr_1 = EndpointID::with_ipn( IpnAddress(23, 42));
+    /// let ipn_addr_2 = EndpointID::with_ipn( IpnAddress(23, 7));
+    ///
+    /// assert_eq!(ipn_addr_1, ipn_addr_2.endpoint("42").unwrap());
+    ///
+    /// let ipn_addr_1 = EndpointID::with_ipn( IpnAddress(23, 42));    
+    ///
+    /// assert!(ipn_addr_1.endpoint("-42").is_err());    
+    ///
+    /// let dtn_addr_1 = EndpointID::with_dtn( "node1/incoming");
+    /// let dtn_addr_2 = EndpointID::with_dtn( "node1/inbox");
+    ///
+    /// assert_eq!(dtn_addr_1, dtn_addr_2.endpoint("incoming").unwrap());
+    ///
+    /// let dtn_addr_none = EndpointID::with_dtn_none();    
+    ///
+    /// assert!(dtn_addr_none.endpoint("incoming").is_err());    
+    ///    
+    /// ```
+    pub fn endpoint(&self, ep: &str) -> Result<EndpointID, Bp7Error> {
+        match self {
+            EndpointID::DtnNone(_, _) => Err(Bp7Error::EIDError(
+                "Cannot set endpoint on eid 'none'".to_owned(),
+            )),
+            EndpointID::Dtn(_, _) => {
+                Ok(format!("dtn://{}/{}", self.node_part().unwrap(), ep).into())
+            }
+            EndpointID::Ipn(_, ipnaddr) => {
+                if let Ok(number) = ep.trim().parse::<u64>() {
+                    Ok(EndpointID::with_ipn(IpnAddress(ipnaddr.0, number)))
+                } else {
+                    Err(Bp7Error::EIDError(
+                        "Invalid endpoint for IPN address".to_owned(),
+                    ))
+                }
+            }
+        }
+    }
+
     pub fn scheme(&self) -> String {
         match self {
             EndpointID::DtnNone(_, _) => "dtn".to_string(),
@@ -222,6 +269,31 @@ impl EndpointID {
                 Some(nodeid[0].to_string())
             }
             EndpointID::Ipn(_, addr) => Some(addr.0.to_string()),
+        }
+    }
+
+    /// # Examples
+    ///
+    /// ```
+    /// use bp7::eid::*;
+    ///
+    /// let eid : EndpointID = "ipn://0.0".to_string().into();
+    /// assert_eq!(eid.host_id(),Some("ipn://0".to_string()));
+    ///
+    /// let eid : EndpointID = "dtn://node1/incoming".to_string().into();
+    /// assert_eq!(eid.host_id(),Some("dtn://node1".to_string()));
+    ///
+    /// let eid : EndpointID = "dtn://node1".to_string().into();
+    /// assert_eq!(eid.host_id(),Some("dtn://node1".to_string()));
+    /// ```
+    pub fn host_id(&self) -> Option<String> {
+        match self {
+            EndpointID::DtnNone(_, _) => None,
+            EndpointID::Dtn(_, eid) => {
+                let nodeid: Vec<&str> = eid.split('/').collect();
+                Some(format!("{}://{}", self.scheme(), nodeid[0].to_string()))
+            }
+            EndpointID::Ipn(_, addr) => Some(format!("{}://{}", self.scheme(), addr.0)),
         }
     }
     /// # Examples
