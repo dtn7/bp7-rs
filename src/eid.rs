@@ -349,9 +349,9 @@ impl EndpointID {
                     Some(Bp7Error::EIDError(
                         "Wrong URI scheme code for IPN".to_string(),
                     ))
-                } else if addr.0 < 1 || addr.1 < 1 {
+                } else if addr.0 < 1 {
                     Some(Bp7Error::EIDError(
-                        "IPN's node and service number must be >= 1".to_string(),
+                        "IPN's node number must be >= 1".to_string(),
                     ))
                 } else {
                     None
