@@ -1,10 +1,11 @@
 use bp7::administrative_record::*;
 use bp7::*;
+use std::convert::TryInto;
 use std::time::Duration;
 
-fn new_complete_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
-    let dst = eid::EndpointID::with_dtn("node2/inbox");
-    let src = eid::EndpointID::with_dtn("node1/123456");
+fn new_complete_bundle(crc_type: bp7::crc::CrcRawType) -> Bundle {
+    let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
+    let src = eid::EndpointID::with_dtn("node1/123456").unwrap();
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
 
     let pblock = primary::PrimaryBlockBuilder::default()
@@ -30,16 +31,16 @@ fn new_complete_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
                 16, // max hops
             ),
             canonical::new_previous_node_block(
-                4,                     // block number
-                0,                     // flags
-                "dtn://node23".into(), // previous node EID
+                4,                                  // block number
+                0,                                  // flags
+                "dtn://node23".try_into().unwrap(), // previous node EID
             ),
         ])
         .build()
         .unwrap();
     b.set_crc(crc_type);
     b.calculate_crc();
-    assert!(b.validation_errors().is_none());
+    assert!(b.validate().is_ok());
     b
 }
 

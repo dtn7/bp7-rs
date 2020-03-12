@@ -32,9 +32,9 @@ macro_rules! println {
 
 const RUNS: i64 = 100_000;
 
-fn get_bench_bundle(crc_type: crc::CRCType) -> Bundle {
-    let dst = eid::EndpointID::with_dtn("node2/inbox");
-    let src = eid::EndpointID::with_dtn("node1/123456");
+fn get_bench_bundle(crc_type: crc::CrcRawType) -> Bundle {
+    let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
+    let src = eid::EndpointID::with_dtn("node1/123456").unwrap();
     //let dst = eid::EndpointID::with_ipn(eid::IpnAddress(1, 2));
     //let src = eid::EndpointID::with_ipn(eid::IpnAddress(2, 3));
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
@@ -66,11 +66,11 @@ fn get_bench_bundle(crc_type: crc::CRCType) -> Bundle {
     .build()
     .unwrap();*/
     b.set_crc(crc_type);
-    b.validation_errors();
+    b.validate().unwrap();
     b
 }
 
-fn bench_bundle_create(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
+fn bench_bundle_create(runs: i64, crc_type: crc::CrcRawType) -> Vec<ByteBuffer> {
     let crc_str = match crc_type {
         crc::CRC_NO => "CRC_NO",
         crc::CRC_16 => "CRC_16",
@@ -96,7 +96,7 @@ fn bench_bundle_create(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
     bundles
 }
 
-fn bench_bundle_encode(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
+fn bench_bundle_encode(runs: i64, crc_type: crc::CrcRawType) -> Vec<ByteBuffer> {
     let crc_str = match crc_type {
         crc::CRC_NO => "CRC_NO",
         crc::CRC_16 => "CRC_16",
@@ -125,7 +125,7 @@ fn bench_bundle_encode(runs: i64, crc_type: crc::CRCType) -> Vec<ByteBuffer> {
     bundles
 }
 
-fn bench_bundle_load(runs: i64, crc_type: crc::CRCType, mut bundles: Vec<ByteBuffer>) {
+fn bench_bundle_load(runs: i64, crc_type: crc::CrcRawType, mut bundles: Vec<ByteBuffer>) {
     let crc_str = match crc_type {
         crc::CRC_NO => "CRC_NO",
         crc::CRC_16 => "CRC_16",
@@ -139,7 +139,7 @@ fn bench_bundle_load(runs: i64, crc_type: crc::CRCType, mut bundles: Vec<ByteBuf
     for _x in 0..runs {
         let b = bundles.pop().unwrap();
         let _deserialized: Bundle = Bundle::try_from(b).unwrap();
-        _deserialized.validation_errors();
+        _deserialized.validate().unwrap();
     }
     let elapsed = bench_now.elapsed();
     let sec = (elapsed.as_secs() as f64) + (f64::from(elapsed.subsec_nanos()) / 1_000_000_000.0);

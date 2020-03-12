@@ -1,5 +1,7 @@
 use crate::bundle::Bundle;
 use crate::dtntime::{CreationTimestamp, DtnTimeHelpers};
+use crate::eid::*;
+use core::convert::TryFrom;
 use stdweb::*;
 
 js_serializable!(Bundle);
@@ -7,7 +9,11 @@ js_deserializable!(Bundle);
 
 #[js_export]
 fn new_std_bundle_now(src: String, dst: String, payload: String) -> Bundle {
-    crate::bundle::new_std_payload_bundle(src.into(), dst.into(), payload.into())
+    crate::bundle::new_std_payload_bundle(
+        EndpointID::try_from(src).expect("invalid src address"),
+        EndpointID::try_from(dst).expect("invalid dst address"),
+        payload.into(),
+    )
 }
 
 #[js_export]
@@ -23,7 +29,7 @@ fn encode_to_cbor(b: Bundle) -> crate::ByteBuffer {
 #[js_export]
 fn decode_from_cbor(buf: crate::ByteBuffer) -> Bundle {
     // TODO: correct error handling for javascript
-    std::convert::TryInto::try_into(buf).expect("error decoding bundle")
+    Bundle::try_from(buf).expect("error decoding bundle")
 }
 #[js_export]
 fn bid_from_bundle(b: Bundle) -> String {

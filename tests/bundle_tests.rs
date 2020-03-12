@@ -3,9 +3,9 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::time::Duration;
 
-fn new_complete_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
-    let dst = eid::EndpointID::with_dtn("node2/inbox");
-    let src = eid::EndpointID::with_dtn("node1/123456");
+fn new_complete_bundle(crc_type: bp7::crc::CrcRawType) -> Bundle {
+    let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
+    let src = eid::EndpointID::with_dtn("node1/123456").unwrap();
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
 
     let pblock = primary::PrimaryBlockBuilder::default()
@@ -32,22 +32,22 @@ fn new_complete_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
                 16, // max hops
             ),
             canonical::new_previous_node_block(
-                4,                     // block number
-                0,                     // flags
-                "dtn://node23".into(), // previous node EID
+                4,                                  // block number
+                0,                                  // flags
+                "dtn://node23".try_into().unwrap(), // previous node EID
             ),
         ])
         .build()
         .unwrap();
     b.set_crc(crc_type);
     b.calculate_crc();
-    assert!(b.validation_errors().is_none());
+    assert!(b.validate().is_ok());
     b
 }
 
-fn new_empty_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
-    let dst = eid::EndpointID::with_dtn("node2/inbox");
-    let src = eid::EndpointID::with_dtn("node1/123456");
+fn new_empty_bundle(crc_type: bp7::crc::CrcRawType) -> Bundle {
+    let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
+    let src = eid::EndpointID::with_dtn("node1/123456").unwrap();
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
 
     let pblock = primary::PrimaryBlockBuilder::default()
@@ -66,12 +66,12 @@ fn new_empty_bundle(crc_type: bp7::crc::CRCType) -> Bundle {
         .unwrap();
     b.set_crc(crc_type);
     b.calculate_crc();
-    assert!(b.validation_errors().is_none());
+    assert!(b.validate().is_ok());
     b
 }
-fn new_complete_bundle_invalid(crc_type: bp7::crc::CRCType) -> Bundle {
-    let dst = eid::EndpointID::with_dtn("node2/inbox");
-    let src = eid::EndpointID::with_dtn("node1/123456");
+fn new_complete_bundle_invalid(crc_type: bp7::crc::CrcRawType) -> Bundle {
+    let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
+    let src = eid::EndpointID::with_dtn("node1/123456").unwrap();
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
 
     let pblock = primary::PrimaryBlockBuilder::default()
@@ -98,16 +98,15 @@ fn new_complete_bundle_invalid(crc_type: bp7::crc::CRCType) -> Bundle {
                 16, // max hops
             ),
             canonical::new_previous_node_block(
-                2,                     // block number
-                0,                     // flags
-                "dtn://node23".into(), // previous node EID
+                2,                                  // block number
+                0,                                  // flags
+                "dtn://node23".try_into().unwrap(), // previous node EID
             ),
         ])
         .build()
         .unwrap();
     b.set_crc(crc_type);
     b.calculate_crc();
-    assert!(b.validation_errors().is_some());
     b
 }
 
@@ -146,11 +145,9 @@ fn bundle_invalid_cbor() {
 
 #[test]
 fn bundle_invalid_cblock_numbers_tests() {
-    new_complete_bundle_invalid(crc::CRC_NO);
-
-    new_complete_bundle_invalid(crc::CRC_16);
-
-    new_complete_bundle_invalid(crc::CRC_32);
+    assert!(new_complete_bundle_invalid(crc::CRC_NO).validate().is_err());
+    assert!(new_complete_bundle_invalid(crc::CRC_16).validate().is_err());
+    assert!(new_complete_bundle_invalid(crc::CRC_32).validate().is_err());
 }
 
 #[test]
@@ -164,7 +161,7 @@ fn bundle_canonical_update_tests() {
     assert!(hcb2.hop_count_get().unwrap() == (16, 1));
 
     let mut bndl = new_complete_bundle(crc::CRC_NO);
-    assert!(bndl.update_extensions("dtn://newnode".into(), 23));
+    assert!(bndl.update_extensions("dtn://newnode".try_into().unwrap(), 23));
 
     let cb = bndl.extension_block_by_type_mut(HOP_COUNT_BLOCK).unwrap();
     assert!(cb.hop_count_get().unwrap() == (16, 1));
@@ -173,7 +170,7 @@ fn bundle_canonical_update_tests() {
     let cb = bndl
         .extension_block_by_type_mut(PREVIOUS_NODE_BLOCK)
         .unwrap();
-    assert!(cb.previous_node_get().unwrap() == &EndpointID::from("dtn://newnode"));
+    assert!(cb.previous_node_get().unwrap() == &EndpointID::try_from("dtn://newnode").unwrap());
 }
 
 #[test]

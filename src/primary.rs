@@ -7,7 +7,7 @@ use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
-use std::time::Duration;
+use std::{convert::TryFrom, time::Duration};
 
 /******************************
  *
@@ -93,7 +93,7 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                 let bundle_control_flags: BundleControlFlags = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                let crc_type: CRCType = seq
+                let crc_type: CrcRawType = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(2, &self))?;
                 let destination: EndpointID = seq
@@ -208,7 +208,7 @@ impl PrimaryBlock {
             false
         }
     }
-    pub fn validation_errors(&self) -> Option<Bp7ErrorList> {
+    pub fn validate(&self) -> Result<(), Bp7ErrorList> {
         let mut errors: Bp7ErrorList = Vec::new();
 
         if self.version != DTN_VERSION {
@@ -219,25 +219,25 @@ impl PrimaryBlock {
         }
 
         // bundle control flags
-        if let Some(mut err) = self.bundle_control_flags.validation_errors() {
+        if let Err(mut err) = self.bundle_control_flags.validate() {
             errors.append(&mut err);
         }
 
-        if let Some(chk_err) = self.destination.validation_error() {
-            errors.push(chk_err);
+        if let Err(chk_err) = self.destination.validate() {
+            errors.push(chk_err.into());
         }
 
-        if let Some(chk_err) = self.source.validation_error() {
-            errors.push(chk_err);
+        if let Err(chk_err) = self.source.validate() {
+            errors.push(chk_err.into());
         }
-        if let Some(chk_err) = self.report_to.validation_error() {
-            errors.push(chk_err);
+        if let Err(chk_err) = self.report_to.validate() {
+            errors.push(chk_err.into());
         }
 
         if !errors.is_empty() {
-            return Some(errors);
+            return Err(errors);
         }
-        None
+        Ok(())
     }
 }
 
@@ -260,8 +260,8 @@ pub fn new_primary_block(
     creation_timestamp: CreationTimestamp,
     lifetime: Duration,
 ) -> PrimaryBlock {
-    let dst_eid = EndpointID::from(dst);
-    let src_eid = EndpointID::from(src);
+    let dst_eid = EndpointID::try_from(dst).unwrap();
+    let src_eid = EndpointID::try_from(src).unwrap();
 
     PrimaryBlock {
         version: DTN_VERSION,

@@ -1,10 +1,12 @@
-use super::bundle::*;
 use core::convert::From;
 use core::fmt;
 use serde::de::{SeqAccess, Visitor};
 //use serde::ser::{SerializeSeq, Serializer};
 use crate::helpers::Url;
+use core::convert::TryFrom;
+use core::convert::TryInto;
 use serde::{de, Deserialize, Deserializer, Serialize};
+use thiserror::Error;
 
 /******************************
  *
@@ -12,30 +14,56 @@ use serde::{de, Deserialize, Deserializer, Serialize};
  *
  ******************************/
 
-pub const ENDPOINT_URI_SCHEME_DTN: u8 = 1;
-pub const ENDPOINT_URI_SCHEME_IPN: u8 = 2;
+const ENDPOINT_URI_SCHEME_DTN: u8 = 1;
+const ENDPOINT_URI_SCHEME_IPN: u8 = 2;
 
+#[deprecated(note = "Please use EndpointID::none() instead")]
 pub const DTN_NONE: EndpointID = EndpointID::DtnNone(ENDPOINT_URI_SCHEME_DTN, 0);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct IpnAddress(pub u64, pub u64);
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct IpnAddress(u64, u64);
 
+impl IpnAddress {
+    pub fn new(node: u64, service: u64) -> IpnAddress {
+        IpnAddress(node, service)
+    }
+    pub fn node_number(&self) -> u64 {
+        self.0
+    }
+    pub fn service_number(&self) -> u64 {
+        self.1
+    }
+}
 impl fmt::Display for IpnAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}.{}", self.0, self.1)
     }
 }
 
-/// # Examples
+#[derive(Error, Debug, Clone, PartialEq)]
+pub enum EndpointIdError {
+    #[error("scheme not matching, found `{0}` expected `{1}`")]
+    SchemeMismatch(u8, u8),
+    #[error("unknown address scheme `{0}`")]
+    UnknownScheme(String),
+    #[error("invalid node number `{0}` for ipn address")]
+    InvalidNodeNumber(u64),
+    #[error("wrong number of fields for ipn address, found `{0}` expected `2`")]
+    WrongNumberOfFieldsInIpn(u64),
+    #[error("invalid service endpoint `{0}`")]
+    InvalidService(String),
+    #[error("none endpoint can not have a service")]
+    NoneHasNoService,
+    #[error("none endpoint must have service number 0")]
+    NoneNotZero,
+    #[error("malformed address url")]
+    InvalidUrlFormat,
+    #[error("unknown endpoint id error")]
+    Unknown,
+}
+/// Represents an endpoint in various addressing schemes.
 ///
-/// ```
-/// use bp7::eid::*;
-///
-/// let cbor_eid = [130, 1, 106, 110, 111, 100, 101, 49, 47, 116, 101, 115, 116];
-/// let deserialized: EndpointID = serde_cbor::from_slice(&cbor_eid).unwrap();
-/// assert_eq!(deserialized, EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, "node1/test".to_string()))
-///
-/// ```
+/// Either the *none* endpoint, a dtn one or an ipn endpoint.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, Hash)]
 #[serde(untagged)]
 pub enum EndpointID {
@@ -95,7 +123,7 @@ impl<'de> Deserialize<'de> for EndpointID {
                     // TODO: rewrite to check following type, currently if not string return dtn:none
                     let name: String = seq.next_element().unwrap_or_default().unwrap_or_default();
                     if name == "" {
-                        Ok(EndpointID::with_dtn_none())
+                        Ok(EndpointID::none())
                     } else {
                         Ok(EndpointID::Dtn(eid_type, name))
                     }
@@ -103,7 +131,7 @@ impl<'de> Deserialize<'de> for EndpointID {
                     let ipnaddr: IpnAddress = seq
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                    Ok(EndpointID::with_ipn(ipnaddr))
+                    Ok(ipnaddr.try_into().unwrap())
                 } else {
                     Err(de::Error::invalid_value(
                         de::Unexpected::Unsigned(eid_type.into()),
@@ -123,92 +151,87 @@ impl Default for EndpointID {
     }
 }
 impl EndpointID {
+    /// Default returns a `dtn:none` endpoint
     pub fn new() -> EndpointID {
         Default::default()
     }
-    /// # Examples
+    /// Create a new EndpointID with dtn addressing scheme
     ///
-    /// ```
-    /// use bp7::eid::*;
-    ///
-    /// assert_eq!(EndpointID::with_dtn("node1"),EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN,"node1".to_string()));
-    ///
-    /// assert_eq!(EndpointID::with_dtn("node1/endpoint1"),EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN,"node1/endpoint1".to_string()));
-    /// ```
-    pub fn with_dtn(addr: &str) -> EndpointID {
-        EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, addr.into())
+    /// This can either be a host id such as `dtn://node1` or
+    /// include an application agents endpoint, e.g., `dtn://node1/endpoint1`
+    pub fn with_dtn(host_with_endpoint: &str) -> Result<EndpointID, EndpointIdError> {
+        let eid = EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, host_with_endpoint.to_owned());
+        if let Err(err) = eid.validate() {
+            Err(err)
+        } else {
+            Ok(eid)
+        }
     }
-    /// # Examples
+    /// Create a new 'dtn:none' endpoint
     ///
-    /// ```
-    /// use bp7::eid::*;
-    ///
-    /// assert_eq!(EndpointID::with_dtn_none(), EndpointID::DtnNone(ENDPOINT_URI_SCHEME_DTN,0));
-    /// let encoded_eid = serde_cbor::to_vec(&EndpointID::with_dtn_none()).expect("Error serializing packet as cbor.");
-    /// println!("{:02x?}", &encoded_eid);
-    /// assert_eq!(EndpointID::with_dtn_none(), serde_cbor::from_slice(&encoded_eid).expect("Decoding packet failed"));
-    /// ```
-    pub fn with_dtn_none() -> EndpointID {
+    /// This is the same as `DTN_NONE`    
+    pub const fn none() -> EndpointID {
         EndpointID::DtnNone(ENDPOINT_URI_SCHEME_DTN, 0)
     }
-    /// # Examples
+
+    /// Create a new EndpointID with ipn addressing scheme
     ///
-    /// ```
-    /// use bp7::eid::*;
+    /// This can either be a host id such as 'ipn://23.0' or
+    /// include an application agents endpoint, e.g., 'ipn://23.42'
     ///
-    /// assert_eq!(EndpointID::with_ipn( IpnAddress(23, 42) ), EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, IpnAddress(23, 42)) );
-    ///
-    /// let ipn_eid = EndpointID::with_ipn(IpnAddress(23, 42));
-    /// let encoded_eid = serde_cbor::to_vec(&ipn_eid).expect("Error serializing packet as cbor.");
-    /// println!("{:02x?}", &encoded_eid);
-    /// assert_eq!(ipn_eid, serde_cbor::from_slice(&encoded_eid).expect("Decoding packet failed"));
-    /// ```
-    pub fn with_ipn(addr: IpnAddress) -> EndpointID {
-        EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, addr)
+    /// **host must be > 0**
+    pub fn with_ipn(host: u64, endpoint: u64) -> Result<EndpointID, EndpointIdError> {
+        let addr = IpnAddress::new(host, endpoint);
+        let eid = EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, addr);
+        if let Err(err) = eid.validate() {
+            Err(err)
+        } else {
+            Ok(eid)
+        }
     }
 
-    /// Generate a new Endpoint ID with a specific endpoint
-    /// Keeps scheme and host specific parts
+    /// Generate a new Endpoint ID from existing one with a specific service endpoint
+    ///
+    /// Keeps scheme and host specific parts from original eid.
     ///
     /// # Examples
     ///
     /// ```
     /// use bp7::eid::*;
     ///
-    /// let ipn_addr_1 = EndpointID::with_ipn( IpnAddress(23, 42));
-    /// let ipn_addr_2 = EndpointID::with_ipn( IpnAddress(23, 7));
+    /// // For ipn addresses
     ///
-    /// assert_eq!(ipn_addr_1, ipn_addr_2.endpoint("42").unwrap());
+    /// let ipn_addr_1 = EndpointID::with_ipn(23, 42).unwrap();
+    /// let ipn_addr_2 = EndpointID::with_ipn(23, 7).unwrap();
     ///
-    /// let ipn_addr_1 = EndpointID::with_ipn( IpnAddress(23, 42));    
+    /// assert_eq!(ipn_addr_1, ipn_addr_2.new_endpoint("42").unwrap());
     ///
-    /// assert!(ipn_addr_1.endpoint("-42").is_err());    
+    /// let ipn_addr_1 = EndpointID::with_ipn(23, 42).unwrap();    
     ///
-    /// let dtn_addr_1 = EndpointID::with_dtn( "node1/incoming");
-    /// let dtn_addr_2 = EndpointID::with_dtn( "node1/inbox");
+    /// assert!(ipn_addr_1.new_endpoint("-42").is_err());    
     ///
-    /// assert_eq!(dtn_addr_1, dtn_addr_2.endpoint("incoming").unwrap());
+    /// // For dtn addresses
+    /// let dtn_addr_1 = EndpointID::with_dtn( "node1/incoming").unwrap();
+    /// let dtn_addr_2 = EndpointID::with_dtn( "node1/inbox").unwrap();
     ///
-    /// let dtn_addr_none = EndpointID::with_dtn_none();    
+    /// assert_eq!(dtn_addr_1, dtn_addr_2.new_endpoint("incoming").unwrap());
     ///
-    /// assert!(dtn_addr_none.endpoint("incoming").is_err());    
+    /// // For non endpoint this is not possible
+    ///
+    /// let dtn_addr_none = EndpointID::none();    
+    ///
+    /// assert!(dtn_addr_none.new_endpoint("incoming").is_err());    
     ///    
     /// ```
-    pub fn endpoint(&self, ep: &str) -> Result<EndpointID, Bp7Error> {
+    pub fn new_endpoint(&self, ep: &str) -> Result<EndpointID, EndpointIdError> {
         match self {
-            EndpointID::DtnNone(_, _) => Err(Bp7Error::EIDError(
-                "Cannot set endpoint on eid 'none'".to_owned(),
-            )),
-            EndpointID::Dtn(_, _) => {
-                Ok(format!("dtn://{}/{}", self.node_part().unwrap(), ep).into())
-            }
+            EndpointID::DtnNone(_, _) => Err(EndpointIdError::NoneHasNoService),
+            EndpointID::Dtn(_, _) => format!("dtn://{}/{}", self.node().unwrap(), ep).try_into(),
             EndpointID::Ipn(_, ipnaddr) => {
                 if let Ok(number) = ep.trim().parse::<u64>() {
-                    Ok(EndpointID::with_ipn(IpnAddress(ipnaddr.0, number)))
+                    EndpointID::with_ipn(ipnaddr.node_number(), number)
                 } else {
-                    Err(Bp7Error::EIDError(
-                        "Invalid endpoint for IPN address".to_owned(),
-                    ))
+                    Err(EndpointIdError::InvalidService(ep.to_owned()))
                 }
             }
         }
@@ -247,127 +270,58 @@ impl fmt::Display for EndpointID {
 }
 
 impl EndpointID {
-    /// # Examples
-    ///
-    /// ```
-    /// use bp7::eid::*;
-    ///
-    /// let eid : EndpointID = "ipn://0.0".to_string().into();
-    /// assert_eq!(eid.node_part(),Some("0".to_string()));
-    ///
-    /// let eid : EndpointID = "dtn://node1/incoming".to_string().into();
-    /// assert_eq!(eid.node_part(),Some("node1".to_string()));
-    ///
-    /// let eid : EndpointID = "dtn://node1".to_string().into();
-    /// assert_eq!(eid.node_part(),Some("node1".to_string()));
-    /// ```
-    pub fn node_part(&self) -> Option<String> {
+    /// Returns the plain node name without URL scheme
+    pub fn node(&self) -> Option<String> {
         match self {
             EndpointID::DtnNone(_, _) => None,
             EndpointID::Dtn(_, eid) => {
                 let nodeid: Vec<&str> = eid.split('/').collect();
                 Some(nodeid[0].to_string())
             }
-            EndpointID::Ipn(_, addr) => Some(addr.0.to_string()),
+            EndpointID::Ipn(_, addr) => Some(addr.node_number().to_string()),
+        }
+    }
+    /// Returns the node name including URL scheme
+    pub fn node_id(&self) -> Option<String> {
+        match self {
+            EndpointID::DtnNone(_, _) => None,
+            _ => Some(format!("{}://{}", self.scheme(), self.node()?)),
         }
     }
 
-    /// # Examples
-    ///
-    /// ```
-    /// use bp7::eid::*;
-    ///
-    /// let eid : EndpointID = "ipn://0.0".to_string().into();
-    /// assert_eq!(eid.host_id(),Some("ipn://0".to_string()));
-    ///
-    /// let eid : EndpointID = "dtn://node1/incoming".to_string().into();
-    /// assert_eq!(eid.host_id(),Some("dtn://node1".to_string()));
-    ///
-    /// let eid : EndpointID = "dtn://node1".to_string().into();
-    /// assert_eq!(eid.host_id(),Some("dtn://node1".to_string()));
-    /// ```
-    pub fn host_id(&self) -> Option<String> {
-        match self {
-            EndpointID::DtnNone(_, _) => None,
-            EndpointID::Dtn(_, eid) => {
-                let nodeid: Vec<&str> = eid.split('/').collect();
-                Some(format!("{}://{}", self.scheme(), nodeid[0].to_string()))
-            }
-            EndpointID::Ipn(_, addr) => Some(format!("{}://{}", self.scheme(), addr.0)),
-        }
-    }
-    /// # Examples
-    ///
-    /// ```
-    /// use bp7::eid::*;
-    ///
-    /// let eid : EndpointID = "ipn://0.0".to_string().into();
-    /// assert_eq!(eid.is_node_id(), true);
-    ///
-    /// let eid : EndpointID = "ipn://0.1".to_string().into();
-    /// assert_eq!(eid.is_node_id(), false);
-    ///
-    /// let eid : EndpointID = "dtn://node1/incoming".to_string().into();
-    /// assert_eq!(eid.is_node_id(), false);
-    ///
-    /// let eid : EndpointID = "dtn://node1".to_string().into();
-    /// assert_eq!(eid.is_node_id(), true);
-    /// ```
     pub fn is_node_id(&self) -> bool {
         match self {
             EndpointID::DtnNone(_, _) => false,
-            EndpointID::Dtn(_, eid) => self.node_part() == Some(eid.to_string()),
+            EndpointID::Dtn(_, eid) => self.node() == Some(eid.to_string()),
             EndpointID::Ipn(_, addr) => addr.1 == 0,
         }
     }
 
-    /// # Examples
-    ///
-    /// ```
-    /// use bp7::eid::*;
-    ///
-    /// let eid = EndpointID::DtnNone(1, 0);
-    /// assert_eq!(eid.validation_error().is_none(), true); // should not fail
-    ///
-    /// let eid = EndpointID::DtnNone(0, 0);
-    /// assert_eq!(eid.validation_error().is_some(), true); // should fail   
-    /// let eid = EndpointID::DtnNone(1, 1);
-    /// assert_eq!(eid.validation_error().is_some(), true); // should fail   
-    ///
-    /// let eid = EndpointID::Ipn(2, IpnAddress(23, 42));
-    /// assert_eq!(eid.validation_error().is_none(), true); // should not fail
-    /// let eid = EndpointID::Ipn(1, IpnAddress(23, 42));
-    /// assert_eq!(eid.validation_error().is_some(), true); // should fail   
-    /// let eid = EndpointID::Ipn(2, IpnAddress(0, 0));
-    /// assert_eq!(eid.validation_error().is_some(), true); // should fail   
-    /// ```
-    pub fn validation_error(&self) -> Option<Bp7Error> {
+    pub fn validate(&self) -> Result<(), EndpointIdError> {
         match self {
-            EndpointID::Dtn(_, _) => None, // TODO: Implement validation for dtn scheme
+            EndpointID::Dtn(_, _) => Ok(()), // TODO: Implement validation for dtn scheme
             EndpointID::Ipn(code, addr) => {
                 if *code != ENDPOINT_URI_SCHEME_IPN {
-                    Some(Bp7Error::EIDError(
-                        "Wrong URI scheme code for IPN".to_string(),
+                    Err(EndpointIdError::SchemeMismatch(
+                        *code,
+                        ENDPOINT_URI_SCHEME_IPN,
                     ))
-                } else if addr.0 < 1 {
-                    Some(Bp7Error::EIDError(
-                        "IPN's node number must be >= 1".to_string(),
-                    ))
+                } else if addr.node_number() < 1 {
+                    Err(EndpointIdError::InvalidNodeNumber(addr.node_number()))
                 } else {
-                    None
+                    Ok(())
                 }
             }
             EndpointID::DtnNone(code, addr) => {
                 if *code != ENDPOINT_URI_SCHEME_DTN {
-                    Some(Bp7Error::EIDError(
-                        "Wrong URI scheme code for DTN".to_string(),
+                    Err(EndpointIdError::SchemeMismatch(
+                        *code,
+                        ENDPOINT_URI_SCHEME_DTN,
                     ))
                 } else if *addr != 0 {
-                    Some(Bp7Error::EIDError(
-                        "dtn none must have uint(0) set as address".to_string(),
-                    ))
+                    Err(EndpointIdError::NoneNotZero)
                 } else {
-                    None
+                    Ok(())
                 }
             }
         }
@@ -375,36 +329,11 @@ impl EndpointID {
 }
 
 /// Load EndpointID from URL string.
-/// Support for IPN and dtn schemes.
 ///
-/// # Examples
-///
-/// ```
-/// use bp7::eid::*;
-///
-/// let eid = EndpointID::from("dtn://none".to_string());
-/// assert_eq!(eid, EndpointID::DtnNone(ENDPOINT_URI_SCHEME_DTN, 0));
-///
-/// let eid = EndpointID::from("dtn:none".to_string());
-/// assert_eq!(eid, EndpointID::DtnNone(ENDPOINT_URI_SCHEME_DTN, 0));
-///
-/// let eid = EndpointID::from("dtn://node1/endpoint1".to_string());
-/// assert_eq!(eid, EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, "node1/endpoint1".to_string()));
-///
-/// let eid = EndpointID::from("dtn:node1/endpoint1".to_string());
-/// assert_eq!(eid, EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, "node1/endpoint1".to_string()));
-///   
-/// ```
-///
-/// This should panic:
-///
-/// ```should_panic
-/// use bp7::eid::*;
-///
-/// let eid = EndpointID::from("node1".to_string());
-/// ```
-impl From<String> for EndpointID {
-    fn from(item: String) -> Self {
+/// Support for ipn and dtn schemes.
+impl TryFrom<String> for EndpointID {
+    type Error = EndpointIdError;
+    fn try_from(item: String) -> Result<Self, Self::Error> {
         let item = if item.contains("://") {
             item
         } else {
@@ -416,7 +345,7 @@ impl From<String> for EndpointID {
         match u.scheme() {
             "dtn" => {
                 if host == "none" {
-                    return <EndpointID>::with_dtn_none();
+                    return Ok(<EndpointID>::none());
                 }
                 let mut host = format!("{}{}", host, u.path());
                 if host.ends_with('/') {
@@ -432,15 +361,97 @@ impl From<String> for EndpointID {
                 let p1: u64 = fields[0].parse().unwrap();
                 let p2: u64 = fields[1].parse().unwrap();
 
-                EndpointID::with_ipn(IpnAddress(p1, p2))
+                EndpointID::with_ipn(p1, p2)
             }
-            _ => <EndpointID>::with_dtn_none(),
+            _ => Ok(<EndpointID>::none()),
         }
     }
 }
 
-impl From<&str> for EndpointID {
-    fn from(item: &str) -> Self {
-        EndpointID::from(String::from(item))
+impl TryFrom<&str> for EndpointID {
+    type Error = EndpointIdError;
+    fn try_from(item: &str) -> Result<Self, Self::Error> {
+        EndpointID::try_from(String::from(item))
+    }
+}
+impl TryFrom<IpnAddress> for EndpointID {
+    type Error = EndpointIdError;
+    fn try_from(item: IpnAddress) -> Result<Self, Self::Error> {
+        EndpointID::with_ipn(item.node_number(), item.service_number())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_case::test_case;
+
+    #[test_case("node1")]
+    #[test_case("node1/incoming")]
+    fn create_with_dtn_tests(input: &str) {
+        assert_eq!(
+            EndpointID::with_dtn(input).unwrap(),
+            EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, input.to_string())
+        );
+    }
+
+    #[test_case("dtn://n1/incoming" => "dtn://n1/incoming" ; "when using fully qualified dtn endpoint")]
+    #[test_case("dtn://n1/incoming/" => "dtn://n1/incoming" ; "when containing tail slash")]
+    #[test_case("dtn://n1/" => "dtn://n1" ; "when providing node eid")]
+    #[test_case("dtn:n1/incoming" => "dtn://n1/incoming" ; "when skipping double slash for dtn")]
+    #[test_case("dtn//n1/incoming" => panics "" ; "when missing URL scheme separator")]
+    #[test_case("n1/incoming" => panics "" ; "when missing URL scheme")]
+    #[test_case("ipn://23.42" => "ipn://23.42" ; "when using valid ipn endpoint")]
+    #[test_case("ipn://23.0" => "ipn://23.0" ; "when using service number 0")]
+    #[test_case("ipn:23.42" => "ipn://23.42" ; "when skipping double slash for ipn")]
+    #[test_case("ipn://23.data" => panics "" ; "when providing string as service number in ipn")]
+    #[test_case("ipn://0.42" => panics "" ; "when using node number 0 in ipn")]
+    #[test_case("dtn://none" => "dtn://none" ; "when using none endpoint")]
+    #[test_case("dtn:n1/" => "dtn://n1" ; "when using none endpoint without double slash")]
+    #[test_case("dtn://none" => EndpointID::none().to_string() ; "when providing node eid and constructed none")]
+    fn from_str_tests(input_str: &str) -> String {
+        EndpointID::try_from(input_str).unwrap().to_string()
+    }
+
+    #[test_case(EndpointID::DtnNone(1, 0) => true)]
+    #[test_case(EndpointID::DtnNone(0, 0) => false)]
+    #[test_case(EndpointID::DtnNone(1, 1) => false)]
+    #[test_case(EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, IpnAddress::new(23, 42)) => true)]
+    #[test_case(EndpointID::Ipn(ENDPOINT_URI_SCHEME_DTN, IpnAddress::new(23, 42)) => false)]
+    #[test_case(EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, IpnAddress::new(0, 0)) => false)]
+    fn validate_test(eid: EndpointID) -> bool {
+        eid.validate().is_ok()
+    }
+    #[test_case("ipn://1.0".try_into().unwrap() => true ; "when providing ipn node id")]
+    #[test_case("ipn://1.1".try_into().unwrap() => false ; "when providing full ipn address")]
+    #[test_case("dtn://node1".try_into().unwrap() => true ; "when providing dtn node id")]
+    #[test_case("dtn://node1/incoming".try_into().unwrap() => false ; "when providing full dtn address")]
+    #[test_case("dtn://none".try_into().unwrap() => false ; "when providing none endpoint")]
+    fn is_node_id_tests(eid: EndpointID) -> bool {
+        eid.is_node_id()
+    }
+
+    #[test_case("ipn://1.0".try_into().unwrap() => Some("1".to_string()))]
+    #[test_case("dtn://node1/incoming".try_into().unwrap() => Some("node1".to_string()))]
+    #[test_case("dtn://node1".try_into().unwrap() => Some("node1".to_string()))]
+    fn node_part_tests(eid: EndpointID) -> Option<String> {
+        eid.node()
+    }
+    #[test_case("dtn://none".try_into().unwrap() ; "when using none endpoint")]
+    #[test_case("ipn://23.42".try_into().unwrap() ; "when using ipn address")]
+    #[test_case("dtn://node1/incoming".try_into().unwrap() ; "when using dtn address")]
+    fn serialize_deserialize_tests(eid: EndpointID) {
+        let encoded_eid = serde_cbor::to_vec(&eid).expect("Error serializing packet as cbor.");
+        println!("{:02x?}", &encoded_eid);
+        assert_eq!(
+            eid,
+            serde_cbor::from_slice(&encoded_eid).expect("Decoding packet failed")
+        );
+    }
+
+    #[test_case(&[130, 1, 106, 110, 111, 100, 101, 49, 47, 116, 101, 115, 116] => "dtn://node1/test"; "when decoding full dtn address")]
+    fn test_ser_eid(cbor_eid: &[u8]) -> String {
+        let deserialized: EndpointID = serde_cbor::from_slice(&cbor_eid).unwrap();
+        deserialized.to_string()
     }
 }

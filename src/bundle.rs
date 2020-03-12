@@ -5,6 +5,7 @@ use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
+use thiserror::Error;
 
 use super::canonical::*;
 use super::crc::*;
@@ -22,11 +23,11 @@ pub type CanonicalBlockNumberType = u64;
 pub type FragOffsetType = u64;
 pub type TotalDataLengthType = u64;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Error)]
 pub enum Bp7Error {
     CanonicalBlockError(String),
     PrimaryBlockError(String),
-    EIDError(String),
+    EIDError(#[from] EndpointIdError),
     DtnTimeError(String),
     CrcError(String),
     BundleError(String),
@@ -79,19 +80,20 @@ pub const BLOCK_CFRESERVED_FIELDS: BlockControlFlags = 0xF0;
 
 pub trait BlockValidation {
     fn has(self, flag: BlockControlFlags) -> bool;
-    fn validation_error(self) -> Option<Bp7Error>;
+    fn validate(self) -> Result<(), Bp7Error>;
 }
 impl BlockValidation for BlockControlFlags {
     fn has(self, flag: BlockControlFlags) -> bool {
         (self & flag) != 0
     }
-    fn validation_error(self) -> Option<Bp7Error> {
+    fn validate(self) -> Result<(), Bp7Error> {
         if self.has(BLOCK_CFRESERVED_FIELDS) {
-            return Some(Bp7Error::BlockControlFlagError(
+            Err(Bp7Error::BlockControlFlagError(
                 "Given flag contains reserved bits".to_string(),
-            ));
+            ))
+        } else {
+            Ok(())
         }
-        None
     }
 }
 
@@ -137,13 +139,13 @@ pub const BUNDLE_CFRESERVED_FIELDS: BundleControlFlags = 0xE218;
 
 pub trait BundleValidation {
     fn has(self, flag: BundleControlFlags) -> bool;
-    fn validation_errors(self) -> Option<Bp7ErrorList>;
+    fn validate(self) -> Result<(), Bp7ErrorList>;
 }
 impl BundleValidation for BundleControlFlags {
     fn has(self, flag: BundleControlFlags) -> bool {
         (self & flag) != 0
     }
-    fn validation_errors(self) -> Option<Bp7ErrorList> {
+    fn validate(self) -> Result<(), Bp7ErrorList> {
         let mut errors: Bp7ErrorList = Vec::new();
         if self.has(BUNDLE_CFRESERVED_FIELDS) {
             errors.push(Bp7Error::BundleControlFlagError(
@@ -168,9 +170,9 @@ impl BundleValidation for BundleControlFlags {
             ))
         }
         if !errors.is_empty() {
-            return Some(errors);
+            return Err(errors);
         }
-        None
+        Ok(())
     }
 }
 
@@ -258,7 +260,7 @@ impl Bundle {
     }
 
     /// Validate bundle and optionally return list of errors.
-    pub fn validation_errors(&self) -> Option<Bp7ErrorList> {
+    pub fn validate(&self) -> Result<(), Bp7ErrorList> {
         let mut errors: Bp7ErrorList = Vec::new();
         //let mut block_numbers: Vec<CanonicalBlockNumberType> = Vec::new();
         //let mut block_types: Vec<CanonicalBlockType> = Vec::new();
@@ -268,18 +270,18 @@ impl Bundle {
         let mut b_types: std::collections::HashSet<u64> =
             std::collections::HashSet::with_capacity(15);
 
-        if let Some(mut err) = self.primary.validation_errors() {
+        if let Err(mut err) = self.primary.validate() {
             errors.append(&mut err);
         }
         for blck in &self.canonicals {
-            if let Some(mut err) = blck.validation_errors() {
+            if let Err(mut err) = blck.validate() {
                 errors.append(&mut err);
             }
             if (self
                 .primary
                 .bundle_control_flags
                 .has(BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
-                || self.primary.source == DTN_NONE)
+                || self.primary.source == EndpointID::none())
                 && blck.block_control_flags.has(BLOCK_STATUS_REPORT)
             {
                 errors.push(Bp7Error::BundleError(
@@ -308,9 +310,9 @@ impl Bundle {
             ));
         }
         if !errors.is_empty() {
-            return Some(errors);
+            return Err(errors);
         }
-        None
+        Ok(())
     }
     /// Sort canonical blocks by block number
     pub fn sort_canonicals(&mut self) {
@@ -375,7 +377,7 @@ impl Bundle {
     }
     /// Sets the given CRCType for each block. The crc value
     /// is calculated on-the-fly before serializing.
-    pub fn set_crc(&mut self, crc_type: CRCType) {
+    pub fn set_crc(&mut self, crc_type: CrcRawType) {
         self.primary.set_crc_type(crc_type);
         for b in &mut self.canonicals {
             b.set_crc_type(crc_type);
@@ -407,7 +409,7 @@ impl Bundle {
         block_type: CanonicalBlockType,
     ) -> Option<&CanonicalBlock> {
         for b in &self.canonicals {
-            if b.block_type == block_type && b.extension_validation_error().is_none() {
+            if b.block_type == block_type && b.extension_validation().is_ok() {
                 //let cdata = b.get_data().clone();
                 return Some(b);
             }
@@ -420,7 +422,7 @@ impl Bundle {
         block_type: CanonicalBlockType,
     ) -> Option<&mut CanonicalBlock> {
         for b in &mut self.canonicals {
-            if b.block_type == block_type && b.extension_validation_error().is_none() {
+            if b.block_type == block_type && b.extension_validation().is_ok() {
                 //let cdata = b.get_data().clone();
                 return Some(b);
             }

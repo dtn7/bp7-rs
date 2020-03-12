@@ -1,4 +1,6 @@
 use bp7::*;
+use std::convert::TryFrom;
+use std::convert::TryInto;
 
 #[test]
 fn canonical_data_tests() {
@@ -20,7 +22,7 @@ fn canonical_data_tests() {
         serde_cbor::from_slice(&encoded_hopcount).expect("decoding error");
     assert_eq!(hopcount, decoded_hopcount);
 
-    let previous = CanonicalData::PreviousNode("dtn://node1".into());
+    let previous = CanonicalData::PreviousNode("dtn://node1".try_into().unwrap());
     let encoded_previous = serde_cbor::to_vec(&previous).expect("encoding error");
     let decoded_previous: CanonicalData =
         serde_cbor::from_slice(&encoded_previous).expect("decoding error");
@@ -51,7 +53,7 @@ fn canonical_block_tests() {
     let data = new_bundle_age_block(1, 0, 0);
     encode_decode_test_canonical(data);
 
-    let data = new_previous_node_block(1, 0, "dtn://node2".into());
+    let data = new_previous_node_block(1, 0, "dtn://node2".try_into().unwrap());
     encode_decode_test_canonical(data);
 }
 
@@ -88,19 +90,19 @@ fn hopcount_tests() {
 
 #[test]
 fn previousnode_tests() {
-    let mut block = new_previous_node_block(1, 0, "dtn://node1".into());
+    let mut block = new_previous_node_block(1, 0, "dtn://node1".try_into().unwrap());
 
     assert_eq!(block.block_type, bp7::PREVIOUS_NODE_BLOCK);
     if let Some(eid) = block.previous_node_get() {
-        assert_eq!(*eid, EndpointID::from("dtn://node1"));
+        assert_eq!(*eid, EndpointID::try_from("dtn://node1").unwrap());
     } else {
         panic!("Not a previous node block!");
     }
 
-    assert!(block.previous_node_update("dtn://node2".into()));
+    assert!(block.previous_node_update("dtn://node2".try_into().unwrap()));
 
     if let Some(eid) = block.previous_node_get() {
-        assert_eq!(*eid, EndpointID::from("dtn://node2"));
+        assert_eq!(*eid, EndpointID::try_from("dtn://node2").unwrap());
     } else {
         panic!("Not a previous node block!");
     }
@@ -108,7 +110,7 @@ fn previousnode_tests() {
     let mut wrong_block = new_bundle_age_block(1, 0, 0);
     assert_eq!(wrong_block.previous_node_get(), None);
     assert_eq!(
-        wrong_block.previous_node_update("dtn://node2".into()),
+        wrong_block.previous_node_update("dtn://node2".try_into().unwrap()),
         false
     );
 }

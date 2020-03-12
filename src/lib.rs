@@ -6,8 +6,8 @@
 //! use bp7::{bundle, canonical, crc, dtntime, eid, primary};
 //! use std::time::Duration;
 //!
-//! let dst = eid::EndpointID::with_dtn("node2/inbox");
-//! let src = eid::EndpointID::with_dtn("node1/123456");
+//! let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
+//! let src = eid::EndpointID::with_dtn("node1/123456").unwrap();
 //! //let now = dtntime::CreationTimestamp::now();
 //! let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);
 //! let pblock = primary::PrimaryBlockBuilder::default()
@@ -55,7 +55,7 @@ pub mod wasm;
 pub use bundle::{Bp7Error, Bp7ErrorList, Bundle, ByteBuffer};
 pub use canonical::*;
 pub use dtntime::{dtn_time_now, CreationTimestamp, DtnTime};
-pub use eid::{EndpointID, DTN_NONE};
+pub use eid::EndpointID;
 pub use helpers::hexify;
 
 #[cfg(target_arch = "wasm32")]

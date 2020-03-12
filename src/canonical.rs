@@ -1,5 +1,5 @@
 use super::bundle::*;
-use super::crc::{CRCType, CrcBlock, CrcValue, CRC_16, CRC_32, CRC_NO};
+use super::crc::{CrcBlock, CrcRawType, CrcValue, CRC_16, CRC_32, CRC_NO};
 use super::eid::*;
 use core::fmt;
 use derive_builder::Builder;
@@ -111,7 +111,7 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                 let block_control_flags: BlockControlFlags = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(2, &self))?;
-                let crc_type: CRCType = seq
+                let crc_type: CrcRawType = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(3, &self))?;
 
@@ -229,69 +229,70 @@ impl CanonicalBlock {
         }
     }
 
-    pub fn validation_errors(&self) -> Option<Bp7ErrorList> {
+    pub fn validate(&self) -> Result<(), Bp7ErrorList> {
         let mut errors: Bp7ErrorList = Vec::new();
 
-        if let Some(err) = self.block_control_flags.validation_error() {
+        if let Err(err) = self.block_control_flags.validate() {
             errors.push(err);
         }
 
-        if let Some(err) = self.extension_validation_error() {
+        if let Err(err) = self.extension_validation() {
             errors.push(err);
         }
 
-        if !errors.is_empty() {
-            return Some(errors);
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
         }
-        None
     }
-    pub fn extension_validation_error(&self) -> Option<Bp7Error> {
+    pub fn extension_validation(&self) -> Result<(), Bp7Error> {
         // TODO: reimpl checks
         match &self.data {
             CanonicalData::Data(_) => {
                 if self.block_type != PAYLOAD_BLOCK {
-                    return Some(Bp7Error::CanonicalBlockError(
+                    return Err(Bp7Error::CanonicalBlockError(
                         "Payload data not matching payload type".to_string(),
                     ));
                 }
                 if self.block_number != 1 {
-                    return Some(Bp7Error::CanonicalBlockError(
+                    return Err(Bp7Error::CanonicalBlockError(
                         "Payload Block's block number is not zero".to_string(),
                     ));
                 }
             }
             CanonicalData::BundleAge(_) => {
                 if self.block_type != BUNDLE_AGE_BLOCK {
-                    return Some(Bp7Error::CanonicalBlockError(
+                    return Err(Bp7Error::CanonicalBlockError(
                         "Payload data not matching payload type".to_string(),
                     ));
                 }
             }
             CanonicalData::HopCount(_, _) => {
                 if self.block_type != HOP_COUNT_BLOCK {
-                    return Some(Bp7Error::CanonicalBlockError(
+                    return Err(Bp7Error::CanonicalBlockError(
                         "Payload data not matching payload type".to_string(),
                     ));
                 }
             }
             CanonicalData::PreviousNode(prev_eid) => {
                 if self.block_type != PREVIOUS_NODE_BLOCK {
-                    return Some(Bp7Error::CanonicalBlockError(
+                    return Err(Bp7Error::CanonicalBlockError(
                         "Payload data not matching payload type".to_string(),
                     ));
                 }
-                if let Some(err) = prev_eid.validation_error() {
-                    return Some(err);
+                if let Err(err) = prev_eid.validate() {
+                    return Err(err.into());
                 }
             }
             CanonicalData::Unknown(_) => {
-                return Some(Bp7Error::CanonicalBlockError(format!(
+                return Err(Bp7Error::CanonicalBlockError(format!(
                     "Unknown data for block type {}",
                     self.block_type
                 )));
             }
             CanonicalData::DecodingError => {
-                return Some(Bp7Error::CanonicalBlockError("Unknown data".to_string()));
+                return Err(Bp7Error::CanonicalBlockError("Unknown data".to_string()));
             }
         }
         /*if (self.block_type > 9 && self.block_type < 192) || (self.block_type > 255) {
@@ -300,7 +301,7 @@ impl CanonicalBlock {
             ));
         }*/
 
-        None
+        Ok(())
     }
     pub fn data(&self) -> &CanonicalData {
         &self.data

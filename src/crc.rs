@@ -6,7 +6,7 @@ use super::bundle::*;
  *
  ******************************/
 
-pub type CRCType = u8;
+pub type CrcRawType = u8;
 
 use crc::{crc16, crc32};
 
@@ -17,14 +17,14 @@ pub enum CrcValue {
     Crc32Empty,
     Crc16([u8; 2]),
     Crc32([u8; 4]),
-    Unknown(CRCType),
+    Unknown(CrcRawType),
 }
 impl CrcValue {
     pub fn has_crc(&self) -> bool {
         // TODO: handle unknown
         *self != CrcValue::CrcNo
     }
-    pub fn to_code(&self) -> CRCType {
+    pub fn to_code(&self) -> CrcRawType {
         match self {
             CrcValue::CrcNo => CRC_NO,
             CrcValue::Crc16(_) => CRC_16,
@@ -45,17 +45,17 @@ impl CrcValue {
         }
     }
 }
-pub const CRC16_EMPTY: [u8; 2] = [0; 2];
-pub const CRC32_EMPTY: [u8; 4] = [0; 4];
+pub(crate) const CRC16_EMPTY: [u8; 2] = [0; 2];
+pub(crate) const CRC32_EMPTY: [u8; 4] = [0; 4];
 
-pub const CRC_NO: CRCType = 0;
-pub const CRC_16: CRCType = 1;
-pub const CRC_32: CRCType = 2;
+pub const CRC_NO: CrcRawType = 0;
+pub const CRC_16: CrcRawType = 1;
+pub const CRC_32: CrcRawType = 2;
 
 pub trait CRCFuncations {
     fn to_string(self) -> String;
 }
-impl CRCFuncations for CRCType {
+impl CRCFuncations for CrcRawType {
     fn to_string(self) -> String {
         match self {
             CRC_NO => String::from("no"),
@@ -96,7 +96,7 @@ pub trait CrcBlock: Block + Clone {
     }
     /// Set crc type
     /// CRC_NO, CRC_16, CRC_32
-    fn set_crc_type(&mut self, crc_value: CRCType) {
+    fn set_crc_type(&mut self, crc_value: CrcRawType) {
         if crc_value == CRC_NO {
             self.set_crc(CrcValue::CrcNo);
         } else if crc_value == CRC_16 {
@@ -108,7 +108,7 @@ pub trait CrcBlock: Block + Clone {
         }
     }
     /// Return the crc type code
-    fn crc_type(&self) -> CRCType {
+    fn crc_type(&self) -> CrcRawType {
         self.crc_value().to_code()
     }
     fn crc_value(&self) -> &CrcValue;

@@ -399,7 +399,7 @@ pub fn new_status_report(
 pub fn new_status_report_bundle(
     orig_bundle: &Bundle,
     src: EndpointID,
-    crc_type: crc::CRCType,
+    crc_type: crc::CrcRawType,
     status: StatusInformationPos,
     reason: StatusReportReason,
 ) -> Bundle {

@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 
 use bp7::{bundle, canonical, crc, dtntime, eid, primary, Bundle, ByteBuffer};
 
-fn bench_bundle_create(crc_type: crc::CRCType) -> ByteBuffer {
+fn bench_bundle_create(crc_type: crc::CrcRawType) -> ByteBuffer {
     let dst = eid::EndpointID::with_dtn("node2/inbox");
     let src = eid::EndpointID::with_dtn("node1/123456");
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
