@@ -45,6 +45,33 @@ pub fn unhexify(s: &str) -> Result<Vec<u8>, ParseIntError> {
         .collect()
 }
 
+pub fn ser_dump<T: serde::ser::Serialize>(input: &T, hr: &str) {
+    println!("Description | Value");
+    println!("--- | ---");
+    println!("human-readable | {}", hr);
+    let json = serde_json::to_string(input).unwrap();
+    println!("json | `{}`", json);
+    let cbor = serde_cbor::to_vec(input).unwrap();
+    println!(
+        "hex string | [`{}`](http://cbor.me/?bytes={})",
+        hexify(&cbor),
+        hexify(&cbor)
+    );
+    println!("byte array | `{:?}`\n", cbor);
+}
+pub fn vec_dump<T: serde::ser::Serialize>(input: &T, cbor: Vec<u8>, hr: &str) {
+    println!("Description | Value");
+    println!("--- | ---");
+    println!("human-readable | {}", hr);
+    let json = serde_json::to_string(input).unwrap();
+    println!("json | `{}`", json);
+    println!(
+        "hex string | [`{}`](http://cbor.me/?bytes={})",
+        hexify(&cbor),
+        hexify(&cbor)
+    );
+    println!("byte array | `{:?}`\n", cbor);
+}
 pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     let mut rng = rand::thread_rng();
     let dst_string = format!("node{}/inbox", rng.gen_range(1, 4));
