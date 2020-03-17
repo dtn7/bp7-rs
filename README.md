@@ -154,17 +154,33 @@ Rust.bp7.then(function(bp7) {
 
 Note that at the moment all functions have a variant working on the binary bundle and one working on the decoded bundle struct.
 
-#### License
+### Acknowledging this work
 
-<sup>
+If you use this software in a scientific publication, please cite the following paper:
+
+```BibTeX
+@INPROCEEDINGS{baumgaertner2019bdtn7,
+  author={L. {Baumgärtner} and J. {Höchst} and T. {Meuser}},
+  booktitle={2019 International Conference on Information and Communication Technologies for Disaster Management (ICT-DM)},
+  title={B-DTN7: Browser-based Disruption-tolerant Networking via Bundle Protocol 7},
+  year={2019},
+  volume={},
+  number={},
+  pages={1-8},
+  keywords={Protocols;Browsers;Software;Convergence;Servers;Synchronization;Wireless fidelity},
+  doi={10.1109/ICT-DM47966.2019.9032944},
+  ISSN={2469-8822},
+  month={Dec},
+}
+```
+
+### License
+
+
 Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
 2.0</a> or <a href="LICENSE-MIT">MIT license</a> at your option.
-</sup>
 
-<br>
 
-<sub>
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in bp7-rs by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
-</sub>
