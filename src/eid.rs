@@ -42,6 +42,8 @@ impl fmt::Display for IpnAddress {
 
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum EndpointIdError {
+    #[error("scheme not found")]
+    SchemeMissing,
     #[error("scheme not matching, found `{0}` expected `{1}`")]
     SchemeMismatch(u8, u8),
     #[error("unknown address scheme `{0}`")]
@@ -339,7 +341,7 @@ impl TryFrom<String> for EndpointID {
         } else {
             item.replace(":", "://")
         };
-        let u = Url::parse(&item).expect("EndpointID url parsing error");
+        let u = Url::parse(&item).map_err(|_| EndpointIdError::SchemeMissing)?;
         let host = u.host();
 
         match u.scheme() {
