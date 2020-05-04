@@ -286,10 +286,7 @@ impl CanonicalBlock {
                 }
             }
             CanonicalData::Unknown(_) => {
-                return Err(Bp7Error::CanonicalBlockError(format!(
-                    "Unknown data for block type {}",
-                    self.block_type
-                )));
+                // Nothing to check as content is unknown
             }
             CanonicalData::DecodingError => {
                 return Err(Bp7Error::CanonicalBlockError("Unknown data".to_string()));
