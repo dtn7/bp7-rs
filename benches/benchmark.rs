@@ -8,8 +8,8 @@ use std::convert::TryFrom;
 use bp7::{bundle, canonical, crc, dtntime, eid, primary, Bundle, ByteBuffer};
 
 fn bench_bundle_create(crc_type: crc::CrcRawType) -> ByteBuffer {
-    let dst = eid::EndpointID::with_dtn("node2/inbox");
-    let src = eid::EndpointID::with_dtn("node1/123456");
+    let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
+    let src = eid::EndpointID::with_dtn("node1/123456").unwrap();
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
     //let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
 
@@ -18,7 +18,7 @@ fn bench_bundle_create(crc_type: crc::CrcRawType) -> ByteBuffer {
         .source(src.clone())
         .report_to(src)
         .creation_timestamp(now)
-        .lifetime(60 * 60 * 1_000_000)
+        .lifetime(std::time::Duration::from_secs(60 * 60))
         .build()
         .unwrap();
 
@@ -33,7 +33,7 @@ fn bench_bundle_create(crc_type: crc::CrcRawType) -> ByteBuffer {
     let mut b = bundle::Bundle::new(pblock, cblocks);
 
     b.set_crc(crc_type);
-    b.validation_errors();
+    b.validate();
     b.to_cbor()
 }
 
@@ -51,8 +51,8 @@ fn criterion_benchmark_bundle_create(c: &mut Criterion) {
     });
 }
 fn criterion_benchmark_bundle_encode(c: &mut Criterion) {
-    let dst = eid::EndpointID::with_dtn("node2/inbox");
-    let src = eid::EndpointID::with_dtn("node1/123456");
+    let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
+    let src = eid::EndpointID::with_dtn("node1/123456").unwrap();
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
     //let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);;
 
@@ -61,7 +61,7 @@ fn criterion_benchmark_bundle_encode(c: &mut Criterion) {
         .source(src.clone())
         .report_to(src)
         .creation_timestamp(now)
-        .lifetime(60 * 60 * 1_000_000)
+        .lifetime(std::time::Duration::from_secs(60 * 60))
         .build()
         .unwrap();
 
@@ -78,21 +78,21 @@ fn criterion_benchmark_bundle_encode(c: &mut Criterion) {
         .build()
         .unwrap();
     b.set_crc(crc::CRC_NO);
-    b.validation_errors();
+    b.validate();
     let mut bndl = b.clone();
     c.bench_function("encode bundle no crc", move |bench| {
         bench.iter(|| bndl.to_cbor())
     });
 
     b.set_crc(crc::CRC_16);
-    b.validation_errors();
+    b.validate();
     let mut bndl = b.clone();
     c.bench_function("encode bundle crc 16", move |bench| {
         bench.iter(|| bndl.to_cbor())
     });
 
     b.set_crc(crc::CRC_32);
-    b.validation_errors();
+    b.validate();
     let mut bndl = b.clone();
     c.bench_function("encode bundle crc 32", move |bench| {
         bench.iter(|| bndl.to_cbor())
@@ -105,7 +105,7 @@ fn criterion_benchmark_bundle_decode(c: &mut Criterion) {
     c.bench_function("decode bundle no crc", move |b| {
         b.iter(|| {
             let _deserialized: Bundle = Bundle::try_from(b_no.clone()).unwrap();
-            _deserialized.validation_errors();
+            _deserialized.validate();
         })
     });
 
@@ -114,7 +114,7 @@ fn criterion_benchmark_bundle_decode(c: &mut Criterion) {
     c.bench_function("decode bundle crc 16", move |b| {
         b.iter(|| {
             let _deserialized: Bundle = Bundle::try_from(b_16.clone()).unwrap();
-            _deserialized.validation_errors();
+            _deserialized.validate();
         })
     });
 
@@ -123,7 +123,7 @@ fn criterion_benchmark_bundle_decode(c: &mut Criterion) {
     c.bench_function("decode bundle crc 32", move |b| {
         b.iter(|| {
             let _deserialized: Bundle = Bundle::try_from(b_32.clone()).unwrap();
-            _deserialized.validation_errors();
+            _deserialized.validate();
         })
     });
 }
