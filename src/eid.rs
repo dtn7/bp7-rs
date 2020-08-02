@@ -133,7 +133,15 @@ impl<'de> Deserialize<'de> for EndpointID {
                     let ipnaddr: IpnAddress = seq
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                    Ok(ipnaddr.try_into().unwrap())
+                    if let Ok(ipn) = ipnaddr.try_into() {
+                        // Conversion can fail as validation happens within function
+                        Ok(ipn)
+                    } else {
+                        Err(de::Error::invalid_value(
+                            de::Unexpected::StructVariant,
+                            &self,
+                        ))
+                    }
                 } else {
                     Err(de::Error::invalid_value(
                         de::Unexpected::Unsigned(eid_type.into()),
