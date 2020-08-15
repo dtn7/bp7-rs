@@ -17,16 +17,16 @@ pub fn unix_timestamp() -> u64 {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn ts_ms() -> u128 {
+pub fn ts_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards!!")
-        .as_millis()
+        .as_millis() as u64
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn ts_ms() -> u128 {
-    (stdweb::web::Date::now()) as u128
+pub fn ts_ms() -> u64 {
+    (stdweb::web::Date::now()) as u64
 }
 
 /// Convert byte slice into a hex string

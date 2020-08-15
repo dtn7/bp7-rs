@@ -1,9 +1,9 @@
 [package]
 name = "bp7"
-version = "0.6.4"
+version = "0.6.5"
 authors = ["Lars Baumgaertner <baumgaertner@cs.tu-darmstadt.de>"]
 edition = "2018"
-description = "Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-23"
+description = "Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-26"
 license = "MIT OR Apache-2.0"
 repository    = "https://github.com/dtn7/bp7-rs"
 categories    = ["encoding"]
@@ -24,13 +24,12 @@ harness = false
 [dependencies]
 humantime = "2.0"
 serde = { version = "1.0", features = ["derive"] }
-serde_derive = "1.0.85"
 serde_cbor = "0.11"
 serde_json = "1.0"
 serde_bytes = "0.11"
 crc = "^1.0.0"
 derive_builder = "0.9"
-thiserror = "1.0.11"
+thiserror = "1.0.20"
 
 # non wasm config
 

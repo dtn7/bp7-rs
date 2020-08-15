@@ -427,7 +427,7 @@ pub fn new_previous_node_block(
 pub fn new_bundle_age_block(
     block_number: u64,
     bcf: BlockControlFlags,
-    time_in_micros: u128,
+    time_in_millis: u64,
 ) -> CanonicalBlock {
     /*CanonicalBlock {
         block_type: BUNDLE_AGE_BLOCK,
@@ -441,7 +441,7 @@ pub fn new_bundle_age_block(
         .block_type(BUNDLE_AGE_BLOCK)
         .block_number(block_number)
         .block_control_flags(bcf)
-        .data(CanonicalData::BundleAge(time_in_micros.try_into().unwrap()))
+        .data(CanonicalData::BundleAge(time_in_millis))
         .build()
         .unwrap()
 }

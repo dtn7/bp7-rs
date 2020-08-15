@@ -5,9 +5,12 @@ use humantime::format_rfc3339;
 use serde::{Deserialize, Serialize};
 use std::time::UNIX_EPOCH;
 
+/// Time since the year 2k in milliseconds
 pub type DtnTime = u64;
 
 pub const SECONDS1970_TO2K: u64 = 946_684_800;
+const MS1970_TO2K: u64 = 946_684_800_000;
+
 pub const DTN_TIME_EPOCH: DtnTime = 0;
 
 pub trait DtnTimeHelpers {
@@ -16,21 +19,21 @@ pub trait DtnTimeHelpers {
 }
 
 impl DtnTimeHelpers for DtnTime {
-    /// Convert to unix timestamp.
+    /// Convert to unix timestamp (in seconds).
     fn unix(self) -> u64 {
-        self + SECONDS1970_TO2K
+        ((self + MS1970_TO2K) / 1000) as u64
     }
 
     /// Convert to human readable rfc3339 compliant time string.
     fn string(self) -> String {
-        let d = UNIX_EPOCH + Duration::from_secs(self + SECONDS1970_TO2K);
+        let d = UNIX_EPOCH + Duration::from_millis(self + MS1970_TO2K);
         format_rfc3339(d).to_string()
     }
 }
 
 /// Get current time as DtnTime timestamp
 pub fn dtn_time_now() -> DtnTime {
-    crate::helpers::unix_timestamp() - SECONDS1970_TO2K
+    crate::helpers::ts_ms() - MS1970_TO2K
 }
 
 /// Timestamp when a bundle was created, consisting of the DtnTime and a sequence number.

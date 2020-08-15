@@ -27,6 +27,7 @@ pub struct PrimaryBlock {
     pub source: EndpointID,
     pub report_to: EndpointID,
     pub creation_timestamp: CreationTimestamp,
+    /// in milliseconds
     pub lifetime: Duration,
     pub fragmentation_offset: FragOffsetType,
     pub total_data_length: TotalDataLengthType,
@@ -55,7 +56,7 @@ impl Serialize for PrimaryBlock {
         seq.serialize_element(&self.source)?;
         seq.serialize_element(&self.report_to)?;
         seq.serialize_element(&self.creation_timestamp)?;
-        seq.serialize_element(&(self.lifetime.as_micros() as u64))?;
+        seq.serialize_element(&(self.lifetime.as_millis() as u64))?;
         if self.has_fragmentation() {
             seq.serialize_element(&self.fragmentation_offset)?;
             seq.serialize_element(&self.total_data_length)?;
@@ -111,7 +112,7 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                 let lifetime_u64: u64 = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(7, &self))?;
-                let lifetime = Duration::from_micros(lifetime_u64);
+                let lifetime = Duration::from_millis(lifetime_u64);
 
                 let rest = seq.size_hint().unwrap_or(0);
                 let mut fragmentation_offset: FragOffsetType = 0;
@@ -198,15 +199,9 @@ impl PrimaryBlock {
         if self.creation_timestamp.dtntime() == 0 {
             return false;
         }
-        if let Ok(now) =
-            std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH)
-        {
-            //let now = crate::dtn_time_now();
-            self.creation_timestamp.dtntime().unix() as u128 * 1_000_000 + self.lifetime.as_micros()
-                <= now.as_micros()
-        } else {
-            false
-        }
+
+        let now = crate::dtn_time_now();
+        self.creation_timestamp.dtntime() + (self.lifetime.as_millis() as u64) <= now
     }
     pub fn validate(&self) -> Result<(), Bp7ErrorList> {
         let mut errors: Bp7ErrorList = Vec::new();
