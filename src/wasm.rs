@@ -52,7 +52,7 @@ fn payload_from_cbor(buf: crate::ByteBuffer) -> Option<crate::ByteBuffer> {
 
 #[js_export]
 fn valid_bundle(b: Bundle) -> bool {
-    !b.primary.is_lifetime_exceeded() && b.validation_errors().is_none()
+    !b.primary.is_lifetime_exceeded() && b.validate().is_ok()
 }
 
 #[js_export]

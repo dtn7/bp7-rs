@@ -1,6 +1,6 @@
 use crate::{bundle, dtntime, eid};
 use core::num::ParseIntError;
-use rand::Rng;
+use nanorand::{WyRand, RNG};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -73,9 +73,9 @@ pub fn vec_dump<T: serde::ser::Serialize>(input: &T, cbor: Vec<u8>, hr: &str) {
     println!("byte array | `{:?}`\n", cbor);
 }
 pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
-    let mut rng = rand::thread_rng();
-    let dst_string = format!("node{}/inbox", rng.gen_range(1, 4));
-    let src_string = format!("node{}/inbox", rng.gen_range(1, 4));
+    let mut rng = WyRand::new();
+    let dst_string = format!("node{}/inbox", rng.generate_range::<u32>(1, 4));
+    let src_string = format!("node{}/inbox", rng.generate_range::<u32>(1, 4));
     let dst = eid::EndpointID::with_dtn(&dst_string).unwrap();
     let src = eid::EndpointID::with_dtn(&src_string).unwrap();
     //let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);;
