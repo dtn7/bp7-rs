@@ -92,7 +92,7 @@ fn bench_bundle_create(runs: i64, crc_type: crc::CrcRawType) -> Vec<ByteBuffer> 
     }
     let elapsed = bench_now.elapsed();
     let sec = (elapsed.as_secs() as f64) + (f64::from(elapsed.subsec_nanos()) / 1_000_000_000.0);
-    println!("{} bundles/second", (runs as f64 / sec) as i64);
+    println!("{:>15} bundles/second", (runs as f64 / sec) as i64);
     bundles
 }
 
@@ -121,7 +121,7 @@ fn bench_bundle_encode(runs: i64, crc_type: crc::CrcRawType) -> Vec<ByteBuffer> 
     }
     let elapsed = bench_now.elapsed();
     let sec = (elapsed.as_secs() as f64) + (f64::from(elapsed.subsec_nanos()) / 1_000_000_000.0);
-    println!("{} bundles/second", (runs as f64 / sec) as i64);
+    println!("{:>15} bundles/second", (runs as f64 / sec) as i64);
     bundles
 }
 
@@ -143,7 +143,7 @@ fn bench_bundle_load(runs: i64, crc_type: crc::CrcRawType, mut bundles: Vec<Byte
     }
     let elapsed = bench_now.elapsed();
     let sec = (elapsed.as_secs() as f64) + (f64::from(elapsed.subsec_nanos()) / 1_000_000_000.0);
-    println!("{} bundles/second", (runs as f64 / sec) as i64);
+    println!("{:>15} bundles/second", (runs as f64 / sec) as i64);
 }
 fn main() {
     let crcno = bench_bundle_create(RUNS, crc::CRC_NO);
