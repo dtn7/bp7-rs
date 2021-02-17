@@ -17,7 +17,10 @@ fn usage(filepath: &str) {
 fn decode(bundle: &str) {
     let buf = unhexify(bundle).unwrap();
     //println!("decode: {:02x?}", &buf);
-    dbg!(serde_cbor::from_slice::<serde_cbor::Value>(&buf).unwrap());
+
+    let deserialized: ciborium::value::Value = from_slice(&buf).unwrap();
+    dbg!(deserialized);
+    //dbg!(serde_cbor::from_slice::<serde_cbor::Value>(&buf).unwrap());
     let bndl: Bundle = buf.try_into().expect("Error decoding bundle!");
     dbg!(&bndl);
 }
@@ -27,7 +30,9 @@ fn decode_from_stdin() {
         .read_to_end(&mut buf)
         .expect("Error reading from stdin.");
     //println!("decode: {:02x?}", &buf);
-    dbg!(serde_cbor::from_slice::<serde_cbor::Value>(&buf).unwrap());
+    let deserialized: ciborium::value::Value = from_slice(&buf).unwrap();
+
+    dbg!(deserialized);
     let bndl: Bundle = buf.try_into().expect("Error decoding bundle!");
     dbg!(&bndl);
 }

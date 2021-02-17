@@ -1,3 +1,5 @@
+use crate::helpers::to_vec;
+
 use super::bundle::*;
 use super::crc::{CrcBlock, CrcRawType, CrcValue, CRC_16, CRC_32, CRC_NO};
 use super::eid::*;
@@ -199,7 +201,7 @@ impl CrcBlock for CanonicalBlock {
 }
 impl Block for CanonicalBlock {
     fn to_cbor(&self) -> ByteBuffer {
-        serde_cbor::to_vec(&self).unwrap()
+        to_vec(&self).expect("Error encoding canonical block")
     }
 }
 
@@ -382,7 +384,7 @@ pub enum CanonicalData {
 }
 impl CanonicalData {
     pub fn to_cbor(&self) -> ByteBuffer {
-        serde_cbor::to_vec(&self).expect("CanonicalData encoding error")
+        to_vec(&self).expect("CanonicalData encoding error")
     }
 }
 

@@ -1,6 +1,6 @@
-use crate::bundle::ByteBuffer;
 use crate::bundle::BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD;
 use crate::{bundle, crc, dtn_time_now, primary};
+use crate::{bundle::ByteBuffer, helpers::to_vec};
 use core::fmt;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
@@ -94,7 +94,7 @@ impl<'de> Deserialize<'de> for AdministrativeRecord {
 
 impl AdministrativeRecord {
     pub fn to_payload(&self) -> crate::canonical::CanonicalBlock {
-        let data: ByteBuffer = serde_cbor::to_vec(&self).unwrap();
+        let data = to_vec(&self).expect("Error serializing administrative record as cbor.");
 
         crate::canonical::new_payload_block(0, data)
     }

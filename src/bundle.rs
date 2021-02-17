@@ -1,3 +1,10 @@
+use crate::helpers::{from_slice, to_vec};
+
+use super::canonical::*;
+use super::crc::*;
+use super::dtntime::*;
+use super::eid::*;
+use super::primary::*;
 use core::cmp;
 use core::convert::TryFrom;
 use core::fmt;
@@ -6,12 +13,6 @@ use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
 use thiserror::Error;
-
-use super::canonical::*;
-use super::crc::*;
-use super::dtntime::*;
-use super::eid::*;
-use super::primary::*;
 
 /// Version for upcoming bundle protocol standard is 7.
 pub const DTN_VERSION: u32 = 7;
@@ -433,7 +434,7 @@ impl Bundle {
     /// Serialize bundle as CBOR encoded byte buffer.
     pub fn to_cbor(&mut self) -> ByteBuffer {
         self.calculate_crc();
-        let mut bytebuf = serde_cbor::to_vec(&self).expect("Error serializing bundle as cbor.");
+        let mut bytebuf = to_vec(&self).expect("Error serializing bundle as cbor.");
         bytebuf[0] = 0x9f; // TODO: fix hack, indefinite-length array encoding
         bytebuf.push(0xff); // break mark
         bytebuf
@@ -505,9 +506,15 @@ impl TryFrom<ByteBuffer> for Bundle {
     type Error = String;
 
     fn try_from(item: ByteBuffer) -> Result<Self, Self::Error> {
-        match serde_cbor::from_slice(&item) {
+        //println!("{}", crate::hexify(&item));
+
+        match from_slice(&item) {
             Ok(bndl) => Ok(bndl),
-            Err(err) => Err(format!("Decoding bundle failed: {:?}", err)),
+            Err(err) => Err(format!(
+                "Decoding bundle failed: {:?}\n{}",
+                err,
+                crate::hexify(&item)
+            )),
         }
     }
 }

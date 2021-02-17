@@ -1,5 +1,6 @@
 use bp7::administrative_record::*;
 use bp7::*;
+use helpers::from_slice;
 use std::convert::TryInto;
 use std::time::Duration;
 
@@ -58,9 +59,10 @@ fn status_report_tests() {
     );
     assert_eq!(sr1.refbundle(), expected_refbundle);
 
-    let encoded_sr1 = serde_cbor::to_vec(&sr1).unwrap();
+    let mut encoded_sr1 = Vec::new();
+    ciborium::ser::into_writer(&sr1, &mut encoded_sr1).unwrap();
 
-    let sr1_dec: StatusReport = serde_cbor::from_slice(&encoded_sr1).unwrap();
+    let sr1_dec: StatusReport = from_slice(&encoded_sr1).unwrap();
 
     assert_eq!(sr1, sr1_dec);
 
@@ -69,9 +71,10 @@ fn status_report_tests() {
     bndl.primary.bundle_control_flags |= bp7::bundle::BUNDLE_REQUEST_STATUS_TIME;
     let sr2 = dbg!(new_status_report(&bndl, DELETED_BUNDLE, LIFETIME_EXPIRED));
 
-    let encoded_sr2 = serde_cbor::to_vec(&sr2).unwrap();
+    let mut encoded_sr2 = Vec::new();
+    ciborium::ser::into_writer(&sr2, &mut encoded_sr2).unwrap();
 
-    let sr2_dec: StatusReport = serde_cbor::from_slice(&encoded_sr2).unwrap();
+    let sr2_dec: StatusReport = from_slice(&encoded_sr2).unwrap();
 
     assert_eq!(sr2, sr2_dec);
 

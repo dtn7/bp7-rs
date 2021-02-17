@@ -1,4 +1,5 @@
-use crate::{bundle, dtntime, eid};
+use crate::{bundle, dtntime, eid, Bp7Error};
+use ciborium::de::from_reader;
 use core::num::ParseIntError;
 use nanorand::{WyRand, RNG};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -51,7 +52,9 @@ pub fn ser_dump<T: serde::ser::Serialize>(input: &T, hr: &str) {
     println!("human-readable | {}", hr);
     let json = serde_json::to_string(input).unwrap();
     println!("json | `{}`", json);
-    let cbor = serde_cbor::to_vec(input).unwrap();
+    let mut cbor = Vec::new();
+    ciborium::ser::into_writer(&input, &mut cbor).unwrap();
+
     println!(
         "hex string | [`{}`](http://cbor.me/?bytes={})",
         hexify(&cbor),
@@ -83,6 +86,21 @@ pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     let mut b = bundle::new_std_payload_bundle(src, dst, b"ABC".to_vec());
     b.primary.creation_timestamp = now;
     b
+}
+
+pub fn to_vec<T>(value: &T) -> Result<Vec<u8>, ciborium::ser::Error<std::io::Error>>
+where
+    T: serde::ser::Serialize,
+{
+    let mut vec = Vec::new();
+    ciborium::ser::into_writer(value, &mut vec)?;
+    Ok(vec)
+}
+pub fn from_slice<'de, T>(buf: &[u8]) -> Result<T, ciborium::de::Error<std::io::Error>>
+where
+    T: serde::de::Deserialize<'de>,
+{
+    ciborium::de::from_reader(buf)
 }
 
 pub struct Url {

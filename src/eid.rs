@@ -2,7 +2,7 @@ use core::convert::From;
 use core::fmt;
 use serde::de::{SeqAccess, Visitor};
 //use serde::ser::{SerializeSeq, Serializer};
-use crate::helpers::Url;
+use crate::helpers::{to_vec, Url};
 use core::convert::TryFrom;
 use core::convert::TryInto;
 use serde::{de, Deserialize, Deserializer, Serialize};
@@ -393,6 +393,10 @@ impl TryFrom<IpnAddress> for EndpointID {
 
 #[cfg(test)]
 mod tests {
+    use std::io::BufReader;
+
+    use crate::helpers::from_slice;
+
     use super::*;
     use test_case::test_case;
 
@@ -450,18 +454,19 @@ mod tests {
     #[test_case("dtn://none".try_into().unwrap() ; "when using none endpoint")]
     #[test_case("ipn://23.42".try_into().unwrap() ; "when using ipn address")]
     #[test_case("dtn://node1/incoming".try_into().unwrap() ; "when using dtn address")]
+
     fn serialize_deserialize_tests(eid: EndpointID) {
-        let encoded_eid = serde_cbor::to_vec(&eid).expect("Error serializing packet as cbor.");
+        let encoded_eid = to_vec(&eid).expect("Error serializing packet as cbor.");
         println!("{:02x?}", &encoded_eid);
         assert_eq!(
             eid,
-            serde_cbor::from_slice(&encoded_eid).expect("Decoding packet failed")
+            from_slice(&encoded_eid).expect("Decoding packet failed")
         );
     }
 
     #[test_case(&[130, 1, 106, 110, 111, 100, 101, 49, 47, 116, 101, 115, 116] => "dtn://node1/test"; "when decoding full dtn address")]
     fn test_ser_eid(cbor_eid: &[u8]) -> String {
-        let deserialized: EndpointID = serde_cbor::from_slice(&cbor_eid).unwrap();
+        let deserialized: EndpointID = from_slice(cbor_eid).unwrap();
         deserialized.to_string()
     }
 }
