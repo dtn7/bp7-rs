@@ -74,8 +74,8 @@ pub fn vec_dump<T: serde::ser::Serialize>(input: &T, cbor: Vec<u8>, hr: &str) {
 }
 pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     let mut rng = WyRand::new();
-    let dst_string = format!("node{}/inbox", rng.generate_range::<u32>(1, 4));
-    let src_string = format!("node{}/inbox", rng.generate_range::<u32>(1, 4));
+    let dst_string = format!("//node{}/inbox", rng.generate_range::<u32>(1, 4));
+    let src_string = format!("//node{}/inbox", rng.generate_range::<u32>(1, 4));
     let dst = eid::EndpointID::with_dtn(&dst_string).unwrap();
     let src = eid::EndpointID::with_dtn(&src_string).unwrap();
     //let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);;
@@ -83,58 +83,4 @@ pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     let mut b = bundle::new_std_payload_bundle(src, dst, b"ABC".to_vec());
     b.primary.creation_timestamp = now;
     b
-}
-
-pub struct Url {
-    scheme: String,
-    host: String,
-    path: String,
-    query: String,
-}
-
-impl Url {
-    pub fn parse(raw_url: &str) -> Result<Self, &'static str> {
-        let fields: Vec<&str> = raw_url.split("://").collect();
-        if fields.len() != 2 {
-            return Err("Error parsing url: scheme missing");
-        }
-        let scheme = String::from(fields[0]);
-        let blocks: Vec<&str> = fields[1].split('?').collect();
-        let mut query = String::new();
-
-        if blocks.len() > 2 {
-            return Err("Error parsing url: too many '?' in url");
-        } else if blocks.len() == 2 {
-            query = String::from(blocks[1]);
-        }
-        let uri: Vec<&str> = blocks[0].split('/').collect();
-        let mut path = String::new();
-        if uri.is_empty() {
-            return Err("Error parsing url: host missing");
-        } else {
-        }
-        let host = String::from(uri[0]);
-        if uri.len() > 1 {
-            path = String::from("/") + &uri[1..].join("/");
-        }
-
-        Ok(Url {
-            scheme,
-            host,
-            path,
-            query,
-        })
-    }
-    pub fn path(&self) -> &str {
-        &self.path
-    }
-    pub fn scheme(&self) -> &str {
-        &self.scheme
-    }
-    pub fn host(&self) -> &str {
-        &self.host
-    }
-    pub fn query(&self) -> &str {
-        &self.query
-    }
 }

@@ -1,9 +1,9 @@
 [package]
 name = "bp7"
-version = "0.6.6"
+version = "0.7.0"
 authors = ["Lars Baumgaertner <baumgaertner@cs.tu-darmstadt.de>"]
 edition = "2018"
-description = "Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-26"
+description = "Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-31"
 license = "MIT OR Apache-2.0"
 repository    = "https://github.com/dtn7/bp7-rs"
 categories    = ["encoding"]

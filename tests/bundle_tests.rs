@@ -205,7 +205,7 @@ fn bundle_add_cblock() {
 
     let numbers: Vec<u64> = b.canonicals.iter().map(|c| c.block_number).collect();
     //numbers.sort();
-    assert_eq!(numbers, vec![1, 2, 3]);
+    assert_eq!(numbers, vec![3, 2, 1]);
 
     let mut b = new_complete_bundle(crc::CRC_NO);
     assert_eq!(b.payload().unwrap(), b"ABC");

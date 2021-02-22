@@ -1,11 +1,11 @@
 use bp7::administrative_record::*;
 use bp7::*;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use std::time::Duration;
 
 fn new_complete_bundle(crc_type: bp7::crc::CrcRawType) -> Bundle {
-    let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
-    let src = eid::EndpointID::with_dtn("node1/123456").unwrap();
+    let dst = eid::EndpointID::try_from("dtn://node2/inbox").unwrap();
+    let src = eid::EndpointID::try_from("dtn://node1/123456").unwrap();
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);
 
     let pblock = primary::PrimaryBlockBuilder::default()

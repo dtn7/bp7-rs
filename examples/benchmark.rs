@@ -33,8 +33,8 @@ macro_rules! println {
 const RUNS: i64 = 100_000;
 
 fn get_bench_bundle(crc_type: crc::CrcRawType) -> Bundle {
-    let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
-    let src = eid::EndpointID::with_dtn("node1/123456").unwrap();
+    let dst = eid::EndpointID::with_dtn("//node2/inbox").unwrap();
+    let src = eid::EndpointID::with_dtn("//node1/123456").unwrap();
     //let dst = eid::EndpointID::with_ipn(eid::IpnAddress(1, 2));
     //let src = eid::EndpointID::with_ipn(eid::IpnAddress(2, 3));
     let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);

@@ -317,7 +317,7 @@ impl Bundle {
     /// Sort canonical blocks by block number
     pub fn sort_canonicals(&mut self) {
         self.canonicals
-            .sort_by(|a, b| a.block_number.cmp(&b.block_number));
+            .sort_by(|a, b| b.block_number.cmp(&a.block_number));
     }
     fn next_canonical_block_number(&self) -> u64 {
         let mut highest_block_number = 1;

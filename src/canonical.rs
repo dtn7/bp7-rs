@@ -74,7 +74,10 @@ impl Serialize for CanonicalBlock {
         seq.serialize_element(&self.block_number)?;
         seq.serialize_element(&self.block_control_flags)?;
         seq.serialize_element(&crc_code)?;
-        seq.serialize_element(&self.data)?;
+        //seq.serialize_element(&self.data)?;
+        seq.serialize_element(&serde_bytes::Bytes::new(
+            &serde_cbor::to_vec(&self.data).unwrap(),
+        ))?;
 
         if self.crc.has_crc() {
             seq.serialize_element(&serde_bytes::Bytes::new(&self.crc.bytes().unwrap()))?;
@@ -115,31 +118,31 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(3, &self))?;
 
+                // get payload as raw byte buffer
+                let raw_payload = seq
+                    .next_element::<serde_bytes::ByteBuf>()?
+                    .ok_or_else(|| de::Error::invalid_length(4, &self))?
+                    .into_vec();
+
+                // parse nested payload according to block_type
+                // TODO: handle nested parsing errors
                 let data = if block_type == PAYLOAD_BLOCK {
                     CanonicalData::Data(
-                        seq.next_element::<serde_bytes::ByteBuf>()?
-                            .ok_or_else(|| de::Error::invalid_length(4, &self))?
+                        serde_cbor::from_slice::<serde_bytes::ByteBuf>(&raw_payload)
+                            .unwrap()
                             .into_vec(),
                     )
                 } else if block_type == BUNDLE_AGE_BLOCK {
-                    CanonicalData::BundleAge(
-                        seq.next_element::<u64>()?
-                            .ok_or_else(|| de::Error::invalid_length(4, &self))?,
-                    )
+                    CanonicalData::BundleAge(serde_cbor::from_slice::<u64>(&raw_payload).unwrap())
                 } else if block_type == HOP_COUNT_BLOCK {
-                    let hc: (u32, u32) = seq
-                        .next_element::<(u32, u32)>()?
-                        .ok_or_else(|| de::Error::invalid_length(4, &self))?;
+                    let hc: (u8, u8) = serde_cbor::from_slice(&raw_payload).unwrap();
                     CanonicalData::HopCount(hc.0, hc.1)
                 } else if block_type == PREVIOUS_NODE_BLOCK {
-                    CanonicalData::PreviousNode(
-                        seq.next_element::<EndpointID>()?
-                            .ok_or_else(|| de::Error::invalid_length(4, &self))?,
-                    )
+                    CanonicalData::PreviousNode(serde_cbor::from_slice(&raw_payload).unwrap())
                 } else {
                     CanonicalData::Unknown(
-                        seq.next_element::<serde_bytes::ByteBuf>()?
-                            .ok_or_else(|| de::Error::invalid_length(4, &self))?
+                        serde_cbor::from_slice::<serde_bytes::ByteBuf>(&raw_payload)
+                            .unwrap()
                             .into_vec(),
                     )
                 };
@@ -312,7 +315,7 @@ impl CanonicalBlock {
             _ => None,
         }
     }
-    pub fn hop_count_get(&self) -> Option<(u32, u32)> {
+    pub fn hop_count_get(&self) -> Option<(u8, u8)> {
         if self.block_type == HOP_COUNT_BLOCK {
             if let CanonicalData::HopCount(hc_limit, hc_count) = self.data() {
                 return Some((*hc_limit, *hc_count));
@@ -373,7 +376,7 @@ impl CanonicalBlock {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order, circumvented by intelligent canonical deserializer
 pub enum CanonicalData {
-    HopCount(u32, u32),
+    HopCount(u8, u8),
     Data(#[serde(with = "serde_bytes")] ByteBuffer),
     BundleAge(u64),
     PreviousNode(EndpointID),
@@ -386,11 +389,7 @@ impl CanonicalData {
     }
 }
 
-pub fn new_hop_count_block(
-    block_number: u64,
-    bcf: BlockControlFlags,
-    limit: u32,
-) -> CanonicalBlock {
+pub fn new_hop_count_block(block_number: u64, bcf: BlockControlFlags, limit: u8) -> CanonicalBlock {
     CanonicalBlockBuilder::default()
         .block_type(HOP_COUNT_BLOCK)
         .block_number(block_number)

@@ -13,7 +13,7 @@ fn main() {
     let eid: EndpointID = hr.try_into().unwrap();
     ser_dump(&eid, hr);
 
-    let hr = "ipn://23.42";
+    let hr = "ipn:23.42";
     let eid: EndpointID = hr.try_into().unwrap();
     ser_dump(&eid, hr);
 
@@ -54,8 +54,8 @@ fn main() {
     // Primary block
 
     let pblock = primary::new_primary_block(
-        "dtn:n2/inbox".try_into().unwrap(),
-        "dtn:n1".try_into().unwrap(),
+        "dtn://n2/inbox".try_into().unwrap(),
+        "dtn://n1/".try_into().unwrap(),
         bp7::CreationTimestamp::with_time_and_seq(2342, 2),
         std::time::Duration::from_secs(60),
     );
@@ -65,8 +65,8 @@ fn main() {
     );
 
     let mut pblock = primary::new_primary_block(
-        "dtn:n2/inbox".try_into().unwrap(),
-        "dtn:n1".try_into().unwrap(),
+        "dtn://n2/inbox".try_into().unwrap(),
+        "dtn://n1/".try_into().unwrap(),
         bp7::CreationTimestamp::with_time_and_seq(2342, 2),
         std::time::Duration::from_secs(60),
     );
@@ -78,8 +78,8 @@ fn main() {
     );
 
     let mut pblock = primary::new_primary_block(
-        "dtn:n2/inbox".try_into().unwrap(),
-        "dtn:n1".try_into().unwrap(),
+        "dtn://n2/inbox".try_into().unwrap(),
+        "dtn://n1/".try_into().unwrap(),
         bp7::CreationTimestamp::with_time_and_seq(2342, 2),
         std::time::Duration::from_secs(60),
     );
@@ -93,8 +93,8 @@ fn main() {
     // Complete Bundle
 
     let mut bndl = bp7::bundle::new_std_payload_bundle(
-        "dtn:n1".try_into().unwrap(),
-        "dtn:n2/inbox".try_into().unwrap(),
+        "dtn://n1/".try_into().unwrap(),
+        "dtn://n2/inbox".try_into().unwrap(),
         b"ABC".to_vec(),
     );
     vec_dump(
