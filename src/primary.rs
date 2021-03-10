@@ -88,7 +88,6 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
             where
                 V: SeqAccess<'de>,
             {
-                dbg!(seq.size_hint());
                 let version: DtnVersionType = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
@@ -115,7 +114,7 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                     .ok_or_else(|| de::Error::invalid_length(7, &self))?;
                 let lifetime = Duration::from_millis(lifetime_u64);
 
-                let rest = dbg!(seq.size_hint()).unwrap_or(0);
+                let rest = seq.size_hint().unwrap_or(0);
                 let mut fragmentation_offset: FragOffsetType = 0;
                 let mut total_data_length: TotalDataLengthType = 0;
 
