@@ -1,12 +1,12 @@
 use super::bundle::*;
 use super::crc::{CrcBlock, CrcRawType, CrcValue, CRC_16, CRC_32, CRC_NO};
 use super::eid::*;
+use core::convert::TryInto;
 use core::fmt;
 use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
-use std::convert::TryInto;
 
 /******************************
  *

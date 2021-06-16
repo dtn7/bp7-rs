@@ -3,11 +3,11 @@ use super::crc::*;
 use super::dtntime::*;
 use super::eid::*;
 use core::fmt;
+use core::{convert::TryFrom, time::Duration};
 use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
-use std::{convert::TryFrom, time::Duration};
 
 /******************************
  *

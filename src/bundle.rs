@@ -534,7 +534,7 @@ pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer
         .source(src.clone())
         .report_to(src)
         .creation_timestamp(CreationTimestamp::now())
-        .lifetime(std::time::Duration::from_secs(60 * 60))
+        .lifetime(core::time::Duration::from_secs(60 * 60))
         .build()
         .unwrap();
     let mut b = crate::bundle::BundleBuilder::default()

@@ -87,7 +87,7 @@ pub enum EndpointIdError {
     #[error("dtn://none is not a valid host, dtn:none is the none endpoint")]
     NoneNotValidHost,
     #[error("could not parse node/service number in ipn address: `{0}`")]
-    CouldNotParseNumber(#[from] std::num::ParseIntError),
+    CouldNotParseNumber(#[from] core::num::ParseIntError),
     #[error("unknown endpoint id error")]
     Unknown,
 }
