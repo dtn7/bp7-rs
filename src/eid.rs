@@ -54,7 +54,6 @@ impl DtnAddress {
             .expect("invalid internal dtn address format")
     }
     pub fn service_name(&self) -> Option<&str> {
-        dbg!(&self.0);
         self.0.split("/").skip(3).next()
     }
 }
@@ -340,7 +339,7 @@ impl EndpointID {
     pub fn is_node_id(&self) -> bool {
         match self {
             EndpointID::DtnNone(_, _) => false,
-            EndpointID::Dtn(_, eid) => dbg!(eid.service_name()) == None,
+            EndpointID::Dtn(_, eid) => eid.service_name() == None,
             EndpointID::Ipn(_, addr) => addr.1 == 0,
         }
     }
