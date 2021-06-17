@@ -23,7 +23,7 @@ pub type CanonicalBlockNumberType = u64;
 pub type FragOffsetType = u64;
 pub type TotalDataLengthType = u64;
 
-#[derive(Debug, Clone, PartialEq, Error)]
+#[derive(Debug, Error)]
 pub enum Bp7Error {
     CanonicalBlockError(String),
     PrimaryBlockError(String),
@@ -33,6 +33,8 @@ pub enum Bp7Error {
     BundleError(String),
     BundleControlFlagError(String),
     BlockControlFlagError(String),
+    JsonDecodeError(#[from] serde_json::Error),
+    CborDecodeError(#[from] serde_cbor::Error),
 }
 
 impl fmt::Display for Bp7Error {
@@ -502,24 +504,24 @@ impl fmt::Display for Bundle {
 
 /// Deserialize from CBOR byte buffer.
 impl TryFrom<ByteBuffer> for Bundle {
-    type Error = String;
+    type Error = Bp7Error;
 
     fn try_from(item: ByteBuffer) -> Result<Self, Self::Error> {
         match serde_cbor::from_slice(&item) {
             Ok(bndl) => Ok(bndl),
-            Err(err) => Err(format!("Decoding bundle failed: {:?}", err)),
+            Err(err) => Err(err.into()),
         }
     }
 }
 
 /// Deserialize from JSON string.
 impl TryFrom<String> for Bundle {
-    type Error = String;
+    type Error = Bp7Error;
 
     fn try_from(item: String) -> Result<Self, Self::Error> {
         match serde_json::from_str(&item) {
             Ok(bndl) => Ok(bndl),
-            Err(err) => Err(format!("Decoding bundle failed: {:?}", err)),
+            Err(err) => Err(err.into()),
         }
     }
 }
