@@ -74,8 +74,22 @@ pub fn vec_dump<T: serde::ser::Serialize>(input: &T, cbor: Vec<u8>, hr: &str) {
 }
 pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     let mut rng = WyRand::new();
-    let dst_string = format!("//node{}/inbox", rng.generate_range::<u32>(1, 4));
-    let src_string = format!("//node{}/inbox", rng.generate_range::<u32>(1, 4));
+    let singletons = vec!["sms", "files", "123456", "incoming", "mavlink"];
+    let groups = vec!["~news", "~tele", "~mavlink"];
+    //rng.shuffle(&mut singletons);
+    //rng.shuffle(&mut groups);
+    let concatenated = [&singletons[..], &groups[..]].concat();
+    //rng.shuffle(&mut concatenated);
+    let dst_string = format!(
+        "//node{}/{}",
+        rng.generate_range::<u32>(1, 99),
+        concatenated[rng.generate_range::<usize>(0, concatenated.len())]
+    );
+    let src_string = format!(
+        "//node{}/{}",
+        rng.generate_range::<u32>(1, 99),
+        singletons[rng.generate_range::<usize>(0, singletons.len())]
+    );
     let dst = eid::EndpointID::with_dtn(&dst_string).unwrap();
     let src = eid::EndpointID::with_dtn(&src_string).unwrap();
     //let now = dtntime::CreationTimestamp::with_time_and_seq(dtntime::dtn_time_now(), 0);;

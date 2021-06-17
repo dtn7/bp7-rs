@@ -343,6 +343,14 @@ impl EndpointID {
             EndpointID::Ipn(_, addr) => addr.1 == 0,
         }
     }
+    /// Check whether the EndpointID service name starts with '~'
+    pub fn is_non_singleton(&self) -> bool {
+        match self {
+            EndpointID::DtnNone(_, _) => false,
+            EndpointID::Dtn(_, eid) => eid.service_name().unwrap_or_default().starts_with("~"),
+            EndpointID::Ipn(_, _addr) => false,
+        }
+    }
 
     pub fn validate(&self) -> Result<(), EndpointIdError> {
         match self {
