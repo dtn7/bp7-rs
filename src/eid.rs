@@ -346,6 +346,19 @@ impl EndpointID {
             EndpointID::Ipn(_, addr) => addr.1 == 0,
         }
     }
+    pub fn service_name(&self) -> Option<String> {
+        match self {
+            EndpointID::DtnNone(_, _) => None,
+            EndpointID::Dtn(_, eid) => eid.service_name().map(|n| n.to_owned()),
+            EndpointID::Ipn(_, addr) => {
+                if addr.service_number() == 0 {
+                    None
+                } else {
+                    Some(addr.service_number().to_string())
+                }
+            }
+        }
+    }
     /// Check whether the EndpointID service name starts with '~'
     pub fn is_non_singleton(&self) -> bool {
         match self {
