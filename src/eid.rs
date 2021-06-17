@@ -56,6 +56,9 @@ impl DtnAddress {
     pub fn service_name(&self) -> Option<&str> {
         self.0.split("/").skip(3).next()
     }
+    pub fn is_non_singleton(&self) -> bool {
+        self.service_name().unwrap_or_default().starts_with("~")
+    }
 }
 impl fmt::Display for DtnAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -347,7 +350,7 @@ impl EndpointID {
     pub fn is_non_singleton(&self) -> bool {
         match self {
             EndpointID::DtnNone(_, _) => false,
-            EndpointID::Dtn(_, eid) => eid.service_name().unwrap_or_default().starts_with("~"),
+            EndpointID::Dtn(_, eid) => eid.is_non_singleton(),
             EndpointID::Ipn(_, _addr) => false,
         }
     }
