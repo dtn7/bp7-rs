@@ -539,14 +539,10 @@ pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer
         .lifetime(core::time::Duration::from_secs(60 * 60))
         .build()
         .unwrap();
-    let mut b = crate::bundle::BundleBuilder::default()
-        .primary(pblock)
-        .canonicals(vec![
-            new_payload_block(0, data),
-            new_hop_count_block(2, 0, 32),
-        ])
-        .build()
-        .unwrap();
+    let mut b = crate::bundle::Bundle::new(
+        pblock,
+        vec![new_payload_block(0, data), new_hop_count_block(2, 0, 32)],
+    );
     b.set_crc(crate::crc::CRC_NO);
     b.sort_canonicals();
     b
