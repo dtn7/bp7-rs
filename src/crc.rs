@@ -8,7 +8,10 @@ use super::bundle::*;
 
 pub type CrcRawType = u8;
 
-use crc::{crc16, crc32};
+use crc::{Crc, CRC_16_IBM_SDLC, CRC_32_ISCSI};
+
+pub const X25: Crc<u16> = Crc::<u16>::new(&CRC_16_IBM_SDLC);
+pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CrcValue {
@@ -123,7 +126,7 @@ pub fn calculate_crc<T: CrcBlock + Block>(blck: &mut T) -> CrcValue {
             blck.reset_crc(); // set empty crc
             let data = blck.to_cbor(); // TODO: optimize this encoding away
                                        // also tried crc16 crate, not a bit faster
-            let chksm = crc16::checksum_x25(&data);
+            let chksm = X25.checksum(&data);
             let output_crc = chksm.to_be_bytes();
             blck.set_crc(crc_bak); // restore orginal crc
             CrcValue::Crc16(output_crc)
@@ -133,7 +136,7 @@ pub fn calculate_crc<T: CrcBlock + Block>(blck: &mut T) -> CrcValue {
             blck.reset_crc(); // set empty crc
             let data = blck.to_cbor(); // TODO: optimize this encoding away
                                        // also tried crc32fast, was not significantly faster
-            let chksm = crc32::checksum_castagnoli(&data);
+            let chksm = CASTAGNOLI.checksum(&data);
             let output_crc = chksm.to_be_bytes();
             blck.set_crc(crc_bak); // restore orginal crc
             CrcValue::Crc32(output_crc)

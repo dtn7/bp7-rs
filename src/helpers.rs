@@ -1,6 +1,6 @@
 use crate::{bundle, dtntime, eid};
 use core::num::ParseIntError;
-use nanorand::{WyRand, RNG};
+use nanorand::{Rng, WyRand};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -82,13 +82,13 @@ pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     //rng.shuffle(&mut concatenated);
     let dst_string = format!(
         "//node{}/{}",
-        rng.generate_range::<u32>(1, 99),
-        concatenated[rng.generate_range::<usize>(0, concatenated.len())]
+        rng.generate_range(1_u32..99),
+        concatenated[rng.generate_range(0_usize..concatenated.len())]
     );
     let src_string = format!(
         "//node{}/{}",
-        rng.generate_range::<u32>(1, 99),
-        singletons[rng.generate_range::<usize>(0, singletons.len())]
+        rng.generate_range(1_u32..99),
+        singletons[rng.generate_range(0_usize..singletons.len())]
     );
     let dst = eid::EndpointID::with_dtn(&dst_string).unwrap();
     let src = eid::EndpointID::with_dtn(&src_string).unwrap();
