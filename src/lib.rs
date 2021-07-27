@@ -38,8 +38,6 @@
 //!
 //!
 
-#![forbid(unsafe_code)]
-
 pub mod administrative_record;
 pub mod bundle;
 pub mod canonical;
@@ -50,6 +48,8 @@ pub mod helpers;
 pub mod primary;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
+
+pub mod ffi;
 
 pub use bundle::{Bp7Error, Bp7ErrorList, Bundle, ByteBuffer};
 pub use canonical::*;
