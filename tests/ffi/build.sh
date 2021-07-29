@@ -1,5 +1,5 @@
 #!/bin/sh
 
-cargo build
-gcc bp7-test.c -I ../../include -L../../target/debug -lbp7 -static -lpthread -ldl -o bp7-test
+cargo build --release
+gcc bp7-test.c -I ../../target -L../../target/release -lbp7 -static -lpthread -ldl -O2 -o bp7-test
 

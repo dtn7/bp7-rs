@@ -10,5 +10,5 @@ fn main() {
         .with_language(cbindgen::Language::C)
         .generate()
         .expect("Unable to generate bindings")
-        .write_to_file("include/bp7.h");
+        .write_to_file("target/bp7.h");
 }

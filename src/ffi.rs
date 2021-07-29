@@ -12,7 +12,7 @@ use crate::{
 #[repr(C)]
 pub struct Buffer {
     data: *mut u8,
-    len: usize,
+    len: u32,
 }
 
 #[repr(C)]
@@ -25,50 +25,76 @@ pub struct BundleMetaData {
 }
 
 #[no_mangle]
-pub extern "C" fn helper_rnd_bundle() -> Buffer {
+pub extern "C" fn bp7_working() -> u8 {
+    23
+}
+
+#[no_mangle]
+pub extern "C" fn bp7_buffer_test() -> *mut Buffer {
+    let input = vec![0x42, 0x43, 0x44, 0x45];
+
+    let mut buf = input.into_boxed_slice();
+    let data = buf.as_mut_ptr();
+    let len = buf.len() as u32;
+    std::mem::forget(buf);
+    Box::into_raw(Box::new(Buffer { data, len }))
+}
+
+#[no_mangle]
+pub extern "C" fn helper_rnd_bundle() -> *mut Buffer {
     let mut bndl = helpers::rnd_bundle(CreationTimestamp::now());
 
     let mut buf = bndl.to_cbor().into_boxed_slice();
     let data = buf.as_mut_ptr();
-    let len = buf.len();
+    let len = buf.len() as u32;
     std::mem::forget(buf);
-    Buffer { data, len }
+    Box::into_raw(Box::new(Buffer { data, len }))
 }
 
 #[no_mangle]
-pub extern "C" fn buffer_free(buf: Buffer) {
-    let s = unsafe { std::slice::from_raw_parts_mut(buf.data, buf.len) };
-    let s = s.as_mut_ptr();
+pub extern "C" fn buffer_free(buf: *mut Buffer) {
+    if buf.is_null() {
+        return;
+    }
     unsafe {
-        Box::from_raw(s);
+        Box::from_raw(buf);
     }
 }
 
 #[no_mangle]
-pub extern "C" fn bundle_from_cbor(buf: Buffer) -> *mut Bundle {
+pub extern "C" fn bundle_from_cbor(ptr: *mut Buffer) -> *mut Bundle {
+    let buf = unsafe {
+        assert!(!ptr.is_null());
+        &mut *ptr
+    };
+    //println!("buf len {}", buf.len);
     let buffer = unsafe {
         assert!(!buf.data.is_null());
         core::slice::from_raw_parts(buf.data, buf.len as usize)
     };
-    let bndl: Bundle = buffer.to_owned().try_into().unwrap();
-    //if bndl.validate().is_ok() {
-    Box::into_raw(Box::new(bndl))
-    //} else {
-    //std::ptr::null()
-    //}
+    //println!("buffer {}", helpers::hexify(buffer));
+    let bndl: Bundle = buffer
+        .to_owned()
+        .try_into()
+        .expect("failed to load bundle from buffer");
+    if bndl.validate().is_ok() {
+        Box::into_raw(Box::new(bndl))
+    } else {
+        std::ptr::null_mut::<Bundle>()
+    }
 }
 
 #[no_mangle]
-pub extern "C" fn bundle_to_cbor(bndl: *mut Bundle) -> Buffer {
+pub extern "C" fn bundle_to_cbor(bndl: *mut Bundle) -> *mut Buffer {
     let bndl = unsafe {
         assert!(!bndl.is_null());
         &mut *bndl
     };
     let mut buf = bndl.to_cbor().into_boxed_slice();
     let data = buf.as_mut_ptr();
-    let len = buf.len();
+    let len = buf.len() as u32;
     std::mem::forget(buf);
-    Buffer { data, len }
+    Box::into_raw(Box::new(Buffer { data, len }))
 }
 
 #[no_mangle]
@@ -76,7 +102,7 @@ pub extern "C" fn bundle_new_default(
     src: *const c_char,
     dst: *const c_char,
     lifetime: u64,
-    payload: Buffer,
+    ptr: *mut Buffer,
 ) -> *mut Bundle {
     let c_str_src = unsafe {
         assert!(!src.is_null());
@@ -95,6 +121,10 @@ pub extern "C" fn bundle_new_default(
     let r_dst = c_str_dst.to_str().unwrap();
     let dst_eid: EndpointID = r_dst.try_into().unwrap();
 
+    let payload = unsafe {
+        assert!(!ptr.is_null());
+        &mut *ptr
+    };
     let data = unsafe {
         assert!(!payload.data.is_null());
         core::slice::from_raw_parts(payload.data, payload.len as usize)
@@ -126,7 +156,7 @@ pub extern "C" fn bundle_free(ptr: *mut Bundle) {
 }
 
 #[no_mangle]
-pub extern "C" fn bundle_get_metadata(bndl: *mut Bundle) -> BundleMetaData {
+pub extern "C" fn bundle_get_metadata(bndl: *mut Bundle) -> *mut BundleMetaData {
     let bndl = unsafe {
         assert!(!bndl.is_null());
         &mut *bndl
@@ -138,17 +168,21 @@ pub extern "C" fn bundle_get_metadata(bndl: *mut Bundle) -> BundleMetaData {
     let src = src_str.into_raw();
     let dst_str = CString::new(bndl.primary.destination.to_string()).unwrap();
     let dst = dst_str.into_raw();
-    BundleMetaData {
+    Box::into_raw(Box::new(BundleMetaData {
         src,
         dst,
         timestamp,
         seqno,
         lifetime,
-    }
+    }))
 }
 
 #[no_mangle]
-pub extern "C" fn bundle_metadata_free(meta: BundleMetaData) {
+pub extern "C" fn bundle_metadata_free(ptr: *mut BundleMetaData) {
+    let meta = unsafe {
+        assert!(!ptr.is_null());
+        &mut *ptr
+    };
     if !meta.src.is_null() {
         unsafe {
             CString::from_raw(meta.src);
@@ -172,19 +206,19 @@ pub extern "C" fn bundle_is_valid(bndl: *mut Bundle) -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn bundle_payload(bndl: *mut Bundle) -> Buffer {
+pub extern "C" fn bundle_payload(bndl: *mut Bundle) -> *mut Buffer {
     if !bndl.is_null() {
         let bndl = unsafe { &mut *bndl };
         if let Some(payload) = bndl.payload() {
             let mut buf = payload.clone().into_boxed_slice();
             let data = buf.as_mut_ptr();
-            let len = buf.len();
+            let len = buf.len() as u32;
             std::mem::forget(buf);
-            return Buffer { data, len };
+            return Box::into_raw(Box::new(Buffer { data, len }));
         }
     }
-    Buffer {
+    Box::into_raw(Box::new(Buffer {
         data: std::ptr::null_mut(),
         len: 0,
-    }
+    }))
 }
