@@ -6,11 +6,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE-MIT)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE-APACHE)
 
-Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-26
+Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-31
 
 This library only handles encoding and decoding of bundles, not transmission or other processing of the data. A full daemon using this library can be found here: https://github.com/dtn7/dtn7-rs
-
-**This code is (probably) not production ready!**
 
 ## Benchmarking
 
@@ -35,87 +33,107 @@ These numbers were generated on a MBP 13" 2018 with i5 CPU and 16GB of ram.
 
 ## bp7 helper tool
 
-For debugging a small helper tool is shipped:
+For debugging a small helper tool is shipped providing basic functionality such as:
+- random bundle generation (as hex and raw bytes)
+- encoding of standard bundles (as hex and raw bytes)
+- decoding of bundles (from hex and raw bytes)
+- exporting raw payload of decoded bundles
+- time conversion helpers
+
+
+Some examples are given in the following shell session:
 ```
 $ cargo install bp7
 [...]
-$ usage "bp7" <cmd> [args]
-	 decode <hexstring>
-	 dtntime [dtntimestamp] - prints current time as dtntimestamp or prints dtntime human readable
-	 d2u [dtntimestamp] - converts dtntime to unixstimestamp
-	 rnd - return a hexencoded random bundle
+$ bp7
+usage "bp7" <cmd> [args]
+         encode <manifest> <payloadfile | - > [-x] - encode bundle and output raw bytes or hex string (-x)
+         decode <hexstring | - > [-p] - decode bundle or payload only (-p)
+         dtntime [dtntimestamp] - prints current time as dtntimestamp or prints dtntime human readable
+         d2u [dtntimestamp] - converts dtntime to unixstimestamp
+         rnd [-r] - return a random bundle either hexencoded or raw bytes (-r)
 $ bp7 rnd
-9f8907000182016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f78821a247966ba001ad693a4004225b686010000014341424342237186080100010042dbccff
+dtn://node81/files-680971330872-0
+9f88071a000200040082016e2f2f6e6f646531382f7e74656c6582016e2f2f6e6f646538312f66696c657382016e2f2f6e6f646538312f66696c6573821b0000009e8d0de538001a0036ee80850a020000448218200085010100004443414243ff
 
-$ bp7 decode 9f8907000182016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f78821a247966ba001ad693a4004225b686010000014341424342237186080100010042dbccff
+$ bp7 decode 9f88071a000200040082016e2f2f6e6f646531382f7e74656c6582016e2f2f6e6f646538312f66696c657382016e2f2f6e6f646538312f66696c6573821b0000009e8d0de538001a0036ee80850a020000448218200085010100004443414243ff
 
-[src/main.rs:17] &bndl = Bundle {
+[src/main.rs:101] &bndl = Bundle {
     primary: PrimaryBlock {
         version: 7,
-        bundle_control_flags: 0,
-        crc_type: 1,
+        bundle_control_flags: 131076,
+        crc: CrcNo,
         destination: Dtn(
             1,
-            "node3/inbox"
+            DtnAddress(
+                "//node18/~tele",
+            ),
         ),
         source: Dtn(
             1,
-            "node3/inbox"
+            DtnAddress(
+                "//node81/files",
+            ),
         ),
         report_to: Dtn(
             1,
-            "node3/inbox"
+            DtnAddress(
+                "//node81/files",
+            ),
         ),
         creation_timestamp: CreationTimestamp(
-            611935930,
-            0
+            680971330872,
+            0,
         ),
-        lifetime: 3600000000,
+        lifetime: 3600s,
         fragmentation_offset: 0,
         total_data_length: 0,
-        crc: [
-            37,
-            182
-        ]
     },
     canonicals: [
         CanonicalBlock {
-            block_type: 1,
-            block_number: 0,
+            block_type: 10,
+            block_number: 2,
             block_control_flags: 0,
-            crc_type: 1,
+            crc: CrcNo,
+            data: HopCount(
+                32,
+                0,
+            ),
+        },
+        CanonicalBlock {
+            block_type: 1,
+            block_number: 1,
+            block_control_flags: 0,
+            crc: CrcNo,
             data: Data(
                 [
                     65,
                     66,
-                    67
-                ]
+                    67,
+                ],
             ),
-            crc: [
-                35,
-                113
-            ]
         },
-        CanonicalBlock {
-            block_type: 8,
-            block_number: 1,
-            block_control_flags: 0,
-            crc_type: 1,
-            data: BundleAge(
-                0
-            ),
-            crc: [
-                219,
-                204
-            ]
-        }
-    ]
+    ],
 }
+
+$ echo -e "source=dtn://node1/bla\ndestination=dtn://node2/incoming\nlifetime=1h" > /tmp/out.manifest
+$ echo "hallo welt" | bp7 encode /tmp/out.manifest - -x
+9f880700008201702f2f6e6f6465322f696e636f6d696e6782016b2f2f6e6f6465312f626c61820100821b0000009e8d137d23001a0036ee8085010100004c4b68616c6c6f2077656c740aff
+
+$ bp7 decode 9f880700008201702f2f6e6f6465322f696e636f6d696e6782016b2f2f6e6f6465312f626c61820100821b0000009e8d137d23001a0036ee8085010100004c4b68616c6c6f2077656c740aff -p
+hallo welt
+
 ```
 
-The generated hex string can also be directly discplayed as raw cbor on the awesome cbor.me website, e.g. http://cbor.me/?bytes=9f8907000182016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f7882016b6e6f6465332f696e626f78821a247966ba001ad693a4004225b686010000014341424342237186080100010042dbccff
+The generated hex string can also be directly discplayed as raw cbor on the awesome cbor.me website, e.g. http://cbor.me/?bytes=9f88071a000200040082016e2f2f6e6f646531382f7e74656c6582016e2f2f6e6f646538312f66696c657382016e2f2f6e6f646538312f66696c6573821b0000009e8d0de538001a0036ee80850a020000448218200085010100004443414243ff
 
-## wasm support
+## ffi support
+
+The library can be used as a shared library or statically linked into other apps. 
+When building `bp7` the corresponding C header is generated in `target/bp7.h`. 
+Example usages for Linux with C calling `bp7` as well as nodejs can be found in `test/ffi`.
+
+## wasm support [defunct, unmaintained stdweb crate]
 
 The library should build for wasm even though only very few functions get exported. The example benchmark can also be used in the browser through the `cargo-web` crate:
 ```
