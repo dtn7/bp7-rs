@@ -50,11 +50,12 @@ $ cargo install bp7
 [...]
 $ bp7
 usage "bp7" <cmd> [args]
-         encode <manifest> <payloadfile | - > [-x] - encode bundle and output raw bytes or hex string (-x)
-         decode <hexstring | - > [-p] - decode bundle or payload only (-p)
-         dtntime [dtntimestamp] - prints current time as dtntimestamp or prints dtntime human readable
-         d2u [dtntimestamp] - converts dtntime to unixstimestamp
-         rnd [-r] - return a random bundle either hexencoded or raw bytes (-r)
+        encode <manifest> <payloadfile | - > [-x] - encode bundle and output raw bytes or hex string (-x)
+        decode <hexstring | - > [-p] - decode bundle or payload only (-p)
+        dtntime [dtntimestamp] - prints current time as dtntimestamp or prints dtntime human readable
+        d2u [dtntimestamp] - converts dtntime to unixstimestamp
+        rnd [-r] - return a random bundle either hexencoded or raw bytes (-r)
+        benchmark - run a simple benchmark encoding/decoding bundles
 $ bp7 rnd
 dtn://node81/files-680971330872-0
 9f88071a000200040082016e2f2f6e6f646531382f7e74656c6582016e2f2f6e6f646538312f66696c657382016e2f2f6e6f646538312f66696c6573821b0000009e8d0de538001a0036ee80850a020000448218200085010100004443414243ff

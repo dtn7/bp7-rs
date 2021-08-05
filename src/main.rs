@@ -15,6 +15,7 @@ fn usage(filepath: &str) {
     println!("\t dtntime [dtntimestamp] - prints current time as dtntimestamp or prints dtntime human readable");
     println!("\t d2u [dtntimestamp] - converts dtntime to unixstimestamp");
     println!("\t rnd [-r] - return a random bundle either hexencoded or raw bytes (-r)");
+    println!("\t benchmark - run a simple benchmark encoding/decoding bundles");
 }
 
 fn manifest_to_primary(manifest: &str) -> PrimaryBlock {
@@ -190,6 +191,27 @@ fn main() {
             } else {
                 usage(&args[0]);
             }
+        }
+        "benchmark" => {
+            let runs = 100_000;
+            let crcno = bench_bundle_create(runs, crc::CRC_NO);
+            let crc16 = bench_bundle_create(runs, crc::CRC_16);
+            let crc32 = bench_bundle_create(runs, crc::CRC_32);
+
+            //print!("{:x?}", crcno[0]);
+            //println!("{}", bp7::hexify(&crcno[0]));
+
+            bench_bundle_encode(runs, crc::CRC_NO);
+            bench_bundle_encode(runs, crc::CRC_16);
+            bench_bundle_encode(runs, crc::CRC_32);
+
+            bench_bundle_load(runs, crc::CRC_NO, crcno);
+            bench_bundle_load(runs, crc::CRC_16, crc16);
+            bench_bundle_load(runs, crc::CRC_32, crc32);
+
+            //dbg!(crcno[0].len());
+            //dbg!(crc16[0].len());
+            //dbg!(crc32[0].len());
         }
         _ => usage(&args[0]),
     }

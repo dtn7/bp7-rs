@@ -1,6 +1,6 @@
 [package]
 name = "bp7"
-version = "0.8.9"
+version = "0.8.10"
 authors = ["Lars Baumgaertner <baumgaertner@cs.tu-darmstadt.de>"]
 edition = "2018"
 description = "Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-31"
@@ -25,6 +25,11 @@ test-case = "1.1.0"
 name = "benchmark"
 harness = false
 
+[features]
+
+default = ["binary-build"]
+binary-build = ["instant"]
+
 [dependencies]
 humantime = "2.1.0"
 serde = { version = "1.0.123", features = ["derive"] }
@@ -37,17 +42,15 @@ thiserror = "1.0.23"
 
 # non wasm config
 
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-instant = { version = "0.1.9", features = [ "now" ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 nanorand = { version = "0.6.0", default-features = true }
+instant = { version = "0.1.9", features = [ "now" ], optional = true }
 
 # wasm specific
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = "0.4.20"
 nanorand = { version = "0.6.0", features = ["getrandom"] }
+instant = { version = "0.1.9", features = [ "stdweb", "now" ], optional = true }
 
-[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-instant = { version = "0.1.9", features = [ "stdweb", "now" ] }
