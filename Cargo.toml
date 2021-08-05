@@ -1,6 +1,6 @@
 [package]
 name = "bp7"
-version = "0.8.7"
+version = "0.8.8"
 authors = ["Lars Baumgaertner <baumgaertner@cs.tu-darmstadt.de>"]
 edition = "2018"
 description = "Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-31"
@@ -15,14 +15,10 @@ lto = true
 
 [lib]
 name = "bp7"
-crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dev-dependencies]
 criterion = "0.3.4"
 test-case = "1.1.0"
-
-[build-dependencies]
-cbindgen = "0.19.0"
 
 [[bench]]
 name = "benchmark"

@@ -129,9 +129,7 @@ The generated hex string can also be directly discplayed as raw cbor on the awes
 
 ## ffi support
 
-The library can be used as a shared library or statically linked into other apps. 
-When building `bp7` the corresponding C header is generated in `target/bp7.h`. 
-Example usages for Linux with C calling `bp7` as well as nodejs can be found in `test/ffi`.
+FFI bindings are available in a separate project: [bp7-ffi](https://github.com/dtn7/bp7-ffi)
 
 ## wasm support [defunct, unmaintained stdweb crate]
 

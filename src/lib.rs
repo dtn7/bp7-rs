@@ -49,8 +49,6 @@ pub mod primary;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 
-pub mod ffi;
-
 pub use bundle::{Bp7Error, Bp7ErrorList, Bundle, ByteBuffer};
 pub use canonical::*;
 pub use dtntime::{dtn_time_now, CreationTimestamp, DtnTime};
