@@ -8,7 +8,10 @@
 
 Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-31
 
-This library only handles encoding and decoding of bundles, not transmission or other processing of the data. A full daemon using this library can be found here: https://github.com/dtn7/dtn7-rs
+This library only handles encoding and decoding of bundles, not transmission or other processing of the data. 
+A full daemon using this library can be found here: https://github.com/dtn7/dtn7-rs
+
+Through the provided FFI interface, this library can also be used from C/C++, nodejs or flutter.
 
 ## Benchmarking
 
@@ -129,7 +132,15 @@ The generated hex string can also be directly discplayed as raw cbor on the awes
 
 ## ffi support
 
-FFI bindings are available in a separate project: [bp7-ffi](https://github.com/dtn7/bp7-ffi)
+This library only handles encoding and decoding of bundles, not transmission or other processing of the data.
+
+The library can be used as a shared library or statically linked into other apps. 
+With the help of `cbindgen` (`cargo install cbindgen`) the header file for this crate can be generated:
+```
+$ cbindgen -c cbindgen.toml > target/bp7.h
+```
+
+Example usages for Linux with C calling `bp7` as well as nodejs can be found in `examples/ffi`.
 
 ## wasm support [defunct, unmaintained stdweb crate]
 

@@ -44,6 +44,7 @@ pub mod canonical;
 pub mod crc;
 pub mod dtntime;
 pub mod eid;
+pub mod ffi;
 pub mod helpers;
 pub mod primary;
 #[cfg(target_arch = "wasm32")]
