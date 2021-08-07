@@ -37,11 +37,11 @@ impl Serialize for AdministrativeRecord {
             }
             AdministrativeRecord::Unknown(code, data) => {
                 seq.serialize_element(&code)?;
-                seq.serialize_element(&serde_bytes::Bytes::new(&data))?;
+                seq.serialize_element(&serde_bytes::Bytes::new(data))?;
             }
             AdministrativeRecord::Mismatched(code, data) => {
                 seq.serialize_element(&code)?;
-                seq.serialize_element(&serde_bytes::Bytes::new(&data))?;
+                seq.serialize_element(&serde_bytes::Bytes::new(data))?;
             }
         }
 

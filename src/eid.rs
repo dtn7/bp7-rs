@@ -48,16 +48,15 @@ impl DtnAddress {
     }
     pub fn node_name(&self) -> &str {
         self.0
-            .split("/")
-            .skip(2)
-            .next()
+            .split('/')
+            .nth(2)
             .expect("invalid internal dtn address format")
     }
     pub fn service_name(&self) -> Option<&str> {
-        self.0.split("/").skip(3).next()
+        self.0.split('/').nth(3)
     }
     pub fn is_non_singleton(&self) -> bool {
-        self.service_name().unwrap_or_default().starts_with("~")
+        self.service_name().unwrap_or_default().starts_with('~')
     }
 }
 impl fmt::Display for DtnAddress {
@@ -155,7 +154,7 @@ impl<'de> Deserialize<'de> for EndpointID {
                 if eid_type == ENDPOINT_URI_SCHEME_DTN {
                     // TODO: rewrite to check following type, currently if not string return dtn:none
                     let name: String = seq.next_element().unwrap_or_default().unwrap_or_default();
-                    if name == "" {
+                    if name.is_empty() {
                         Ok(EndpointID::none())
                     } else {
                         /*if name.starts_with("//") {
@@ -529,7 +528,7 @@ mod tests {
 
     #[test_case(&[130, 1, 108, 47, 47, 110, 111, 100, 101, 49, 47, 116, 101, 115, 116] => "dtn://node1/test"; "when decoding full dtn address")]
     fn test_ser_eid(cbor_eid: &[u8]) -> String {
-        let deserialized: EndpointID = serde_cbor::from_slice(&cbor_eid).unwrap();
+        let deserialized: EndpointID = serde_cbor::from_slice(cbor_eid).unwrap();
         deserialized.to_string()
     }
 }

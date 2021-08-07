@@ -80,7 +80,7 @@ impl Serialize for CanonicalBlock {
         ))?;
 
         if self.crc.has_crc() {
-            seq.serialize_element(&serde_bytes::Bytes::new(&self.crc.bytes().unwrap()))?;
+            seq.serialize_element(&serde_bytes::Bytes::new(self.crc.bytes().unwrap()))?;
         }
 
         seq.end()
@@ -311,7 +311,7 @@ impl CanonicalBlock {
     }
     pub fn payload_data(&self) -> Option<&ByteBuffer> {
         match &self.data {
-            CanonicalData::Data(data) => Some(&data),
+            CanonicalData::Data(data) => Some(data),
             _ => None,
         }
     }
