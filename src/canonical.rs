@@ -125,24 +125,40 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                     .into_vec();
 
                 // parse nested payload according to block_type
-                // TODO: handle nested parsing errors
                 let data = if block_type == PAYLOAD_BLOCK {
                     CanonicalData::Data(
                         serde_cbor::from_slice::<serde_bytes::ByteBuf>(&raw_payload)
-                            .unwrap()
+                            .map_err(|err| {
+                                de::Error::custom(format!("error decoding payload block: {}", err))
+                            })?
                             .into_vec(),
                     )
                 } else if block_type == BUNDLE_AGE_BLOCK {
-                    CanonicalData::BundleAge(serde_cbor::from_slice::<u64>(&raw_payload).unwrap())
+                    CanonicalData::BundleAge(serde_cbor::from_slice::<u64>(&raw_payload).map_err(
+                        |err| {
+                            de::Error::custom(format!("error decoding bundle age block: {}", err))
+                        },
+                    )?)
                 } else if block_type == HOP_COUNT_BLOCK {
-                    let hc: (u8, u8) = serde_cbor::from_slice(&raw_payload).unwrap();
+                    let hc: (u8, u8) = serde_cbor::from_slice(&raw_payload).map_err(|err| {
+                        de::Error::custom(format!("error decoding hop count block: {}", err))
+                    })?;
                     CanonicalData::HopCount(hc.0, hc.1)
                 } else if block_type == PREVIOUS_NODE_BLOCK {
-                    CanonicalData::PreviousNode(serde_cbor::from_slice(&raw_payload).unwrap())
+                    CanonicalData::PreviousNode(serde_cbor::from_slice(&raw_payload).map_err(
+                        |err| {
+                            de::Error::custom(format!(
+                                "error decoding previous node block: {}",
+                                err
+                            ))
+                        },
+                    )?)
                 } else {
                     CanonicalData::Unknown(
                         serde_cbor::from_slice::<serde_bytes::ByteBuf>(&raw_payload)
-                            .unwrap()
+                            .map_err(|err| {
+                                de::Error::custom(format!("error decoding canoncial data: {}", err))
+                            })?
                             .into_vec(),
                     )
                 };
