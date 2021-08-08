@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate criterion;
 
-use criterion::black_box;
 use criterion::Criterion;
 use std::convert::TryFrom;
 
@@ -33,7 +32,7 @@ fn bench_bundle_create(crc_type: crc::CrcRawType) -> ByteBuffer {
     let mut b = bundle::Bundle::new(pblock, cblocks);
 
     b.set_crc(crc_type);
-    b.validate();
+    b.validate().unwrap();
     b.to_cbor()
 }
 
@@ -78,22 +77,22 @@ fn criterion_benchmark_bundle_encode(c: &mut Criterion) {
         .build()
         .unwrap();
     b.set_crc(crc::CRC_NO);
-    b.validate();
+    b.validate().unwrap();
     let mut bndl = b.clone();
     c.bench_function("encode bundle no crc", move |bench| {
         bench.iter(|| bndl.to_cbor())
     });
 
     b.set_crc(crc::CRC_16);
-    b.validate();
+    b.validate().unwrap();
     let mut bndl = b.clone();
     c.bench_function("encode bundle crc 16", move |bench| {
         bench.iter(|| bndl.to_cbor())
     });
 
     b.set_crc(crc::CRC_32);
-    b.validate();
-    let mut bndl = b.clone();
+    b.validate().unwrap();
+    let mut bndl = b;
     c.bench_function("encode bundle crc 32", move |bench| {
         bench.iter(|| bndl.to_cbor())
     });
@@ -105,7 +104,7 @@ fn criterion_benchmark_bundle_decode(c: &mut Criterion) {
     c.bench_function("decode bundle no crc", move |b| {
         b.iter(|| {
             let _deserialized: Bundle = Bundle::try_from(b_no.clone()).unwrap();
-            _deserialized.validate();
+            _deserialized.validate().unwrap();
         })
     });
 
@@ -114,7 +113,7 @@ fn criterion_benchmark_bundle_decode(c: &mut Criterion) {
     c.bench_function("decode bundle crc 16", move |b| {
         b.iter(|| {
             let _deserialized: Bundle = Bundle::try_from(b_16.clone()).unwrap();
-            _deserialized.validate();
+            _deserialized.validate().unwrap();
         })
     });
 
@@ -123,7 +122,7 @@ fn criterion_benchmark_bundle_decode(c: &mut Criterion) {
     c.bench_function("decode bundle crc 32", move |b| {
         b.iter(|| {
             let _deserialized: Bundle = Bundle::try_from(b_32.clone()).unwrap();
-            _deserialized.validate();
+            _deserialized.validate().unwrap();
         })
     });
 }

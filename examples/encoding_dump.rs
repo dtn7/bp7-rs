@@ -53,8 +53,8 @@ fn main() {
     // Primary block
 
     let pblock = primary::new_primary_block(
-        "dtn://n2/inbox".try_into().unwrap(),
-        "dtn://n1/".try_into().unwrap(),
+        "dtn://n2/inbox",
+        "dtn://n1/",
         bp7::CreationTimestamp::with_time_and_seq(2342, 2),
         std::time::Duration::from_secs(60),
     );
@@ -64,8 +64,8 @@ fn main() {
     );
 
     let mut pblock = primary::new_primary_block(
-        "dtn://n2/inbox".try_into().unwrap(),
-        "dtn://n1/".try_into().unwrap(),
+        "dtn://n2/inbox",
+        "dtn://n1/",
         bp7::CreationTimestamp::with_time_and_seq(2342, 2),
         std::time::Duration::from_secs(60),
     );
@@ -77,8 +77,8 @@ fn main() {
     );
 
     let mut pblock = primary::new_primary_block(
-        "dtn://n2/inbox".try_into().unwrap(),
-        "dtn://n1/".try_into().unwrap(),
+        "dtn://n2/inbox",
+        "dtn://n1/",
         bp7::CreationTimestamp::with_time_and_seq(2342, 2),
         std::time::Duration::from_secs(60),
     );

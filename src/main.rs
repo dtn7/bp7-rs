@@ -29,7 +29,7 @@ fn manifest_to_primary(manifest: &str) -> PrimaryBlock {
         .split('\n')
         .map(|f| f.trim())
         .filter(|l| !l.is_empty() || l.starts_with("^#"))
-        .filter(|l| l.contains("="))
+        .filter(|l| l.contains('='))
     {
         let result: Vec<&str> = line.splitn(2, '=').map(|f| f.trim()).collect();
         match result[0] {

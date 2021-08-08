@@ -44,6 +44,7 @@ pub mod canonical;
 pub mod crc;
 pub mod dtntime;
 pub mod eid;
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub mod ffi;
 pub mod helpers;
 pub mod primary;

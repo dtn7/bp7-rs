@@ -62,7 +62,7 @@ fn hopcount_tests() {
     let mut block = new_hop_count_block(1, 0, 1);
 
     assert_eq!(block.block_type, bp7::HOP_COUNT_BLOCK);
-    assert_eq!(block.hop_count_exceeded(), false);
+    assert!(!block.hop_count_exceeded());
 
     if let CanonicalData::HopCount(hc_limit, hc_count) = block.data() {
         assert!(*hc_limit == 1);
@@ -71,7 +71,7 @@ fn hopcount_tests() {
         panic!("Not a hop count block!");
     }
 
-    assert_eq!(block.hop_count_increase(), true);
+    assert!(block.hop_count_increase());
     if let Some((hc_limit, hc_count)) = block.hop_count_get() {
         assert!(hc_limit == 1);
         assert!(hc_count == 1);
@@ -79,12 +79,12 @@ fn hopcount_tests() {
         panic!("Not a hop count block!");
     }
 
-    assert_eq!(block.hop_count_increase(), true);
-    assert_eq!(block.hop_count_exceeded(), true);
+    assert!(block.hop_count_increase());
+    assert!(block.hop_count_exceeded());
 
     let mut wrong_block = new_bundle_age_block(1, 0, 0);
-    assert_eq!(wrong_block.hop_count_increase(), false);
-    assert_eq!(wrong_block.hop_count_exceeded(), false);
+    assert!(!wrong_block.hop_count_increase());
+    assert!(!wrong_block.hop_count_exceeded());
     assert_eq!(wrong_block.hop_count_get(), None);
 }
 
@@ -109,10 +109,7 @@ fn previousnode_tests() {
 
     let mut wrong_block = new_bundle_age_block(1, 0, 0);
     assert_eq!(wrong_block.previous_node_get(), None);
-    assert_eq!(
-        wrong_block.previous_node_update("dtn://node2".try_into().unwrap()),
-        false
-    );
+    assert!(!wrong_block.previous_node_update("dtn://node2".try_into().unwrap()));
 }
 
 #[test]
@@ -136,5 +133,5 @@ fn bundleage_tests() {
 
     let mut wrong_block = new_hop_count_block(1, 0, 1);
     assert_eq!(wrong_block.bundle_age_get(), None);
-    assert_eq!(wrong_block.bundle_age_update(2342), false);
+    assert!(!wrong_block.bundle_age_update(2342));
 }
