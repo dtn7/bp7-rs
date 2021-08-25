@@ -1,4 +1,5 @@
 use bp7::crc::CrcBlock;
+use bp7::flags::BlockControlFlags;
 use bp7::{
     canonical, crc,
     helpers::{ser_dump, vec_dump},
@@ -26,25 +27,29 @@ fn main() {
 
     // Canonical Blocks
 
-    let cblock = canonical::new_payload_block(0, b"ABC".to_vec());
+    let cblock = canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec());
     ser_dump(
         &cblock,
         "payload block with no flags and `'ABC'` as content, no crc",
     );
 
-    let cblock = canonical::new_hop_count_block(1, 0, 32);
+    let cblock = canonical::new_hop_count_block(1, BlockControlFlags::empty(), 32);
     ser_dump(
         &cblock,
         "hop count block with no flags, block number 1 and hop limit = 32, no crc",
     );
 
-    let cblock = canonical::new_bundle_age_block(2, 0, 1234);
+    let cblock = canonical::new_bundle_age_block(2, BlockControlFlags::empty(), 1234);
     ser_dump(
         &cblock,
         "bundle age block with no flags, block number 2 and age = 1234us, no crc",
     );
 
-    let cblock = canonical::new_previous_node_block(3, 0, "dtn://n1".try_into().unwrap());
+    let cblock = canonical::new_previous_node_block(
+        3,
+        BlockControlFlags::empty(),
+        "dtn://n1".try_into().unwrap(),
+    );
     ser_dump(
         &cblock,
         "previous node block with no flags, block number 3 and prev_node = `dtn://n1`, no crc",

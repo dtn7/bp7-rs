@@ -5,8 +5,8 @@ use std::{
 };
 
 use crate::{
-    bundle::BUNDLE_MUST_NOT_FRAGMENTED, helpers, new_payload_block, primary, Bundle,
-    CreationTimestamp, EndpointID,
+    flags::BlockControlFlags, flags::BundleControlFlags, helpers, new_payload_block, primary,
+    Bundle, CreationTimestamp, EndpointID,
 };
 
 #[repr(C)]
@@ -131,7 +131,7 @@ pub extern "C" fn bundle_new_default(
     };
 
     let pblock = primary::PrimaryBlockBuilder::default()
-        .bundle_control_flags(BUNDLE_MUST_NOT_FRAGMENTED)
+        .bundle_control_flags(BundleControlFlags::BUNDLE_MUST_NOT_FRAGMENTED.bits())
         .destination(dst_eid)
         .source(src_eid.clone())
         .report_to(src_eid)
@@ -139,7 +139,13 @@ pub extern "C" fn bundle_new_default(
         .lifetime(core::time::Duration::from_millis(lifetime))
         .build()
         .unwrap();
-    let mut b = Bundle::new(pblock, vec![new_payload_block(0, data.to_owned())]);
+    let mut b = Bundle::new(
+        pblock,
+        vec![new_payload_block(
+            BlockControlFlags::empty(),
+            data.to_owned(),
+        )],
+    );
     b.set_crc(crate::crc::CRC_NO);
     b.sort_canonicals();
     Box::into_raw(Box::new(b))

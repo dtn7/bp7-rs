@@ -1,7 +1,11 @@
+use crate::error::Error;
+use crate::error::ErrorList;
+
 use super::bundle::*;
 use super::crc::*;
 use super::dtntime::*;
 use super::eid::*;
+use super::flags::*;
 use core::fmt;
 use core::{convert::TryFrom, time::Duration};
 use derive_builder::Builder;
@@ -21,7 +25,7 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 #[builder(pattern = "owned")]
 pub struct PrimaryBlock {
     version: DtnVersionType,
-    pub bundle_control_flags: BundleControlFlags,
+    pub bundle_control_flags: BundleControlFlagsType,
     pub crc: CrcValue,
     pub destination: EndpointID,
     pub source: EndpointID,
@@ -91,7 +95,7 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                 let version: DtnVersionType = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                let bundle_control_flags: BundleControlFlags = seq
+                let bundle_control_flags: BundleControlFlagsType = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(1, &self))?;
                 let crc_type: CrcRawType = seq
@@ -176,6 +180,7 @@ impl Default for PrimaryBlock {
         PrimaryBlock::new()
     }
 }
+
 impl PrimaryBlock {
     pub fn new() -> PrimaryBlock {
         PrimaryBlock {
@@ -193,7 +198,8 @@ impl PrimaryBlock {
     }
 
     pub fn has_fragmentation(&self) -> bool {
-        self.bundle_control_flags.has(BUNDLE_IS_FRAGMENT)
+        self.bundle_control_flags
+            .contains(BundleControlFlags::BUNDLE_IS_FRAGMENT)
     }
     pub fn is_lifetime_exceeded(&self) -> bool {
         if self.creation_timestamp.dtntime() == 0 {
@@ -203,11 +209,11 @@ impl PrimaryBlock {
         let now = crate::dtn_time_now();
         self.creation_timestamp.dtntime() + (self.lifetime.as_millis() as u64) <= now
     }
-    pub fn validate(&self) -> Result<(), Bp7ErrorList> {
-        let mut errors: Bp7ErrorList = Vec::new();
+    pub fn validate(&self) -> Result<(), ErrorList> {
+        let mut errors: ErrorList = Vec::new();
 
         if self.version != DTN_VERSION {
-            errors.push(Bp7Error::PrimaryBlockError(format!(
+            errors.push(Error::PrimaryBlockError(format!(
                 "Wrong version, {} instead of {}",
                 self.version, DTN_VERSION
             )));

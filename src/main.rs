@@ -1,4 +1,5 @@
 use bp7::dtntime::DtnTimeHelpers;
+use bp7::flags::BlockControlFlags;
 use bp7::helpers::*;
 use bp7::primary::PrimaryBlock;
 use bp7::*;
@@ -57,7 +58,7 @@ fn manifest_to_primary(manifest: &str) -> PrimaryBlock {
     primary.build().expect("error building primary block")
 }
 fn generate_bundle(primary_block: PrimaryBlock, payload: Vec<u8>, hex: bool) {
-    let payload_block = bp7::new_payload_block(0, payload);
+    let payload_block = bp7::new_payload_block(BlockControlFlags::empty(), payload);
 
     let mut b = bundle::Bundle::new(primary_block, vec![payload_block]);
 

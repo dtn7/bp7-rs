@@ -1,3 +1,4 @@
+use bp7::flags::*;
 use bp7::*;
 use std::convert::TryFrom;
 use std::convert::TryInto;
@@ -44,22 +45,26 @@ fn encode_decode_test_canonical(data: CanonicalBlock) {
 
 #[test]
 fn canonical_block_tests() {
-    let data = new_payload_block(0, b"ABCDEFG".to_vec());
+    let data = new_payload_block(BlockControlFlags::empty(), b"ABCDEFG".to_vec());
     encode_decode_test_canonical(data);
 
-    let data = new_hop_count_block(1, 0, 32);
+    let data = new_hop_count_block(1, BlockControlFlags::empty(), 32);
     encode_decode_test_canonical(data);
 
-    let data = new_bundle_age_block(1, 0, 0);
+    let data = new_bundle_age_block(1, BlockControlFlags::empty(), 0);
     encode_decode_test_canonical(data);
 
-    let data = new_previous_node_block(1, 0, "dtn://node2".try_into().unwrap());
+    let data = new_previous_node_block(
+        1,
+        BlockControlFlags::empty(),
+        "dtn://node2".try_into().unwrap(),
+    );
     encode_decode_test_canonical(data);
 }
 
 #[test]
 fn hopcount_tests() {
-    let mut block = new_hop_count_block(1, 0, 1);
+    let mut block = new_hop_count_block(1, BlockControlFlags::empty(), 1);
 
     assert_eq!(block.block_type, bp7::HOP_COUNT_BLOCK);
     assert!(!block.hop_count_exceeded());
@@ -82,7 +87,7 @@ fn hopcount_tests() {
     assert!(block.hop_count_increase());
     assert!(block.hop_count_exceeded());
 
-    let mut wrong_block = new_bundle_age_block(1, 0, 0);
+    let mut wrong_block = new_bundle_age_block(1, BlockControlFlags::empty(), 0);
     assert!(!wrong_block.hop_count_increase());
     assert!(!wrong_block.hop_count_exceeded());
     assert_eq!(wrong_block.hop_count_get(), None);
@@ -90,7 +95,11 @@ fn hopcount_tests() {
 
 #[test]
 fn previousnode_tests() {
-    let mut block = new_previous_node_block(1, 0, "dtn://node1".try_into().unwrap());
+    let mut block = new_previous_node_block(
+        1,
+        BlockControlFlags::empty(),
+        "dtn://node1".try_into().unwrap(),
+    );
 
     assert_eq!(block.block_type, bp7::PREVIOUS_NODE_BLOCK);
     if let Some(eid) = block.previous_node_get() {
@@ -107,14 +116,14 @@ fn previousnode_tests() {
         panic!("Not a previous node block!");
     }
 
-    let mut wrong_block = new_bundle_age_block(1, 0, 0);
+    let mut wrong_block = new_bundle_age_block(1, BlockControlFlags::empty(), 0);
     assert_eq!(wrong_block.previous_node_get(), None);
     assert!(!wrong_block.previous_node_update("dtn://node2".try_into().unwrap()));
 }
 
 #[test]
 fn bundleage_tests() {
-    let mut block = new_bundle_age_block(1, 0, 0);
+    let mut block = new_bundle_age_block(1, BlockControlFlags::empty(), 0);
 
     assert_eq!(block.block_type, bp7::BUNDLE_AGE_BLOCK);
     if let Some(age) = block.bundle_age_get() {
@@ -131,7 +140,7 @@ fn bundleage_tests() {
         panic!("Not a bundle age block!");
     }
 
-    let mut wrong_block = new_hop_count_block(1, 0, 1);
+    let mut wrong_block = new_hop_count_block(1, BlockControlFlags::empty(), 1);
     assert_eq!(wrong_block.bundle_age_get(), None);
     assert!(!wrong_block.bundle_age_update(2342));
 }
