@@ -5,13 +5,14 @@ use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
-use thiserror::Error;
 
 use super::canonical::*;
 use super::crc::*;
 use super::dtntime::*;
 use super::eid::*;
+use super::flags::*;
 use super::primary::*;
+use crate::error::{Error, ErrorList};
 
 /// Version for upcoming bundle protocol standard is 7.
 pub const DTN_VERSION: u32 = 7;
@@ -23,30 +24,6 @@ pub type CanonicalBlockNumberType = u64;
 pub type FragOffsetType = u64;
 pub type TotalDataLengthType = u64;
 
-#[derive(Debug, Error)]
-pub enum Bp7Error {
-    CanonicalBlockError(String),
-    PrimaryBlockError(String),
-    EIDError(#[from] EndpointIdError),
-    DtnTimeError(String),
-    CrcError(String),
-    BundleError(String),
-    BundleControlFlagError(String),
-    BlockControlFlagError(String),
-    JsonDecodeError(#[from] serde_json::Error),
-    CborDecodeError(#[from] serde_cbor::Error),
-}
-
-impl fmt::Display for Bp7Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-        // or, alternatively:
-        // fmt::Debug::fmt(self, f)
-    }
-}
-
-pub type Bp7ErrorList = Vec<Bp7Error>;
-
 /******************************
  *
  * Block
@@ -56,126 +33,6 @@ pub type Bp7ErrorList = Vec<Bp7Error>;
 pub trait Block {
     /// Convert block struct to a serializable enum
     fn to_cbor(&self) -> ByteBuffer;
-}
-
-/******************************
- *
- * Block Control Flags
- *
- ******************************/
-
-pub type BlockControlFlags = u8;
-
-/// This block must be replicated in every fragment.
-pub const BLOCK_REPLICATE: BlockControlFlags = 0x01;
-
-/// Transmission of a status report is requested if this block can't be processed.
-pub const BLOCK_STATUS_REPORT: BlockControlFlags = 0x02;
-
-/// Bundle must be deleted if this block can't be processed.
-pub const BLOCK_DELETE_BUNDLE: BlockControlFlags = 0x04;
-
-/// Block must be removed from the bundle if it can't be processed.
-pub const BLOCK_REMOVE: BlockControlFlags = 0x10;
-
-pub const BLOCK_CFRESERVED_FIELDS: BlockControlFlags = 0xF0;
-
-pub trait BlockValidation {
-    fn has(self, flag: BlockControlFlags) -> bool;
-    fn validate(self) -> Result<(), Bp7Error>;
-}
-impl BlockValidation for BlockControlFlags {
-    fn has(self, flag: BlockControlFlags) -> bool {
-        (self & flag) != 0
-    }
-    fn validate(self) -> Result<(), Bp7Error> {
-        if self.has(BLOCK_CFRESERVED_FIELDS) {
-            Err(Bp7Error::BlockControlFlagError(
-                "Given flag contains reserved bits".to_string(),
-            ))
-        } else {
-            Ok(())
-        }
-    }
-}
-
-/******************************
- *
- * Bundle Control Flags
- *
- ******************************/
-
-pub type BundleControlFlags = u64;
-
-/// Request reporting of bundle deletion.
-pub const BUNDLE_STATUS_REQUEST_DELETION: BundleControlFlags = 0x0004_0000;
-
-/// Request reporting of bundle delivery.
-pub const BUNDLE_STATUS_REQUEST_DELIVERY: BundleControlFlags = 0x0002_0000;
-
-/// Request reporting of bundle forwarding.
-pub const BUNDLE_STATUS_REQUEST_FORWARD: BundleControlFlags = 0x0001_0000;
-
-/// Request reporting of bundle reception.
-pub const BUNDLE_STATUS_REQUEST_RECEPTION: BundleControlFlags = 0x0000_4000;
-
-// / The bundle contains a "manifest" extension block.
-//pub const BUNDLE_CONTAINS_MANIFEST: BundleControlFlags = 0x0080;
-
-/// Status time is requested in all status reports.
-pub const BUNDLE_REQUEST_STATUS_TIME: BundleControlFlags = 0x0040;
-
-///Acknowledgment by the user application is requested.
-pub const BUNDLE_REQUEST_USER_APPLICATION_ACK: BundleControlFlags = 0x0020;
-
-/// The bundle must not be fragmented.
-pub const BUNDLE_MUST_NOT_FRAGMENTED: BundleControlFlags = 0x0004;
-
-/// The bundle's payload is an administrative record.
-pub const BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD: BundleControlFlags = 0x0002;
-
-/// The bundle is a fragment.
-pub const BUNDLE_IS_FRAGMENT: BundleControlFlags = 0x0001;
-
-pub const BUNDLE_CFRESERVED_FIELDS: BundleControlFlags = 0xE218;
-
-pub trait BundleValidation {
-    fn has(self, flag: BundleControlFlags) -> bool;
-    fn validate(self) -> Result<(), Bp7ErrorList>;
-}
-impl BundleValidation for BundleControlFlags {
-    fn has(self, flag: BundleControlFlags) -> bool {
-        (self & flag) != 0
-    }
-    fn validate(self) -> Result<(), Bp7ErrorList> {
-        let mut errors: Bp7ErrorList = Vec::new();
-        if self.has(BUNDLE_CFRESERVED_FIELDS) {
-            errors.push(Bp7Error::BundleControlFlagError(
-                "Given flag contains reserved bits".to_string(),
-            ));
-        }
-        if self.has(BUNDLE_IS_FRAGMENT) && self.has(BUNDLE_MUST_NOT_FRAGMENTED) {
-            errors.push(Bp7Error::BundleControlFlagError(
-                "Both 'bundle is a fragment' and 'bundle must not be fragmented' flags are set"
-                    .to_string(),
-            ));
-        }
-        let admin_rec_check = !self.has(BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
-            || (!self.has(BUNDLE_STATUS_REQUEST_RECEPTION)
-                && !self.has(BUNDLE_STATUS_REQUEST_FORWARD)
-                && !self.has(BUNDLE_STATUS_REQUEST_DELIVERY)
-                && !self.has(BUNDLE_STATUS_REQUEST_DELETION));
-        if !admin_rec_check {
-            errors.push(Bp7Error::BundleControlFlagError(
-                "\"payload is administrative record => no status report request flags\" failed"
-                    .to_string(),
-            ))
-        }
-        if !errors.is_empty() {
-            return Err(errors);
-        }
-        Ok(())
-    }
 }
 
 /******************************
@@ -262,8 +119,8 @@ impl Bundle {
     }
 
     /// Validate bundle and optionally return list of errors.
-    pub fn validate(&self) -> Result<(), Bp7ErrorList> {
-        let mut errors: Bp7ErrorList = Vec::new();
+    pub fn validate(&self) -> Result<(), ErrorList> {
+        let mut errors: ErrorList = Vec::new();
         //let mut block_numbers: Vec<CanonicalBlockNumberType> = Vec::new();
         //let mut block_types: Vec<CanonicalBlockType> = Vec::new();
 
@@ -282,16 +139,19 @@ impl Bundle {
             if (self
                 .primary
                 .bundle_control_flags
-                .has(BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
+                .contains(BundleControlFlags::BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
                 || self.primary.source == EndpointID::none())
-                && blck.block_control_flags.has(BLOCK_STATUS_REPORT)
+                && blck
+                    .block_control_flags
+                    .flags()
+                    .contains(BlockControlFlags::BLOCK_STATUS_REPORT)
             {
-                errors.push(Bp7Error::BundleError(
+                errors.push(Error::BundleError(
                         "Bundle Processing Control Flags indicate that this bundle's payload is an administrative record or the source node is omitted, but the \"Transmit status report if block cannot be processed\" Block Processing Control Flag was set in a Canonical Block".to_string()
                     ));
             }
             if !b_num.insert(blck.block_number) {
-                errors.push(Bp7Error::BundleError(
+                errors.push(Error::BundleError(
                     "Block numbers occurred multiple times".to_string(),
                 ));
             }
@@ -300,14 +160,14 @@ impl Bundle {
                     || blck.block_type == HOP_COUNT_BLOCK
                     || blck.block_type == PREVIOUS_NODE_BLOCK)
             {
-                errors.push(Bp7Error::BundleError(
+                errors.push(Error::BundleError(
                     "PreviousNode, BundleAge and HopCound blocks must not occure multiple times"
                         .to_string(),
                 ));
             }
         }
         if self.primary.creation_timestamp.dtntime() == 0 && b_types.contains(&BUNDLE_AGE_BLOCK) {
-            errors.push(Bp7Error::BundleError(
+            errors.push(Error::BundleError(
                 "Creation Timestamp is zero, but no Bundle Age block is present".to_string(),
             ));
         }
@@ -353,7 +213,8 @@ impl Bundle {
     pub fn is_administrative_record(&self) -> bool {
         self.primary
             .bundle_control_flags
-            .has(BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
+            .flags()
+            .contains(BundleControlFlags::BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
     }
     /// Return payload of bundle if an payload block exists and carries data.
     pub fn payload(&self) -> Option<&ByteBuffer> {
@@ -373,7 +234,8 @@ impl Bundle {
         if let Some(pb) = self.extension_block_by_type_mut(crate::canonical::PAYLOAD_BLOCK) {
             pb.set_data(crate::canonical::CanonicalData::Data(payload));
         } else {
-            let new_payload = crate::canonical::new_payload_block(0, payload);
+            let new_payload =
+                crate::canonical::new_payload_block(BlockControlFlags::empty(), payload);
             self.set_payload_block(new_payload);
         }
     }
@@ -504,7 +366,7 @@ impl fmt::Display for Bundle {
 
 /// Deserialize from CBOR byte buffer.
 impl TryFrom<ByteBuffer> for Bundle {
-    type Error = Bp7Error;
+    type Error = Error;
 
     fn try_from(item: ByteBuffer) -> Result<Self, Self::Error> {
         match serde_cbor::from_slice(&item) {
@@ -516,7 +378,7 @@ impl TryFrom<ByteBuffer> for Bundle {
 
 /// Deserialize from JSON string.
 impl TryFrom<String> for Bundle {
-    type Error = Bp7Error;
+    type Error = Error;
 
     fn try_from(item: String) -> Result<Self, Self::Error> {
         match serde_json::from_str(&item) {
@@ -530,8 +392,10 @@ impl TryFrom<String> for Bundle {
 ///  and a payload block.
 /// CRC is set to CrcNo by default and the lifetime is set to 60 * 60 seconds.
 pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer) -> Bundle {
+    let flags: BundleControlFlags = BundleControlFlags::BUNDLE_MUST_NOT_FRAGMENTED
+        | BundleControlFlags::BUNDLE_STATUS_REQUEST_DELIVERY;
     let pblock = crate::primary::PrimaryBlockBuilder::default()
-        .bundle_control_flags(BUNDLE_MUST_NOT_FRAGMENTED | BUNDLE_STATUS_REQUEST_DELIVERY)
+        .bundle_control_flags(flags.bits())
         .destination(dst)
         .source(src.clone())
         .report_to(src)
@@ -541,7 +405,10 @@ pub fn new_std_payload_bundle(src: EndpointID, dst: EndpointID, data: ByteBuffer
         .unwrap();
     let mut b = crate::bundle::Bundle::new(
         pblock,
-        vec![new_payload_block(0, data), new_hop_count_block(2, 0, 32)],
+        vec![
+            new_payload_block(BlockControlFlags::empty(), data),
+            new_hop_count_block(2, BlockControlFlags::empty(), 32),
+        ],
     );
     b.set_crc(crate::crc::CRC_NO);
     b.sort_canonicals();

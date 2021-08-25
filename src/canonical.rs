@@ -1,6 +1,10 @@
+use crate::error::Error;
+use crate::error::ErrorList;
+
 use super::bundle::*;
 use super::crc::{CrcBlock, CrcRawType, CrcValue, CRC_16, CRC_32, CRC_NO};
 use super::eid::*;
+use super::flags::*;
 use core::convert::TryInto;
 use core::fmt;
 use derive_builder::Builder;
@@ -56,7 +60,7 @@ pub const HOP_COUNT_BLOCK: CanonicalBlockType = 10;
 pub struct CanonicalBlock {
     pub block_type: CanonicalBlockType,
     pub block_number: u64,
-    pub block_control_flags: BlockControlFlags,
+    pub block_control_flags: BlockControlFlagsType,
     pub crc: CrcValue,
     data: CanonicalData,
 }
@@ -111,7 +115,7 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                 let block_number: u64 = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                let block_control_flags: BlockControlFlags = seq
+                let block_control_flags: BlockControlFlagsType = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(2, &self))?;
                 let crc_type: CrcRawType = seq
@@ -208,6 +212,7 @@ impl Default for CanonicalBlock {
         CanonicalBlock::new()
     }
 }
+
 impl CrcBlock for CanonicalBlock {
     fn crc_value(&self) -> &CrcValue {
         &self.crc
@@ -225,7 +230,7 @@ impl Block for CanonicalBlock {
 pub fn new_canonical_block(
     block_type: CanonicalBlockType,
     block_number: u64,
-    block_control_flags: BlockControlFlags,
+    block_control_flags: BlockControlFlagsType,
     data: CanonicalData,
 ) -> CanonicalBlock {
     CanonicalBlock {
@@ -248,8 +253,8 @@ impl CanonicalBlock {
         }
     }
 
-    pub fn validate(&self) -> Result<(), Bp7ErrorList> {
-        let mut errors: Bp7ErrorList = Vec::new();
+    pub fn validate(&self) -> Result<(), ErrorList> {
+        let mut errors: ErrorList = Vec::new();
 
         if let Err(err) = self.block_control_flags.validate() {
             errors.push(err);
@@ -265,38 +270,38 @@ impl CanonicalBlock {
             Err(errors)
         }
     }
-    pub fn extension_validation(&self) -> Result<(), Bp7Error> {
+    pub fn extension_validation(&self) -> Result<(), Error> {
         // TODO: reimpl checks
         match &self.data {
             CanonicalData::Data(_) => {
                 if self.block_type != PAYLOAD_BLOCK {
-                    return Err(Bp7Error::CanonicalBlockError(
+                    return Err(Error::CanonicalBlockError(
                         "Payload data not matching payload type".to_string(),
                     ));
                 }
                 if self.block_number != 1 {
-                    return Err(Bp7Error::CanonicalBlockError(
+                    return Err(Error::CanonicalBlockError(
                         "Payload Block's block number is not zero".to_string(),
                     ));
                 }
             }
             CanonicalData::BundleAge(_) => {
                 if self.block_type != BUNDLE_AGE_BLOCK {
-                    return Err(Bp7Error::CanonicalBlockError(
+                    return Err(Error::CanonicalBlockError(
                         "Payload data not matching payload type".to_string(),
                     ));
                 }
             }
             CanonicalData::HopCount(_, _) => {
                 if self.block_type != HOP_COUNT_BLOCK {
-                    return Err(Bp7Error::CanonicalBlockError(
+                    return Err(Error::CanonicalBlockError(
                         "Payload data not matching payload type".to_string(),
                     ));
                 }
             }
             CanonicalData::PreviousNode(prev_eid) => {
                 if self.block_type != PREVIOUS_NODE_BLOCK {
-                    return Err(Bp7Error::CanonicalBlockError(
+                    return Err(Error::CanonicalBlockError(
                         "Payload data not matching payload type".to_string(),
                     ));
                 }
@@ -308,7 +313,7 @@ impl CanonicalBlock {
                 // Nothing to check as content is unknown
             }
             CanonicalData::DecodingError => {
-                return Err(Bp7Error::CanonicalBlockError("Unknown data".to_string()));
+                return Err(Error::CanonicalBlockError("Unknown data".to_string()));
             }
         }
         /*if (self.block_type > 9 && self.block_type < 192) || (self.block_type > 255) {
@@ -409,7 +414,7 @@ pub fn new_hop_count_block(block_number: u64, bcf: BlockControlFlags, limit: u8)
     CanonicalBlockBuilder::default()
         .block_type(HOP_COUNT_BLOCK)
         .block_number(block_number)
-        .block_control_flags(bcf)
+        .block_control_flags(bcf.bits())
         .data(CanonicalData::HopCount(limit, 0))
         .build()
         .unwrap()
@@ -419,7 +424,7 @@ pub fn new_payload_block(bcf: BlockControlFlags, data: ByteBuffer) -> CanonicalB
     CanonicalBlockBuilder::default()
         .block_type(PAYLOAD_BLOCK)
         .block_number(PAYLOAD_BLOCK_NUMBER)
-        .block_control_flags(bcf)
+        .block_control_flags(bcf.bits())
         .data(CanonicalData::Data(data))
         .build()
         .unwrap()
@@ -433,7 +438,7 @@ pub fn new_previous_node_block(
     CanonicalBlockBuilder::default()
         .block_type(PREVIOUS_NODE_BLOCK)
         .block_number(block_number)
-        .block_control_flags(bcf)
+        .block_control_flags(bcf.bits())
         .data(CanonicalData::PreviousNode(prev))
         .build()
         .unwrap()
@@ -455,7 +460,7 @@ pub fn new_bundle_age_block(
     CanonicalBlockBuilder::default()
         .block_type(BUNDLE_AGE_BLOCK)
         .block_number(block_number)
-        .block_control_flags(bcf)
+        .block_control_flags(bcf.bits())
         .data(CanonicalData::BundleAge(time_in_millis))
         .build()
         .unwrap()

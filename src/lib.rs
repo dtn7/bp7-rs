@@ -3,7 +3,7 @@
 //! # Examples
 //!
 //! ```
-//! use bp7::{bundle, canonical, crc, dtntime, eid, primary};
+//! use bp7::{bundle, canonical, crc, dtntime, eid, primary, flags::BundleControlFlags, flags::BlockControlFlags};
 //! use std::time::Duration;
 //!
 //! let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
@@ -12,7 +12,7 @@
 //! let day0 = dtntime::CreationTimestamp::with_time_and_seq(dtntime::DTN_TIME_EPOCH, 0);
 //! let pblock = primary::PrimaryBlockBuilder::default()
 //!     .bundle_control_flags(
-//!         bundle::BUNDLE_MUST_NOT_FRAGMENTED | bundle::BUNDLE_STATUS_REQUEST_DELIVERY,
+//!         (BundleControlFlags::BUNDLE_MUST_NOT_FRAGMENTED | BundleControlFlags::BUNDLE_STATUS_REQUEST_DELIVERY).bits(),
 //!     )
 //!     .destination(dst)
 //!     .source(src.clone())
@@ -23,7 +23,7 @@
 //!     .unwrap();
 //! let mut b = bundle::BundleBuilder::default()
 //!     .primary(pblock)
-//!     .canonicals(vec![canonical::new_payload_block(0, b"ABC".to_vec())])
+//!     .canonicals(vec![canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec())])
 //!     .build()
 //!     .unwrap();
 //! b.set_crc(crc::CRC_16);
@@ -44,14 +44,17 @@ pub mod canonical;
 pub mod crc;
 pub mod dtntime;
 pub mod eid;
+pub mod error;
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub mod ffi;
+pub mod flags;
 pub mod helpers;
 pub mod primary;
+
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 
-pub use bundle::{Bp7Error, Bp7ErrorList, Bundle, ByteBuffer};
+pub use bundle::{Bundle, ByteBuffer};
 pub use canonical::*;
 pub use dtntime::{dtn_time_now, CreationTimestamp, DtnTime};
 pub use eid::EndpointID;

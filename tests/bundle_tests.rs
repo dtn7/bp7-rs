@@ -1,3 +1,4 @@
+use bp7::flags::*;
 use bp7::*;
 use std::convert::TryFrom;
 use std::convert::TryInto;
@@ -20,20 +21,20 @@ fn new_complete_bundle(crc_type: bp7::crc::CrcRawType) -> Bundle {
     let mut b = bundle::BundleBuilder::default()
         .primary(pblock)
         .canonicals(vec![
-            canonical::new_payload_block(0, b"ABC".to_vec()),
+            canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
             canonical::new_bundle_age_block(
-                2, // block number
-                0, // flags
-                0, // time elapsed
+                2,                          // block number
+                BlockControlFlags::empty(), // flags
+                0,                          // time elapsed
             ),
             canonical::new_hop_count_block(
-                3,  // block number
-                0,  // flags
-                16, // max hops
+                3,                          // block number
+                BlockControlFlags::empty(), // flags
+                16,                         // max hops
             ),
             canonical::new_previous_node_block(
                 4,                                  // block number
-                0,                                  // flags
+                BlockControlFlags::empty(),         // flags
                 "dtn://node23".try_into().unwrap(), // previous node EID
             ),
         ])
@@ -86,20 +87,20 @@ fn new_complete_bundle_invalid(crc_type: bp7::crc::CrcRawType) -> Bundle {
     let mut b = bundle::BundleBuilder::default()
         .primary(pblock)
         .canonicals(vec![
-            canonical::new_payload_block(0, b"ABC".to_vec()),
+            canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
             canonical::new_bundle_age_block(
-                2, // block number
-                0, // flags
-                0, // time elapsed
+                2,                          // block number
+                BlockControlFlags::empty(), // flags
+                0,                          // time elapsed
             ),
             canonical::new_hop_count_block(
-                2,  // block number
-                0,  // flags
-                16, // max hops
+                2,                          // block number
+                BlockControlFlags::empty(), // flags
+                16,                         // max hops
             ),
             canonical::new_previous_node_block(
                 2,                                  // block number
-                0,                                  // flags
+                BlockControlFlags::empty(),         // flags
                 "dtn://node23".try_into().unwrap(), // previous node EID
             ),
         ])
@@ -179,27 +180,30 @@ fn bundle_add_cblock() {
     assert!(b.canonicals.is_empty());
 
     b.add_canonical_block(canonical::new_hop_count_block(
-        666, // block number
-        0,   // flags
-        16,  // max hops
+        666,                        // block number
+        BlockControlFlags::empty(), // flags
+        16,                         // max hops
     ));
     assert!(b.canonicals.len() == 1);
 
     b.add_canonical_block(canonical::new_hop_count_block(
-        666, // block number
-        0,   // flags
-        16,  // max hops
+        666,                        // block number
+        BlockControlFlags::empty(), // flags
+        16,                         // max hops
     ));
     // Already present, should be ignored
     assert!(b.canonicals.len() == 1);
 
-    b.add_canonical_block(canonical::new_payload_block(0, b"ABC".to_vec()));
+    b.add_canonical_block(canonical::new_payload_block(
+        BlockControlFlags::empty(),
+        b"ABC".to_vec(),
+    ));
     assert!(b.canonicals.len() == 2);
 
     b.add_canonical_block(canonical::new_bundle_age_block(
-        666, // block number
-        0,   // flags
-        0,   // time elapsed
+        666,                        // block number
+        BlockControlFlags::empty(), // flags
+        0,                          // time elapsed
     ));
     assert!(b.canonicals.len() == 3);
 

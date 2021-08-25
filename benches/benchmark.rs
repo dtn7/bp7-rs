@@ -4,7 +4,9 @@ extern crate criterion;
 use criterion::Criterion;
 use std::convert::TryFrom;
 
-use bp7::{bundle, canonical, crc, dtntime, eid, primary, Bundle, ByteBuffer};
+use bp7::{
+    bundle, canonical, crc, dtntime, eid, flags::BlockControlFlags, primary, Bundle, ByteBuffer,
+};
 
 fn bench_bundle_create(crc_type: crc::CrcRawType) -> ByteBuffer {
     let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
@@ -22,11 +24,11 @@ fn bench_bundle_create(crc_type: crc::CrcRawType) -> ByteBuffer {
         .unwrap();
 
     let cblocks = vec![
-        canonical::new_payload_block(0, b"ABC".to_vec()),
+        canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
         canonical::new_bundle_age_block(
-            2, // block number
-            0, // flags
-            0, // time elapsed
+            2,                          // block number
+            BlockControlFlags::empty(), // flags
+            0,                          // time elapsed
         ),
     ];
     let mut b = bundle::Bundle::new(pblock, cblocks);
@@ -67,11 +69,11 @@ fn criterion_benchmark_bundle_encode(c: &mut Criterion) {
     let mut b = bundle::BundleBuilder::default()
         .primary(pblock)
         .canonicals(vec![
-            canonical::new_payload_block(0, b"ABC".to_vec()),
+            canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
             canonical::new_bundle_age_block(
-                1, // block number
-                0, // flags
-                0, // time elapsed
+                1,                          // block number
+                BlockControlFlags::empty(), // flags
+                0,                          // time elapsed
             ),
         ])
         .build()

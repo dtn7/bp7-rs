@@ -1,13 +1,13 @@
+use crate::bundle::Bundle;
 use crate::bundle::ByteBuffer;
-use crate::bundle::BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD;
+use crate::flags::BlockControlFlags;
+use crate::flags::BundleControlFlags;
+use crate::flags::BundleValidation;
 use crate::{bundle, crc, dtn_time_now, primary};
 use core::fmt;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
-
-use crate::bundle::BUNDLE_REQUEST_STATUS_TIME;
-use crate::bundle::{Bundle, BundleValidation};
 
 use crate::dtntime::CreationTimestamp;
 use crate::dtntime::DtnTime;
@@ -96,7 +96,7 @@ impl AdministrativeRecord {
     pub fn to_payload(&self) -> crate::canonical::CanonicalBlock {
         let data: ByteBuffer = serde_cbor::to_vec(&self).unwrap();
 
-        crate::canonical::new_payload_block(0, data)
+        crate::canonical::new_payload_block(BlockControlFlags::empty(), data)
     }
 }
 // Bundle Status Report
@@ -382,7 +382,7 @@ pub fn new_status_report(
             && bndl
                 .primary
                 .bundle_control_flags
-                .has(BUNDLE_REQUEST_STATUS_TIME)
+                .contains(BundleControlFlags::BUNDLE_REQUEST_STATUS_TIME)
         {
             sr.status_information
                 .push(new_time_reporting_bundle_status_item(dtn_time_now()));
@@ -412,7 +412,7 @@ pub fn new_status_report_bundle(
         .destination(orig_bundle.primary.report_to.clone())
         .source(src.clone())
         .report_to(src)
-        .bundle_control_flags(BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
+        .bundle_control_flags(BundleControlFlags::BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD.bits())
         .creation_timestamp(CreationTimestamp::now())
         .lifetime(orig_bundle.primary.lifetime)
         .build()

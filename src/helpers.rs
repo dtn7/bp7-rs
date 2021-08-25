@@ -1,4 +1,6 @@
-use crate::{bundle, canonical, crc, dtntime, eid, primary, Bundle, ByteBuffer};
+use crate::{
+    bundle, canonical, crc, dtntime, eid, flags::BlockControlFlags, primary, Bundle, ByteBuffer,
+};
 use core::num::ParseIntError;
 use instant::Instant;
 use nanorand::{Rng, WyRand};
@@ -121,11 +123,11 @@ pub fn get_bench_bundle(crc_type: crc::CrcRawType) -> Bundle {
         .build()
         .unwrap();
     let cblocks = vec![
-        canonical::new_payload_block(0, b"ABC".to_vec()),
+        canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
         canonical::new_bundle_age_block(
-            2, // block number
-            0, // flags
-            0, // time elapsed
+            2,                          // block number
+            BlockControlFlags::empty(), // flags
+            0,                          // time elapsed
         ),
     ];
     //let cblocks = Vec::new();
