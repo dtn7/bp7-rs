@@ -55,7 +55,7 @@ fn manifest_to_primary(manifest: &str) -> PrimaryBlock {
             }
         }
     }
-    primary.build().expect("error building primary block")
+    primary.build().unwrap()
 }
 fn generate_bundle(primary_block: PrimaryBlock, payload: Vec<u8>, hex: bool) {
     let payload_block = bp7::new_payload_block(BlockControlFlags::empty(), payload);
