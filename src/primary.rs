@@ -39,10 +39,10 @@ pub struct PrimaryBlockBuilder {
 }
 impl PrimaryBlockBuilder {
     pub fn new() -> Self {
-        let mut builder = PrimaryBlockBuilder::default();
+        // let mut builder = PrimaryBlockBuilder::default();
         // should this be set by default?
         // builder.creation_timestamp = CreationTimestamp::now();
-        builder
+        PrimaryBlockBuilder::default()
     }
     pub fn bundle_control_flags(mut self, flags: BundleControlFlagsType) -> Self {
         self.bundle_control_flags = flags;
