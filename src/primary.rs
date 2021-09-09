@@ -8,10 +8,10 @@ use super::eid::*;
 use super::flags::*;
 use core::fmt;
 use core::{convert::TryFrom, time::Duration};
-use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
+use thiserror::Error;
 
 /******************************
  *
@@ -19,10 +19,89 @@ use serde::{de, Deserialize, Deserializer, Serialize};
  *
  ******************************/
 
+#[derive(Error, Debug)]
+pub enum PrimaryBuilderError {
+    #[error("no destination endpoint was provided")]
+    NoDestination,
+}
+
+#[derive(Default, Clone, Debug, PartialEq)]
+pub struct PrimaryBlockBuilder {
+    bundle_control_flags: BundleControlFlagsType,
+    crc: CrcValue,
+    destination: EndpointID,
+    source: EndpointID,
+    report_to: EndpointID,
+    creation_timestamp: CreationTimestamp,
+    lifetime: Duration,
+    fragmentation_offset: FragOffsetType,
+    total_data_length: TotalDataLengthType,
+}
+impl PrimaryBlockBuilder {
+    pub fn new() -> Self {
+        let mut builder = PrimaryBlockBuilder::default();
+        // should this be set by default?
+        // builder.creation_timestamp = CreationTimestamp::now();
+        builder
+    }
+    pub fn bundle_control_flags(mut self, flags: BundleControlFlagsType) -> Self {
+        self.bundle_control_flags = flags;
+        self
+    }
+    pub fn crc(mut self, crc: CrcValue) -> Self {
+        self.crc = crc;
+        self
+    }
+    pub fn destination(mut self, dest: EndpointID) -> Self {
+        self.destination = dest;
+        self
+    }
+    pub fn source(mut self, source: EndpointID) -> Self {
+        self.source = source;
+        self
+    }
+    pub fn report_to(mut self, report_to: EndpointID) -> Self {
+        self.report_to = report_to;
+        self
+    }
+    pub fn creation_timestamp(mut self, creation_timestamp: CreationTimestamp) -> Self {
+        self.creation_timestamp = creation_timestamp;
+        self
+    }
+    pub fn lifetime(mut self, lifetime: Duration) -> Self {
+        self.lifetime = lifetime;
+        self
+    }
+    pub fn fragmentation_offset(mut self, offset: FragOffsetType) -> Self {
+        self.fragmentation_offset = offset;
+        self
+    }
+    pub fn total_data_length(mut self, length: TotalDataLengthType) -> Self {
+        self.total_data_length = length;
+        self
+    }
+    pub fn build(self) -> Result<PrimaryBlock, PrimaryBuilderError> {
+        if self.destination == EndpointID::none() {
+            Err(PrimaryBuilderError::NoDestination)
+        } else {
+            Ok(PrimaryBlock {
+                version: DTN_VERSION,
+                bundle_control_flags: self.bundle_control_flags,
+                crc: self.crc,
+                destination: self.destination,
+                source: self.source,
+                report_to: self.report_to,
+                creation_timestamp: self.creation_timestamp,
+                lifetime: self.lifetime,
+                fragmentation_offset: self.fragmentation_offset,
+                total_data_length: self.total_data_length,
+            })
+        }
+    }
+}
+
 //#[derive(Debug, Serialize_tuple, Deserialize_tuple, Clone)]
-#[derive(Debug, Clone, PartialEq, Builder)]
-#[builder(default)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PrimaryBlock {
     version: DtnVersionType,
     pub bundle_control_flags: BundleControlFlagsType,

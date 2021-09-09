@@ -7,10 +7,10 @@ use super::eid::*;
 use super::flags::*;
 use core::convert::TryInto;
 use core::fmt;
-use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
+use thiserror::Error;
 
 /******************************
  *
@@ -53,10 +53,62 @@ pub const BUNDLE_AGE_BLOCK: CanonicalBlockType = 7;
 // section 4.3.3.
 pub const HOP_COUNT_BLOCK: CanonicalBlockType = 10;
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CanonicalBlockBuilder {
+    block_type: CanonicalBlockType,
+    block_number: u64,
+    block_control_flags: BlockControlFlagsType,
+    crc: CrcValue,
+    data: Option<CanonicalData>,
+}
+
+#[derive(Error, Debug)]
+pub enum CanonicalBuilderError {
+    #[error("Missing canoncial data")]
+    MissingData,
+}
+
+impl CanonicalBlockBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn block_type(mut self, block_type: CanonicalBlockType) -> Self {
+        self.block_type = block_type;
+        self
+    }
+    pub fn block_number(mut self, block_number: u64) -> Self {
+        self.block_number = block_number;
+        self
+    }
+    pub fn block_control_flags(mut self, block_control_flags: BlockControlFlagsType) -> Self {
+        self.block_control_flags = block_control_flags;
+        self
+    }
+    pub fn crc(mut self, crc: CrcValue) -> Self {
+        self.crc = crc;
+        self
+    }
+    pub fn data(mut self, data: CanonicalData) -> Self {
+        self.data = Some(data);
+        self
+    }
+    pub fn build(self) -> Result<CanonicalBlock, CanonicalBuilderError> {
+        if let Some(data) = self.data {
+            Ok(CanonicalBlock {
+                block_type: self.block_type,
+                block_number: self.block_number,
+                block_control_flags: self.block_control_flags,
+                crc: self.crc,
+                data,
+            })
+        } else {
+            Err(CanonicalBuilderError::MissingData)
+        }
+    }
+}
+
 //#[derive(Debug, Serialize_tuple, Deserialize_tuple, Clone)]
-#[derive(Debug, Clone, PartialEq, Builder)]
-#[builder(default)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CanonicalBlock {
     pub block_type: CanonicalBlockType,
     pub block_number: u64,

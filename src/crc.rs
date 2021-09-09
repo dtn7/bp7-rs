@@ -22,6 +22,11 @@ pub enum CrcValue {
     Crc32([u8; 4]),
     Unknown(CrcRawType),
 }
+impl Default for CrcValue {
+    fn default() -> Self {
+        CrcValue::CrcNo
+    }
+}
 impl CrcValue {
     pub fn has_crc(&self) -> bool {
         // TODO: handle unknown

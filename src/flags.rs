@@ -107,6 +107,14 @@ bitflags! {
     const BUNDLE_CFRESERVED_FIELDS = 0xE218;
     }
 }
+
+impl Default for BundleControlFlags {
+    fn default() -> Self {
+        Self {
+            bits: Default::default(),
+        }
+    }
+}
 pub trait BundleValidation {
     fn flags(&self) -> BundleControlFlags;
     fn contains(&self, flags: BundleControlFlags) -> bool

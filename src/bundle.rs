@@ -1,7 +1,6 @@
 use core::cmp;
 use core::convert::TryFrom;
 use core::fmt;
-use derive_builder::Builder;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
@@ -13,6 +12,7 @@ use super::eid::*;
 use super::flags::*;
 use super::primary::*;
 use crate::error::{Error, ErrorList};
+use thiserror::Error;
 
 /// Version for upcoming bundle protocol standard is 7.
 pub const DTN_VERSION: u32 = 7;
@@ -41,10 +41,46 @@ pub trait Block {
  *
  ******************************/
 
+#[derive(Error, Debug)]
+pub enum BundleBuilderError {
+    #[error("Missing canoncial block")]
+    NoCanonicalBlocks,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct BundleBuilder {
+    primary: PrimaryBlock,
+    canonicals: Vec<CanonicalBlock>,
+}
+
+impl BundleBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn primary(mut self, primary: PrimaryBlock) -> Self {
+        self.primary = primary;
+        self
+    }
+    pub fn canonicals(mut self, canonicals: Vec<CanonicalBlock>) -> Self {
+        self.canonicals = canonicals;
+        self
+    }
+    pub fn build(self) -> Result<Bundle, BundleBuilderError> {
+        // TODO check with draft if bundles without any canonical blocks are allowed
+        /*if self.canonicals.is_empty() {
+            Err(BundleBuilderError::NoCanonicalBlocks)
+        } else {*/
+        Ok(Bundle {
+            primary: self.primary,
+            canonicals: self.canonicals,
+        })
+        //}
+    }
+}
+
 /// Bundle represents a bundle as defined in section 4.2.1. Each Bundle contains
 /// one primary block and multiple canonical blocks.
-#[derive(Debug, Clone, PartialEq, Builder)]
-#[builder(default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Bundle {
     pub primary: PrimaryBlock,
     pub canonicals: Vec<CanonicalBlock>,
