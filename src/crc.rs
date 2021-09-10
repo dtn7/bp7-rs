@@ -66,7 +66,7 @@ impl CRCFuncations for CrcRawType {
     }
 }
 
-pub trait CrcBlock: Block + Clone {
+pub trait CrcBlock: Block + Clone + minicbor::Encode {
     /// Convert block struct to a serializable enum
     fn has_crc(&self) -> bool {
         self.crc_value().has_crc()
@@ -115,7 +115,7 @@ pub trait CrcBlock: Block + Clone {
     fn set_crc(&mut self, crc: CrcValue);
 }
 
-pub fn calculate_crc<T: CrcBlock + Block>(blck: &mut T) -> CrcValue {
+pub fn calculate_crc<T: CrcBlock + Block + minicbor::Encode>(blck: &mut T) -> CrcValue {
     match blck.crc_type() {
         CRC_NO => CrcValue::CrcNo,
         CRC_16 => {
@@ -131,6 +131,7 @@ pub fn calculate_crc<T: CrcBlock + Block>(blck: &mut T) -> CrcValue {
         CRC_32 => {
             let crc_bak = blck.crc_value().clone(); // Backup original crc
             blck.reset_crc(); // set empty crc
+
             let data = blck.to_cbor(); // TODO: optimize this encoding away
                                        // also tried crc32fast, was not significantly faster
             let chksm = crc32::checksum_castagnoli(&data);

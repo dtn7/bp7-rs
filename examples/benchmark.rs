@@ -1,5 +1,6 @@
 use bp7::{bundle, canonical, crc, dtntime, eid, primary, Bundle, ByteBuffer};
 use instant::Instant;
+use minicbor::{decode, encode, Decode, Decoder, Encode, Encoder};
 use std::convert::TryFrom;
 use std::io::stdout;
 use std::io::Write;
@@ -125,6 +126,39 @@ fn bench_bundle_encode(runs: i64, crc_type: crc::CrcRawType) -> Vec<ByteBuffer> 
     bundles
 }
 
+fn bench_bundle_encode_minicbor(runs: i64, crc_type: crc::CrcRawType) -> Vec<ByteBuffer> {
+    let crc_str = match crc_type {
+        crc::CRC_NO => "CRC_NO",
+        crc::CRC_16 => "CRC_16",
+        crc::CRC_32 => "CRC_32",
+        _ => panic!("CRC_unknown"),
+    };
+    let mut bundles: Vec<ByteBuffer> = Vec::with_capacity(runs as usize);
+    //let mut bundles: Vec<String> = Vec::new();
+
+    print!("MINICBOR {} bundles with {}: \t", RUNS, crc_str);
+    stdout().flush().unwrap();
+
+    let bench_now = Instant::now();
+
+    let mut b = get_bench_bundle(crc_type);
+
+    for _x in 0..runs {
+        //let mut buffer: Vec<u8> = Vec::with_capacity(255);
+        //let mut buffer = [0u8; 1024];
+        let mut buffer: Vec<u8> = Vec::new();
+
+        b.primary.lifetime += std::time::Duration::new(0, 1);
+        minicbor::encode(&b, &mut buffer).unwrap();
+        //let _serialized = b.to_json();
+        bundles.push(buffer);
+    }
+    let elapsed = bench_now.elapsed();
+    let sec = (elapsed.as_secs() as f64) + (f64::from(elapsed.subsec_nanos()) / 1_000_000_000.0);
+    println!("{:>15} bundles/second", (runs as f64 / sec) as i64);
+    bundles
+}
+
 fn bench_bundle_load(runs: i64, crc_type: crc::CrcRawType, mut bundles: Vec<ByteBuffer>) {
     let crc_str = match crc_type {
         crc::CRC_NO => "CRC_NO",
@@ -138,7 +172,29 @@ fn bench_bundle_load(runs: i64, crc_type: crc::CrcRawType, mut bundles: Vec<Byte
     let bench_now = Instant::now();
     for _x in 0..runs {
         let b = bundles.pop().unwrap();
+        //dbg!(bp7::helpers::hexify(&b));
         let _deserialized: Bundle = Bundle::try_from(b).unwrap();
+        _deserialized.validate().unwrap();
+    }
+    let elapsed = bench_now.elapsed();
+    let sec = (elapsed.as_secs() as f64) + (f64::from(elapsed.subsec_nanos()) / 1_000_000_000.0);
+    println!("{:>15} bundles/second", (runs as f64 / sec) as i64);
+}
+fn bench_bundle_load_minicbor(runs: i64, crc_type: crc::CrcRawType, mut bundles: Vec<ByteBuffer>) {
+    let crc_str = match crc_type {
+        crc::CRC_NO => "CRC_NO",
+        crc::CRC_16 => "CRC_16",
+        crc::CRC_32 => "CRC_32",
+        _ => panic!("CRC_unknown"),
+    };
+    print!("MINICBOR {} bundles with {}: \t", RUNS, crc_str);
+    stdout().flush().unwrap();
+
+    let bench_now = Instant::now();
+    for _x in 0..runs {
+        let b = bundles.pop().unwrap();
+        //dbg!(bp7::helpers::hexify(&b));
+        let _deserialized: Bundle = Bundle::load_via_minicbor(&b);
         _deserialized.validate().unwrap();
     }
     let elapsed = bench_now.elapsed();
@@ -154,12 +210,18 @@ fn main() {
     //println!("{}", bp7::hexify(&crcno[0]));
 
     bench_bundle_encode(RUNS, crc::CRC_NO);
+    let crcno = bench_bundle_encode_minicbor(RUNS, crc::CRC_NO);
     bench_bundle_encode(RUNS, crc::CRC_16);
+    let crc16 = bench_bundle_encode_minicbor(RUNS, crc::CRC_16);
     bench_bundle_encode(RUNS, crc::CRC_32);
+    let crc32 = bench_bundle_encode_minicbor(RUNS, crc::CRC_32);
 
-    bench_bundle_load(RUNS, crc::CRC_NO, crcno);
-    bench_bundle_load(RUNS, crc::CRC_16, crc16);
-    bench_bundle_load(RUNS, crc::CRC_32, crc32);
+    bench_bundle_load(RUNS, crc::CRC_NO, crcno.clone());
+    bench_bundle_load_minicbor(RUNS, crc::CRC_NO, crcno);
+    bench_bundle_load(RUNS, crc::CRC_16, crc16.clone());
+    bench_bundle_load_minicbor(RUNS, crc::CRC_16, crc16);
+    bench_bundle_load(RUNS, crc::CRC_32, crc32.clone());
+    bench_bundle_load_minicbor(RUNS, crc::CRC_32, crc32);
 
     //dbg!(crcno[0].len());
     //dbg!(crc16[0].len());

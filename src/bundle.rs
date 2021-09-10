@@ -2,6 +2,7 @@ use core::cmp;
 use core::convert::TryFrom;
 use core::fmt;
 use derive_builder::Builder;
+use minicbor::{decode, encode, Decode, Decoder, Encode, Encoder};
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
@@ -33,8 +34,12 @@ pub enum Bp7Error {
     BundleError(String),
     BundleControlFlagError(String),
     BlockControlFlagError(String),
+    #[cfg(feature = "json")]
     JsonDecodeError(#[from] serde_json::Error),
+    #[cfg(feature = "cbor_serde")]
     CborDecodeError(#[from] serde_cbor::Error),
+    #[cfg(feature = "mini")]
+    MiniCborDecodeError(#[from] minicbor::decode::Error),
 }
 
 impl fmt::Display for Bp7Error {
@@ -192,7 +197,40 @@ pub struct Bundle {
     pub primary: PrimaryBlock,
     pub canonicals: Vec<CanonicalBlock>,
 }
+#[cfg(feature = "mini")]
+impl encode::Encode for Bundle {
+    fn encode<W: encode::Write>(&self, e: &mut Encoder<W>) -> Result<(), encode::Error<W::Error>> {
+        //e.array(2)?.u64(self.0)?.u64(self.1)?.ok()
+        e.begin_array()?.encode(&self.primary)?;
+        for c in &self.canonicals {
+            e.encode(&c)?;
+        }
+        e.end()?.ok()
+    }
+}
+#[cfg(feature = "mini")]
+impl<'b> Decode<'b> for Bundle {
+    fn decode(d: &mut Decoder<'b>) -> Result<Self, decode::Error> {
+        if let None = d.array()? {
+            let primary: PrimaryBlock = d.decode()?;
 
+            let mut canonicals: Vec<CanonicalBlock> = Vec::new();
+            while let Ok(next) = d.decode::<CanonicalBlock>() {
+                canonicals.push(next);
+            }
+
+            Ok(Bundle {
+                primary,
+                canonicals,
+            })
+        } else {
+            Err(minicbor::decode::Error::Message(
+                "indefinite array length expected",
+            ))
+        }
+    }
+}
+#[cfg(feature = "cbor_serde")]
 impl Serialize for Bundle {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -206,7 +244,7 @@ impl Serialize for Bundle {
         seq.end()
     }
 }
-
+#[cfg(feature = "cbor_serde")]
 impl<'de> Deserialize<'de> for Bundle {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -259,6 +297,10 @@ impl Bundle {
             primary,
             canonicals,
         }
+    }
+    #[cfg(feature = "mini")]
+    pub fn load_via_minicbor(buf: &[u8]) -> Bundle {
+        minicbor::decode(buf).unwrap()
     }
 
     /// Validate bundle and optionally return list of errors.
@@ -435,12 +477,19 @@ impl Bundle {
     /// Serialize bundle as CBOR encoded byte buffer.
     pub fn to_cbor(&mut self) -> ByteBuffer {
         self.calculate_crc();
-        let mut bytebuf = serde_cbor::to_vec(&self).expect("Error serializing bundle as cbor.");
-        bytebuf[0] = 0x9f; // TODO: fix hack, indefinite-length array encoding
-        bytebuf.push(0xff); // break mark
-        bytebuf
+        if cfg!(feature = "cbor_serde") {
+            let mut bytebuf = serde_cbor::to_vec(&self).expect("Error serializing bundle as cbor.");
+            bytebuf[0] = 0x9f; // TODO: fix hack, indefinite-length array encoding
+            bytebuf.push(0xff); // break mark
+            bytebuf
+        } else if cfg!(feature = "mini") {
+            minicbor::to_vec(&self).unwrap()
+        } else {
+            unimplemented!()
+        }
     }
 
+    #[cfg(feature = "json")]
     /// Serialize bundle as JSON encoded string.
     pub fn to_json(&mut self) -> String {
         self.calculate_crc();
@@ -507,13 +556,23 @@ impl TryFrom<ByteBuffer> for Bundle {
     type Error = Bp7Error;
 
     fn try_from(item: ByteBuffer) -> Result<Self, Self::Error> {
-        match serde_cbor::from_slice(&item) {
-            Ok(bndl) => Ok(bndl),
-            Err(err) => Err(err.into()),
+        if cfg!(feature = "cbor_serde") {
+            match serde_cbor::from_slice(&item) {
+                Ok(bndl) => Ok(bndl),
+                Err(err) => Err(err.into()),
+            }
+        } else if cfg!(feature = "mini") {
+            match minicbor::decode(&item) {
+                Ok(bndl) => Ok(bndl),
+                Err(err) => Err(err.into()),
+            }
+        } else {
+            unimplemented!("no encoding feature selected")
         }
     }
 }
 
+#[cfg(feature = "json")]
 /// Deserialize from JSON string.
 impl TryFrom<String> for Bundle {
     type Error = Bp7Error;

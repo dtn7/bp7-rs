@@ -2,6 +2,9 @@ use core::fmt;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use core::time::Duration;
 use humantime::format_rfc3339;
+#[cfg(feature = "mini")]
+use minicbor::{decode, encode, Decode, Decoder, Encode, Encoder};
+#[cfg(feature = "cbor_serde")]
 use serde::{Deserialize, Serialize};
 use std::time::UNIX_EPOCH;
 
@@ -40,6 +43,22 @@ pub fn dtn_time_now() -> DtnTime {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)] // hacked struct as tuple because bug in serialize_tuple
 pub struct CreationTimestamp(DtnTime, u64);
 
+#[cfg(feature = "mini")]
+impl encode::Encode for CreationTimestamp {
+    fn encode<W: encode::Write>(&self, e: &mut Encoder<W>) -> Result<(), encode::Error<W::Error>> {
+        e.array(2)?.u64(self.0)?.u64(self.1)?.ok()
+    }
+}
+#[cfg(feature = "mini")]
+impl<'b> Decode<'b> for CreationTimestamp {
+    fn decode(d: &mut Decoder<'b>) -> Result<Self, decode::Error> {
+        if let Some(2) = d.array()? {
+            Ok(CreationTimestamp(d.u64()?, d.u64()?))
+        } else {
+            Err(minicbor::decode::Error::Message("invalid array length"))
+        }
+    }
+}
 impl fmt::Display for CreationTimestamp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} {}", self.0.string(), self.1)

@@ -44,7 +44,7 @@ pub fn unhexify(s: &str) -> Result<Vec<u8>, ParseIntError> {
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
         .collect()
 }
-
+#[cfg(feature = "json")]
 pub fn ser_dump<T: serde::ser::Serialize>(input: &T, hr: &str) {
     println!("Description | Value");
     println!("--- | ---");
@@ -59,6 +59,7 @@ pub fn ser_dump<T: serde::ser::Serialize>(input: &T, hr: &str) {
     );
     println!("byte array | `{:?}`\n", cbor);
 }
+#[cfg(feature = "json")]
 pub fn vec_dump<T: serde::ser::Serialize>(input: &T, cbor: Vec<u8>, hr: &str) {
     println!("Description | Value");
     println!("--- | ---");

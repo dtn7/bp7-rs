@@ -5,8 +5,13 @@ use super::eid::*;
 use core::fmt;
 use core::{convert::TryFrom, time::Duration};
 use derive_builder::Builder;
+#[cfg(feature = "mini")]
+use minicbor::{decode, encode, Decode, Decoder, Encode, Encoder};
+#[cfg(feature = "cbor_serde")]
 use serde::de::{SeqAccess, Visitor};
+#[cfg(feature = "cbor_serde")]
 use serde::ser::{SerializeSeq, Serializer};
+#[cfg(feature = "cbor_serde")]
 use serde::{de, Deserialize, Deserializer, Serialize};
 
 /******************************
@@ -33,6 +38,98 @@ pub struct PrimaryBlock {
     pub total_data_length: TotalDataLengthType,
 }
 
+impl encode::Encode for PrimaryBlock {
+    fn encode<W: encode::Write>(&self, e: &mut Encoder<W>) -> Result<(), encode::Error<W::Error>> {
+        let num_elems = if !self.crc.has_crc() && !self.has_fragmentation() {
+            8
+        } else if self.crc.has_crc() && !self.has_fragmentation() {
+            9
+        } else if !self.crc.has_crc() && self.has_fragmentation() {
+            10
+        } else {
+            11
+        };
+
+        e.array(num_elems)?
+            .u32(self.version)?
+            .u64(self.bundle_control_flags)?
+            .u8(self.crc.to_code())?
+            .encode(&self.destination)?
+            .encode(&self.source)?
+            .encode(&self.report_to)?
+            .encode(&self.creation_timestamp)?
+            .u64(self.lifetime.as_millis() as u64)?;
+        if self.has_fragmentation() {
+            e.u64(self.fragmentation_offset)?
+                .u64(self.total_data_length)?;
+        }
+        if self.crc.has_crc() {
+            e.bytes(self.crc.bytes().unwrap())?;
+        }
+        e.ok()
+    }
+}
+#[cfg(feature = "mini")]
+impl<'b> Decode<'b> for PrimaryBlock {
+    fn decode(d: &mut Decoder<'b>) -> Result<Self, decode::Error> {
+        if let Some(num_elems) = d.array()? {
+            if num_elems < 8 || num_elems > 11 {
+                return Err(minicbor::decode::Error::Message(
+                    "invalid primary block length",
+                ));
+            }
+            let version = d.u32()?;
+            let bundle_control_flags = d.u64()?;
+            let crc_code = d.u8()?;
+            let destination: EndpointID = d.decode()?;
+            let source: EndpointID = d.decode()?;
+            let report_to: EndpointID = d.decode()?;
+            let creation_timestamp: CreationTimestamp = d.decode()?;
+            let lifetime = Duration::from_millis(d.u64()?);
+            let fragmentation_offset = if num_elems >= 10 { d.u64()? } else { 0 };
+            let total_data_length = if num_elems >= 10 { d.u64()? } else { 0 };
+
+            let crc = if crc_code == CRC_NO {
+                CrcValue::CrcNo
+            } else if crc_code == CRC_16 {
+                let crcbuf = d.bytes()?;
+                let mut outbuf: [u8; 2] = [0; 2];
+                if crcbuf.len() != outbuf.len() {
+                    return Err(minicbor::decode::Error::Message("crc error"));
+                }
+                outbuf.copy_from_slice(&crcbuf);
+                CrcValue::Crc16(outbuf)
+            } else if crc_code == CRC_32 {
+                let crcbuf = d.bytes()?;
+
+                let mut outbuf: [u8; 4] = [0; 4];
+                if crcbuf.len() != outbuf.len() {
+                    return Err(minicbor::decode::Error::Message("crc error"));
+                }
+                outbuf.copy_from_slice(&crcbuf);
+                CrcValue::Crc32(outbuf)
+            } else {
+                CrcValue::Unknown(crc_code)
+            };
+
+            Ok(PrimaryBlock {
+                version,
+                bundle_control_flags,
+                crc,
+                destination,
+                source,
+                report_to,
+                creation_timestamp,
+                lifetime,
+                fragmentation_offset,
+                total_data_length,
+            })
+        } else {
+            Err(minicbor::decode::Error::Message("canonical block"))
+        }
+    }
+}
+#[cfg(feature = "cbor_serde")]
 impl Serialize for PrimaryBlock {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -69,7 +166,7 @@ impl Serialize for PrimaryBlock {
         seq.end()
     }
 }
-
+#[cfg(feature = "cbor_serde")]
 impl<'de> Deserialize<'de> for PrimaryBlock {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -246,7 +343,13 @@ impl CrcBlock for PrimaryBlock {
 }
 impl Block for PrimaryBlock {
     fn to_cbor(&self) -> ByteBuffer {
-        serde_cbor::to_vec(&self).expect("Error exporting primary block to cbor")
+        if cfg!(feature = "cbor_serde") {
+            serde_cbor::to_vec(&self).expect("Error exporting primary block to cbor")
+        } else if cfg!(feature = "mini") {
+            minicbor::to_vec(&self).unwrap()
+        } else {
+            unimplemented!()
+        }
     }
 }
 pub fn new_primary_block(

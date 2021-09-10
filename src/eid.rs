@@ -2,6 +2,7 @@ use core::convert::From;
 use core::convert::TryFrom;
 use core::convert::TryInto;
 use core::fmt;
+use minicbor::{decode, encode, Decode, Decoder, Encode, Encoder};
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
@@ -33,13 +34,30 @@ impl IpnAddress {
         self.1
     }
 }
+#[cfg(feature = "mini")]
+impl encode::Encode for IpnAddress {
+    fn encode<W: encode::Write>(&self, e: &mut Encoder<W>) -> Result<(), encode::Error<W::Error>> {
+        e.array(2)?.u64(self.0)?.u64(self.1)?.ok()
+    }
+}
+#[cfg(feature = "mini")]
+impl<'b> Decode<'b> for IpnAddress {
+    fn decode(d: &mut Decoder<'b>) -> Result<Self, decode::Error> {
+        if let Some(2) = d.array()? {
+            Ok(IpnAddress(d.u64()?, d.u64()?))
+        } else {
+            Err(minicbor::decode::Error::Message("invalid array length"))
+        }
+    }
+}
+
 impl fmt::Display for IpnAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}.{}", self.0, self.1)
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DtnAddress(String);
 
 impl DtnAddress {
@@ -58,6 +76,18 @@ impl DtnAddress {
     }
     pub fn is_non_singleton(&self) -> bool {
         self.service_name().unwrap_or_default().starts_with("~")
+    }
+}
+#[cfg(feature = "mini")]
+impl encode::Encode for DtnAddress {
+    fn encode<W: encode::Write>(&self, e: &mut Encoder<W>) -> Result<(), encode::Error<W::Error>> {
+        e.str(&self.0)?.ok()
+    }
+}
+#[cfg(feature = "mini")]
+impl<'b> Decode<'b> for DtnAddress {
+    fn decode(d: &mut Decoder<'b>) -> Result<Self, decode::Error> {
+        Ok(DtnAddress(d.str()?.to_owned()))
     }
 }
 impl fmt::Display for DtnAddress {
@@ -103,7 +133,52 @@ pub enum EndpointID {
     DtnNone(u8, u8),
     Ipn(u8, IpnAddress),
 }
-
+#[cfg(feature = "mini")]
+impl encode::Encode for EndpointID {
+    fn encode<W: encode::Write>(&self, e: &mut Encoder<W>) -> Result<(), encode::Error<W::Error>> {
+        match self {
+            EndpointID::Dtn(_, addr) => e.array(2)?.u8(1)?.encode(addr)?.ok(),
+            EndpointID::DtnNone(_, _) => e.array(2)?.u8(1)?.u8(0)?.ok(),
+            EndpointID::Ipn(_, addr) => e.array(2)?.u8(2)?.encode(addr)?.ok(),
+        }
+    }
+}
+#[cfg(feature = "mini")]
+impl<'b> Decode<'b> for EndpointID {
+    fn decode(d: &mut Decoder<'b>) -> Result<Self, decode::Error> {
+        if let Some(2) = d.array()? {
+            let addr_type = d.u8()?;
+            if addr_type == ENDPOINT_URI_SCHEME_DTN {
+                match d.datatype()? {
+                    minicbor::data::Type::String => {
+                        Ok(EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, d.decode()?))
+                    }
+                    minicbor::data::Type::U8 => {
+                        if d.u8()? == 0 {
+                            Ok(EndpointID::none())
+                        } else {
+                            Err(minicbor::decode::Error::Message(
+                                "invalid content for dtn scheme scheme",
+                            ))
+                        }
+                    }
+                    _ => Err(minicbor::decode::Error::Message(
+                        "invalid content for dtn scheme scheme",
+                    )),
+                }
+            } else if addr_type == ENDPOINT_URI_SCHEME_IPN {
+                Ok(EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, d.decode()?))
+            } else {
+                Err(minicbor::decode::Error::Message(
+                    "invalid endpoint id scheme",
+                ))
+            }
+        } else {
+            Err(minicbor::decode::Error::Message("invalid array length"))
+        }
+    }
+}
+#[cfg(feature = "cbor_serde")]
 // manual implementation not really faster
 impl Serialize for EndpointID {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -131,6 +206,7 @@ impl Serialize for EndpointID {
         seq.end()
     }
 }
+#[cfg(feature = "cbor_serde")]
 impl<'de> Deserialize<'de> for EndpointID {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

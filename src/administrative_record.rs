@@ -23,7 +23,7 @@ pub enum AdministrativeRecord {
     Unknown(AdministrativeRecordTypeCode, ByteBuffer),
     Mismatched(AdministrativeRecordTypeCode, ByteBuffer),
 }
-
+#[cfg(feature = "cbor_serde")]
 impl Serialize for AdministrativeRecord {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -48,7 +48,7 @@ impl Serialize for AdministrativeRecord {
         seq.end()
     }
 }
-
+#[cfg(feature = "cbor_serde")]
 impl<'de> Deserialize<'de> for AdministrativeRecord {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -144,7 +144,7 @@ pub struct BundleStatusItem {
     pub time: crate::DtnTime,
     pub status_requested: bool,
 }
-
+#[cfg(feature = "cbor_serde")]
 impl Serialize for BundleStatusItem {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -165,6 +165,7 @@ impl Serialize for BundleStatusItem {
         seq.end()
     }
 }
+#[cfg(feature = "cbor_serde")]
 impl<'de> Deserialize<'de> for BundleStatusItem {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -275,6 +276,7 @@ impl StatusReport {
         id
     }
 }
+#[cfg(feature = "cbor_serde")]
 impl Serialize for StatusReport {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -294,6 +296,7 @@ impl Serialize for StatusReport {
         seq.end()
     }
 }
+#[cfg(feature = "cbor_serde")]
 impl<'de> Deserialize<'de> for StatusReport {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

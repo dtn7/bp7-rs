@@ -4,6 +4,7 @@ use super::eid::*;
 use core::convert::TryInto;
 use core::fmt;
 use derive_builder::Builder;
+use minicbor::{decode, encode, Decode, Decoder, Encode, Encoder};
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
@@ -60,7 +61,89 @@ pub struct CanonicalBlock {
     pub crc: CrcValue,
     data: CanonicalData,
 }
+#[cfg(feature = "mini")]
+impl encode::Encode for CanonicalBlock {
+    fn encode<W: encode::Write>(&self, e: &mut Encoder<W>) -> Result<(), encode::Error<W::Error>> {
+        let crc_code = self.crc.to_code();
+        let num_elems = if crc_code == CRC_NO { 5 } else { 6 };
 
+        let cbor_data = minicbor::to_vec(&self.data).unwrap();
+        e.array(num_elems)?
+            .u64(self.block_type)?
+            .u64(self.block_number)?
+            .u8(self.block_control_flags)?
+            .u8(crc_code)?
+            .bytes(&cbor_data)?;
+
+        if self.crc.has_crc() {
+            e.bytes(&self.crc.bytes().unwrap())?;
+        }
+        e.ok()
+    }
+}
+#[cfg(feature = "mini")]
+impl<'b> Decode<'b> for CanonicalBlock {
+    fn decode(d: &mut Decoder<'b>) -> Result<Self, decode::Error> {
+        if let Some(num_elems) = d.array()? {
+            if num_elems < 5 || num_elems > 6 {
+                return Err(minicbor::decode::Error::Message(
+                    "invalid canonical block length",
+                ));
+            }
+            let block_type = d.u64()?;
+            let block_number = d.u64()?;
+            let block_control_flags = d.u8()?;
+            let crc_code = d.u8()?;
+            let raw_payload = d.bytes()?;
+
+            let crc = if crc_code == CRC_NO {
+                CrcValue::CrcNo
+            } else if crc_code == CRC_16 {
+                let crcbuf = d.bytes()?;
+                let mut outbuf: [u8; 2] = [0; 2];
+                if crcbuf.len() != outbuf.len() {
+                    return Err(minicbor::decode::Error::Message("crc error"));
+                }
+                outbuf.copy_from_slice(&crcbuf);
+                CrcValue::Crc16(outbuf)
+            } else if crc_code == CRC_32 {
+                let crcbuf = d.bytes()?;
+
+                let mut outbuf: [u8; 4] = [0; 4];
+                if crcbuf.len() != outbuf.len() {
+                    return Err(minicbor::decode::Error::Message("crc error"));
+                }
+                outbuf.copy_from_slice(&crcbuf);
+                CrcValue::Crc32(outbuf)
+            } else {
+                CrcValue::Unknown(crc_code)
+            };
+
+            let data = if block_type == PAYLOAD_BLOCK {
+                CanonicalData::Data(minicbor::decode(&raw_payload)?)
+            } else if block_type == BUNDLE_AGE_BLOCK {
+                CanonicalData::BundleAge(minicbor::decode(&raw_payload)?)
+            } else if block_type == HOP_COUNT_BLOCK {
+                let hc: (u8, u8) = minicbor::decode(&raw_payload)?;
+                CanonicalData::HopCount(hc.0, hc.1)
+            } else if block_type == PREVIOUS_NODE_BLOCK {
+                CanonicalData::PreviousNode(minicbor::decode(&raw_payload)?)
+            } else {
+                CanonicalData::Unknown(minicbor::decode(&raw_payload)?)
+            };
+            Ok(CanonicalBlock {
+                block_type,
+                block_number,
+                block_control_flags,
+                crc,
+                data,
+            })
+        } else {
+            Err(minicbor::decode::Error::Message("canonical block"))
+        }
+    }
+}
+#[cfg(feature = "cbor_serde")]
 impl Serialize for CanonicalBlock {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -87,6 +170,7 @@ impl Serialize for CanonicalBlock {
     }
 }
 
+#[cfg(feature = "cbor_serde")]
 impl<'de> Deserialize<'de> for CanonicalBlock {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -202,7 +286,13 @@ impl CrcBlock for CanonicalBlock {
 }
 impl Block for CanonicalBlock {
     fn to_cbor(&self) -> ByteBuffer {
-        serde_cbor::to_vec(&self).unwrap()
+        if cfg!(feature = "cbor_serde") {
+            serde_cbor::to_vec(&self).unwrap()
+        } else if cfg!(feature = "mini") {
+            minicbor::to_vec(&self).unwrap()
+        } else {
+            unimplemented!()
+        }
     }
 }
 
@@ -373,7 +463,7 @@ impl CanonicalBlock {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)] // Order of probable occurence, serde tries decoding in untagged enums in this order, circumvented by intelligent canonical deserializer
 pub enum CanonicalData {
     HopCount(u8, u8),
@@ -383,6 +473,20 @@ pub enum CanonicalData {
     Unknown(#[serde(with = "serde_bytes")] ByteBuffer),
     DecodingError,
 }
+#[cfg(feature = "mini")]
+impl encode::Encode for CanonicalData {
+    fn encode<W: encode::Write>(&self, e: &mut Encoder<W>) -> Result<(), encode::Error<W::Error>> {
+        match self {
+            CanonicalData::HopCount(x, y) => e.array(2)?.u8(*x)?.u8(*y)?.ok(),
+            CanonicalData::Data(data) => e.bytes(data)?.ok(),
+            CanonicalData::BundleAge(age) => e.u64(*age)?.ok(),
+            CanonicalData::PreviousNode(eid) => e.encode(eid)?.ok(),
+            CanonicalData::Unknown(data) => e.bytes(data)?.ok(),
+            CanonicalData::DecodingError => todo!(),
+        }
+    }
+}
+
 impl CanonicalData {
     pub fn to_cbor(&self) -> ByteBuffer {
         serde_cbor::to_vec(&self).expect("CanonicalData encoding error")
