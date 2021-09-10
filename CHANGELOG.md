@@ -1,6 +1,26 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.9.2] - 2021-09-10
+
+### Bug Fixes
+
+- Changed unwraps into proper error handling
+- Require a payload block in a new bundle as described in Bundle Protocol Draft
+
+### Refactor
+
+- Using bitflags for bundle and block control flags
+- Eliminated derive_builder, added manual implementations
+
+### Styling
+
+- Pleased clippy in builder
+
+### Build
+
+- Updated Cargo.toml to be managed by release.sh
+
 ## [0.9.1] - 2021-09-09
 
 ### Refactor
