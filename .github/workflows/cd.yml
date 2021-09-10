@@ -4,7 +4,7 @@ on:
   push:
     tags:
       - "v*.*.*"
-  worklflow_dispatch:
+  workflow_dispatch:
 
 jobs:
   generate-changelog:
