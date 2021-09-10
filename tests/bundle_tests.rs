@@ -60,11 +60,10 @@ fn new_empty_bundle(crc_type: bp7::crc::CrcRawType) -> Bundle {
         .build()
         .unwrap();
 
-    let mut b = bundle::BundleBuilder::default()
-        .primary(pblock)
-        .canonicals(vec![])
-        .build()
-        .unwrap();
+    let mut b = bundle::Bundle {
+        primary: pblock,
+        canonicals: vec![],
+    };
     b.set_crc(crc_type);
     b.calculate_crc();
     assert!(b.validate().is_ok());

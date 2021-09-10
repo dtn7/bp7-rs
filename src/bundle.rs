@@ -43,8 +43,8 @@ pub trait Block {
 
 #[derive(Error, Debug)]
 pub enum BundleBuilderError {
-    #[error("Missing canoncial block")]
-    NoCanonicalBlocks,
+    #[error("Missing payload block")]
+    NoPayloadBlock,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -65,16 +65,23 @@ impl BundleBuilder {
         self.canonicals = canonicals;
         self
     }
-    pub fn build(self) -> Result<Bundle, BundleBuilderError> {
-        // TODO check with draft if bundles without any canonical blocks are allowed
-        /*if self.canonicals.is_empty() {
-            Err(BundleBuilderError::NoCanonicalBlocks)
-        } else {*/
-        Ok(Bundle {
-            primary: self.primary,
-            canonicals: self.canonicals,
-        })
-        //}
+    pub fn payload(mut self, payload: ByteBuffer) -> Self {
+        let payload = crate::canonical::new_payload_block(BlockControlFlags::empty(), payload);
+        self.canonicals.push(payload);
+        self
+    }
+    pub fn build(mut self) -> Result<Bundle, BundleBuilderError> {
+        self.canonicals
+            .sort_by(|a, b| b.block_number.cmp(&a.block_number));
+
+        if self.canonicals.is_empty() || self.canonicals.last().unwrap().payload_data().is_none() {
+            Err(BundleBuilderError::NoPayloadBlock)
+        } else {
+            Ok(Bundle {
+                primary: self.primary,
+                canonicals: self.canonicals,
+            })
+        }
     }
 }
 
