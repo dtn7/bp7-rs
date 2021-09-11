@@ -66,7 +66,7 @@ fn new_empty_bundle(crc_type: bp7::crc::CrcRawType) -> Bundle {
     };
     b.set_crc(crc_type);
     b.calculate_crc();
-    assert!(b.validate().is_ok());
+    assert!(b.validate().is_err());
     b
 }
 fn new_complete_bundle_invalid(crc_type: bp7::crc::CrcRawType) -> Bundle {

@@ -214,6 +214,10 @@ impl Bundle {
                 "Creation Timestamp is zero, but no Bundle Age block is present".to_string(),
             ));
         }
+        if self.payload().is_none() {
+            errors.push(Error::BundleError("Missing Payload Block".to_string()));
+        }
+
         if !errors.is_empty() {
             return Err(errors);
         }
