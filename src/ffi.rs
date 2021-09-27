@@ -17,18 +17,27 @@ pub struct Buffer {
 
 #[repr(C)]
 pub struct BundleMetaData {
+    /// The source EndpointID
     src: *mut c_char,
+    /// The destination EndpointID
     dst: *mut c_char,
+    /// The creation timestamp in DTN time
     timestamp: u64,
+    /// The sequence number
     seqno: u64,
+    /// The lifetime of a bundle in ms
     lifetime: u64,
 }
 
+/// A simple test for the bp7 FFI interface.
+/// On success it should always return the number 23.
 #[no_mangle]
 pub extern "C" fn bp7_working() -> u8 {
     23
 }
 
+/// Another simple test returning a dynamic buffer with a fixed content.
+/// The returned buffer contains the following bytes: [0x42, 0x43, 0x44, 0x45]
 #[no_mangle]
 pub extern "C" fn bp7_buffer_test() -> *mut Buffer {
     let input = vec![0x42, 0x43, 0x44, 0x45];
@@ -40,6 +49,7 @@ pub extern "C" fn bp7_buffer_test() -> *mut Buffer {
     Box::into_raw(Box::new(Buffer { data, len }))
 }
 
+/// Generate a random bundle as a raw buffer.
 #[no_mangle]
 pub extern "C" fn helper_rnd_bundle() -> *mut Buffer {
     let mut bndl = helpers::rnd_bundle(CreationTimestamp::now());
@@ -51,27 +61,35 @@ pub extern "C" fn helper_rnd_bundle() -> *mut Buffer {
     Box::into_raw(Box::new(Buffer { data, len }))
 }
 
+/// Free the memory of a given buffer.
+///
+/// # Safety
+///
+/// Should only be called from FFI interface.
+/// This function can lead to UB as pointer cannot be validated!
 #[no_mangle]
-pub extern "C" fn buffer_free(buf: *mut Buffer) {
+pub unsafe extern "C" fn buffer_free(buf: *mut Buffer) {
     if buf.is_null() {
         return;
     }
-    unsafe {
-        Box::from_raw(buf);
-    }
+    Box::from_raw(buf);
 }
 
+/// Try to decode a bundle from a given buffer.
+///
+/// In case of failure, a null pointer is returned instead of a bundle.
+///
+/// # Safety
+///
+/// Should only be called from FFI interface.
+/// This function can lead to UB as pointer cannot be validated!
 #[no_mangle]
-pub extern "C" fn bundle_from_cbor(ptr: *mut Buffer) -> *mut Bundle {
-    let buf = unsafe {
-        assert!(!ptr.is_null());
-        &mut *ptr
-    };
+pub unsafe extern "C" fn bundle_from_cbor(ptr: *mut Buffer) -> *mut Bundle {
+    assert!(!ptr.is_null());
+    let buf = &mut *ptr;
     //println!("buf len {}", buf.len);
-    let buffer = unsafe {
-        assert!(!buf.data.is_null());
-        core::slice::from_raw_parts(buf.data, buf.len as usize)
-    };
+    assert!(!buf.data.is_null());
+    let buffer = core::slice::from_raw_parts(buf.data, buf.len as usize);
     //println!("buffer {}", helpers::hexify(buffer));
     let bndl: Bundle = buffer
         .to_owned()
@@ -84,12 +102,16 @@ pub extern "C" fn bundle_from_cbor(ptr: *mut Buffer) -> *mut Bundle {
     }
 }
 
+/// Encode a given bundle a CBOR byte buffer
+///
+/// # Safety
+///
+/// Should only be called from FFI interface.
+/// This function can lead to UB as pointer cannot be validated!
 #[no_mangle]
-pub extern "C" fn bundle_to_cbor(bndl: *mut Bundle) -> *mut Buffer {
-    let bndl = unsafe {
-        assert!(!bndl.is_null());
-        &mut *bndl
-    };
+pub unsafe extern "C" fn bundle_to_cbor(bndl: *mut Bundle) -> *mut Buffer {
+    assert!(!bndl.is_null());
+    let bndl = &mut *bndl;
     let mut buf = bndl.to_cbor().into_boxed_slice();
     let data = buf.as_mut_ptr();
     let len = buf.len() as u32;
@@ -97,38 +119,34 @@ pub extern "C" fn bundle_to_cbor(bndl: *mut Bundle) -> *mut Buffer {
     Box::into_raw(Box::new(Buffer { data, len }))
 }
 
+/// Create a new bundle with standard configuration and a given payload
+///
+/// # Safety
+///
+/// Should only be called from FFI interface.
+/// This function can lead to UB as pointer cannot be validated!
 #[no_mangle]
-pub extern "C" fn bundle_new_default(
+pub unsafe extern "C" fn bundle_new_default(
     src: *const c_char,
     dst: *const c_char,
     lifetime: u64,
     ptr: *mut Buffer,
 ) -> *mut Bundle {
-    let c_str_src = unsafe {
-        assert!(!src.is_null());
-
-        CStr::from_ptr(src)
-    };
+    assert!(!src.is_null());
+    let c_str_src = CStr::from_ptr(src);
 
     let r_src = c_str_src.to_str().unwrap();
     let src_eid: EndpointID = r_src.try_into().unwrap();
 
-    let c_str_dst = unsafe {
-        assert!(!dst.is_null());
-
-        CStr::from_ptr(dst)
-    };
+    assert!(!dst.is_null());
+    let c_str_dst = CStr::from_ptr(dst);
     let r_dst = c_str_dst.to_str().unwrap();
     let dst_eid: EndpointID = r_dst.try_into().unwrap();
 
-    let payload = unsafe {
-        assert!(!ptr.is_null());
-        &mut *ptr
-    };
-    let data = unsafe {
-        assert!(!payload.data.is_null());
-        core::slice::from_raw_parts(payload.data, payload.len as usize)
-    };
+    assert!(!ptr.is_null());
+    let payload = &mut *ptr;
+    assert!(!payload.data.is_null());
+    let data = core::slice::from_raw_parts(payload.data, payload.len as usize);
 
     let pblock = primary::PrimaryBlockBuilder::default()
         .bundle_control_flags(BundleControlFlags::BUNDLE_MUST_NOT_FRAGMENTED.bits())
@@ -151,22 +169,29 @@ pub extern "C" fn bundle_new_default(
     Box::into_raw(Box::new(b))
 }
 
+/// Frees the memory of a given bundle.
+/// # Safety
+///
+/// Should only be called from FFI interface.
+/// This function can lead to UB as pointer cannot be validated!
 #[no_mangle]
-pub extern "C" fn bundle_free(ptr: *mut Bundle) {
+pub unsafe extern "C" fn bundle_free(ptr: *mut Bundle) {
     if ptr.is_null() {
         return;
     }
-    unsafe {
-        Box::from_raw(ptr);
-    }
+    Box::from_raw(ptr);
 }
 
+/// Get the metadata from a given bundle.
+///
+/// # Safety
+///
+/// Should only be called from FFI interface.
+/// This function can lead to UB as pointer cannot be validated!
 #[no_mangle]
-pub extern "C" fn bundle_get_metadata(bndl: *mut Bundle) -> *mut BundleMetaData {
-    let bndl = unsafe {
-        assert!(!bndl.is_null());
-        &mut *bndl
-    };
+pub unsafe extern "C" fn bundle_get_metadata(bndl: *mut Bundle) -> *mut BundleMetaData {
+    assert!(!bndl.is_null());
+    let bndl = &mut *bndl;
     let timestamp = bndl.primary.creation_timestamp.dtntime();
     let seqno = bndl.primary.creation_timestamp.seqno();
     let lifetime = bndl.primary.lifetime.as_millis() as u64;
@@ -183,38 +208,49 @@ pub extern "C" fn bundle_get_metadata(bndl: *mut Bundle) -> *mut BundleMetaData 
     }))
 }
 
+/// Frees a BundleMetaData struct.
+///
+/// # Safety
+///
+/// Should only be called from FFI interface.
+/// This function can lead to UB as pointer cannot be validated!
 #[no_mangle]
-pub extern "C" fn bundle_metadata_free(ptr: *mut BundleMetaData) {
-    let meta = unsafe {
-        assert!(!ptr.is_null());
-        &mut *ptr
-    };
+pub unsafe extern "C" fn bundle_metadata_free(ptr: *mut BundleMetaData) {
+    assert!(!ptr.is_null());
+    let meta = &mut *ptr;
     if !meta.src.is_null() {
-        unsafe {
-            CString::from_raw(meta.src);
-        }
+        CString::from_raw(meta.src);
     }
 
     if !meta.dst.is_null() {
-        unsafe {
-            CString::from_raw(meta.dst);
-        }
+        CString::from_raw(meta.dst);
     }
 }
 
+/// Check if a given bundle is valid.
+/// This checks the primary block as well as the validity of all canonical bundles.
+///
+/// # Safety
+///
+/// Should only be called from FFI interface.
+/// This function can lead to UB as pointer cannot be validated!
 #[no_mangle]
-pub extern "C" fn bundle_is_valid(bndl: *mut Bundle) -> bool {
-    let bndl = unsafe {
-        assert!(!bndl.is_null());
-        &mut *bndl
-    };
+pub unsafe extern "C" fn bundle_is_valid(bndl: *mut Bundle) -> bool {
+    assert!(!bndl.is_null());
+    let bndl = &mut *bndl;
     bndl.validate().is_ok()
 }
 
+/// Get the payload of a given bundle.
+///
+/// # Safety
+///
+/// Should only be called from FFI interface.
+/// This function can lead to UB as pointer cannot be validated!
 #[no_mangle]
-pub extern "C" fn bundle_payload(bndl: *mut Bundle) -> *mut Buffer {
+pub unsafe extern "C" fn bundle_payload(bndl: *mut Bundle) -> *mut Buffer {
     if !bndl.is_null() {
-        let bndl = unsafe { &mut *bndl };
+        let bndl = &mut *bndl;
         if let Some(payload) = bndl.payload() {
             let mut buf = payload.clone().into_boxed_slice();
             let data = buf.as_mut_ptr();
