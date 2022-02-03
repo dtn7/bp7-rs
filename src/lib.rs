@@ -1,4 +1,5 @@
-//! Rust implementation of [dtn bundle protocol 7 draft](https://tools.ietf.org/html/draft-ietf-dtn-bpbis-12)
+//! Rust implementation of dtn Bundle Protocol Version 7 ([RFC 9171](https://datatracker.ietf.org/doc/rfc9171/))
+
 //!
 //! # Examples
 //!

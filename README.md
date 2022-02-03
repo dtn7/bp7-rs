@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE-MIT)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE-APACHE)
 
-Rust implementation of dtn bundle protocol 7 draft https://tools.ietf.org/html/draft-ietf-dtn-bpbis-31
+Rust implementation of dtn Bundle Protocol Version 7 ([RFC 9171](https://datatracker.ietf.org/doc/rfc9171/))
 
 This library only handles encoding and decoding of bundles, not transmission or other processing of the data. 
 A full daemon using this library can be found here: https://github.com/dtn7/dtn7-rs
