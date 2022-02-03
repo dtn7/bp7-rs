@@ -118,7 +118,7 @@ pub const TRANSMISSION_CANCELED: StatusReportReason = 3;
 /// DEPLETED_STORAGE is the "Depleted storage" bundle status report reason code.
 pub const DEPLETED_STORAGE: StatusReportReason = 4;
 
-/// DEST_ENDPOINT_UNINTELLIGIBLE is the "Destination endpoint ID unintelligible" bundle status report reason code.
+/// DEST_ENDPOINT_UNAVAILABLE is the "Destination endpoint ID unavailable" bundle status report reason code.
 pub const DEST_ENDPOINT_UNINTELLIGIBLE: StatusReportReason = 5;
 
 /// NO_ROUTE_TO_DESTINATION is the "No known route to destination from here" bundle status report reason code.
@@ -135,6 +135,9 @@ pub const HOP_LIMIT_EXCEEDED: StatusReportReason = 9;
 
 /// TRAFFIC_PARED bundle status report reason code.
 pub const TRAFFIC_PARED: StatusReportReason = 10;
+
+/// BLOCK_UNSUPPORTED bundle status report reason code.
+pub const BLOCK_UNSUPPORTED: StatusReportReason = 11;
 
 // BundleStatusItem represents the a bundle status item, as used as an element
 // in the bundle status information array of each Bundle Status Report.

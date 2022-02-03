@@ -462,6 +462,7 @@ impl CanonicalData {
     }
 }
 
+/// the hop count limit must be between 1 and 255 (RFC 9171: Sec. 4.4.3)
 pub fn new_hop_count_block(block_number: u64, bcf: BlockControlFlags, limit: u8) -> CanonicalBlock {
     CanonicalBlockBuilder::default()
         .block_type(HOP_COUNT_BLOCK)

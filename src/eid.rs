@@ -53,10 +53,13 @@ impl DtnAddress {
             .expect("invalid internal dtn address format")
     }
     pub fn service_name(&self) -> Option<&str> {
-        self.0.split('/').nth(3)
+        self.0.splitn(4, '/').nth(3)
     }
     pub fn is_non_singleton(&self) -> bool {
         self.service_name().unwrap_or_default().starts_with('~')
+    }
+    pub fn is_singleton(&self) -> bool {
+        !self.service_name().unwrap_or_default().starts_with('~')
     }
 }
 impl fmt::Display for DtnAddress {
@@ -209,10 +212,12 @@ impl EndpointID {
     /// include an application agents endpoint, e.g., `dtn://node1/endpoint1`
     /// or for non-singletons `dtn://group1/~endpoint1`
     pub fn with_dtn(host_with_endpoint: &str) -> Result<EndpointID, EndpointIdError> {
-        let eid = EndpointID::Dtn(
-            ENDPOINT_URI_SCHEME_DTN,
-            DtnAddress(host_with_endpoint.to_owned()),
-        );
+        let host_string = if host_with_endpoint.starts_with("//") {
+            host_with_endpoint.to_owned()
+        } else {
+            format!("//{}", host_with_endpoint)
+        };
+        let eid = EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, DtnAddress(host_string));
         if let Err(err) = eid.validate() {
             Err(err)
         } else {
@@ -468,7 +473,7 @@ mod tests {
     fn create_with_dtn_tests(input: &str) {
         assert_eq!(
             EndpointID::with_dtn(input).unwrap(),
-            EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, DtnAddress(input.to_string()))
+            EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, DtnAddress(format!("//{}", input)))
         );
     }
 
@@ -511,9 +516,21 @@ mod tests {
     #[test_case("ipn:1.0".try_into().unwrap() => Some("1".to_string()))]
     #[test_case("dtn://node1/incoming".try_into().unwrap() => Some("node1".to_string()))]
     #[test_case("dtn://node1".try_into().unwrap() => Some("node1".to_string()))]
+    #[test_case("dtn://home_net/~tele/sensors/temperature".try_into().unwrap() => Some("home_net".to_string()))]
     fn node_part_tests(eid: EndpointID) -> Option<String> {
         eid.node()
     }
+
+    #[test_case("dtn://node1/incoming".try_into().unwrap() => Some("incoming".to_string()))]
+    #[test_case("dtn://node1".try_into().unwrap() => None)]
+    #[test_case("dtn://node_group/~mail".try_into().unwrap() => Some("~mail".to_string()))]
+    #[test_case("dtn://home_net/~tele/sensors/temperature".try_into().unwrap() => Some("~tele/sensors/temperature".to_string()))]
+    #[test_case("ipn:23.42".try_into().unwrap() => Some("42".to_string()))]
+    #[test_case("ipn:23.0".try_into().unwrap() => None)]
+    fn service_part_tests(eid: EndpointID) -> Option<String> {
+        eid.service_name()
+    }
+
     #[test_case("dtn:none".try_into().unwrap() ; "when using none endpoint")]
     #[test_case("ipn:23.42".try_into().unwrap() ; "when using ipn address")]
     #[test_case("dtn://node1/incoming".try_into().unwrap() ; "when using dtn address")]

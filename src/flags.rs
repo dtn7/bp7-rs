@@ -13,13 +13,14 @@ bitflags! {
     pub struct BlockControlFlags: BlockControlFlagsType {
         /// This block must be replicated in every fragment.
         const BLOCK_REPLICATE = 0x01;
-        /// Transmission of a status report is requested if this block can't be processed.
+
+        /// Transmit status report if block can't be processed.
         const BLOCK_STATUS_REPORT = 0x02;
 
-        /// Bundle must be deleted if this block can't be processed.
+        /// Deleted bundle if block can't be processed.
         const BLOCK_DELETE_BUNDLE = 0x04;
 
-        /// Block must be removed from the bundle if it can't be processed.
+        /// Discard block if it can't be processed.
         const BLOCK_REMOVE = 0x10;
 
         const BLOCK_CFRESERVED_FIELDS = 0xF0;
@@ -72,49 +73,40 @@ impl BlockValidation for BlockControlFlagsType {
 pub type BundleControlFlagsType = u64;
 
 bitflags! {
+    #[derive(Default)]
     pub struct BundleControlFlags: BundleControlFlagsType {
 
 /// Request reporting of bundle deletion.
-    const BUNDLE_STATUS_REQUEST_DELETION = 0x0004_0000;
+    const BUNDLE_STATUS_REQUEST_DELETION = 0x040000;
 
 /// Request reporting of bundle delivery.
-    const BUNDLE_STATUS_REQUEST_DELIVERY = 0x0002_0000;
+    const BUNDLE_STATUS_REQUEST_DELIVERY = 0x020000;
 
 /// Request reporting of bundle forwarding.
-    const BUNDLE_STATUS_REQUEST_FORWARD = 0x0001_0000;
+    const BUNDLE_STATUS_REQUEST_FORWARD = 0x010000;
 
 /// Request reporting of bundle reception.
-    const BUNDLE_STATUS_REQUEST_RECEPTION = 0x0000_4000;
+    const BUNDLE_STATUS_REQUEST_RECEPTION = 0x004000;
 
-// / The bundle contains a "manifest" extension block.
-//pub const BUNDLE_CONTAINS_MANIFEST = 0x0080;
+/// Status time requested in reports.
+    const BUNDLE_REQUEST_STATUS_TIME = 0x000040;
 
-/// Status time is requested in all status reports.
-    const BUNDLE_REQUEST_STATUS_TIME = 0x0040;
+/// Acknowledgment by application is requested.
+    const BUNDLE_REQUEST_USER_APPLICATION_ACK = 0x000020;
 
-///Acknowledgment by the user application is requested.
-    const BUNDLE_REQUEST_USER_APPLICATION_ACK = 0x0020;
+/// Bundle must not be fragmented.
+    const BUNDLE_MUST_NOT_FRAGMENTED = 0x000004;
 
-/// The bundle must not be fragmented.
-    const BUNDLE_MUST_NOT_FRAGMENTED = 0x0004;
-
-/// The bundle's payload is an administrative record.
-    const BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD = 0x0002;
+/// ADU is an administrative record.
+    const BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD = 0x000002;
 
 /// The bundle is a fragment.
-    const BUNDLE_IS_FRAGMENT = 0x0001;
+    const BUNDLE_IS_FRAGMENT = 0x000001;
 
     const BUNDLE_CFRESERVED_FIELDS = 0xE218;
     }
 }
 
-impl Default for BundleControlFlags {
-    fn default() -> Self {
-        Self {
-            bits: Default::default(),
-        }
-    }
-}
 pub trait BundleValidation {
     fn flags(&self) -> BundleControlFlags;
     fn contains(&self, flags: BundleControlFlags) -> bool
