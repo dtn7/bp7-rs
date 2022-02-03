@@ -1,6 +1,21 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.9.3] - 2022-02-03
+
+### Bug Fixes
+
+- Validation now rejects bundles without payload
+- Marked extern C functions which can lead to UB as unsafe #2
+
+### Documentation
+
+- Updated all documentation to point to rfc 9171 instead of the draft
+
+### Miscellaneous Tasks
+
+- Updated flags and dtn URI parsing be in line with RFC 9171
+
 ## [0.9.2] - 2021-09-10
 
 ### Bug Fixes
