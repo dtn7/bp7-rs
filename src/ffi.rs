@@ -219,11 +219,11 @@ pub unsafe extern "C" fn bundle_metadata_free(ptr: *mut BundleMetaData) {
     assert!(!ptr.is_null());
     let meta = &mut *ptr;
     if !meta.src.is_null() {
-        CString::from_raw(meta.src);
+        drop(CString::from_raw(meta.src));
     }
 
     if !meta.dst.is_null() {
-        CString::from_raw(meta.dst);
+        drop(CString::from_raw(meta.dst));
     }
 }
 
