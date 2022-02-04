@@ -44,7 +44,7 @@ pub struct DtnAddress(String);
 
 impl DtnAddress {
     pub fn new(node: &str, service: &str) -> DtnAddress {
-        DtnAddress(format!("{}/{}", node, service))
+        DtnAddress(format!("//{}/{}", node, service))
     }
     pub fn node_name(&self) -> &str {
         self.0
