@@ -53,7 +53,16 @@ impl DtnAddress {
             .expect("invalid internal dtn address format")
     }
     pub fn service_name(&self) -> Option<&str> {
-        self.0.splitn(4, '/').nth(3)
+        match self.0.splitn(4, '/').nth(3) {
+            Some(s) => {
+                if !s.is_empty() {
+                    Some(s)
+                } else {
+                    None
+                }
+            }
+            None => None,
+        }
     }
     pub fn is_non_singleton(&self) -> bool {
         self.service_name().unwrap_or_default().starts_with('~')
@@ -216,6 +225,12 @@ impl EndpointID {
             host_with_endpoint.to_owned()
         } else {
             format!("//{}", host_with_endpoint)
+        };
+        let host_string = if host_string[2..].contains('/') {
+            host_string
+        } else {
+            // add trailing slash for node IDs
+            format!("{}/", host_string)
         };
         let eid = EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, DtnAddress(host_string));
         if let Err(err) = eid.validate() {
@@ -429,11 +444,8 @@ impl TryFrom<String> for EndpointID {
                 if ssp == "//none" {
                     return Err(EndpointIdError::NoneNotValidHost);
                 }
-                if ssp.ends_with('/') {
-                    EndpointID::with_dtn(&ssp[0..items[1].len() - 1])
-                } else {
-                    EndpointID::with_dtn(ssp)
-                }
+
+                EndpointID::with_dtn(ssp)
             }
             "ipn" => {
                 let fields: Vec<&str> = items[1].split('.').collect();
@@ -468,18 +480,19 @@ mod tests {
     use super::*;
     use test_case::test_case;
 
-    #[test_case("node1")]
-    #[test_case("node1/incoming")]
-    fn create_with_dtn_tests(input: &str) {
-        assert_eq!(
+    #[test_case("node1" => EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, DtnAddress("//node1/".into())))]
+    #[test_case("node1/incoming" => EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, DtnAddress("//node1/incoming".into())))]
+    fn create_with_dtn_tests(input: &str) -> EndpointID {
+        /*assert_eq!(
             EndpointID::with_dtn(input).unwrap(),
             EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, DtnAddress(format!("//{}", input)))
-        );
+        );*/
+        EndpointID::with_dtn(input).unwrap()
     }
 
     #[test_case("dtn://n1/incoming" => "dtn://n1/incoming" ; "when using fully qualified dtn endpoint")]
-    #[test_case("dtn://n1/incoming/" => "dtn://n1/incoming" ; "when containing tail slash")]
-    #[test_case("dtn://n1/" => "dtn://n1" ; "when providing node eid")]
+    #[test_case("dtn://n1/incoming/" => "dtn://n1/incoming/" ; "when containing tail slash")]
+    #[test_case("dtn://n1/" => "dtn://n1/" ; "when providing node eid")]
     #[test_case("dtn:n1/incoming" => panics "" ; "when skipping double slash for dtn")]
     #[test_case("dtn//n1/incoming" => panics "" ; "when missing URL scheme separator")]
     #[test_case("n1/incoming" => panics "" ; "when missing URL scheme")]
