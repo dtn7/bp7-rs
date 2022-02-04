@@ -1,6 +1,14 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2022-02-04
+
+### Bug Fixes
+
+- Explictly drop CString references in bundle_metadata_free of ffi
+- DtnAdress::new now adds '//' before node name
+- Enforce trailing slash for endpoint IDs that are the node ID
+
 ## [0.9.3] - 2022-02-03
 
 ### Bug Fixes
