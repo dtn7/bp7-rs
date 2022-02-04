@@ -125,7 +125,7 @@ fn decode_from_stdin(payload_only: bool) {
 #[cfg(target_arch = "wasm32")]
 fn main() {}
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "binary-build"))]
 fn main() {
     let args: Vec<String> = env::args().collect();
 

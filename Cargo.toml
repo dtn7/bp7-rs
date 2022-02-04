@@ -13,6 +13,10 @@ readme = "README.md"
 #debug = true
 lto = true
 
+[[bin]]
+name = "bp7"
+required-features = ["binary-build"]
+
 [lib]
 name = "bp7"
 crate-type = ["staticlib", "cdylib", "rlib"]
@@ -29,6 +33,7 @@ harness = false
 
 default = ["binary-build"]
 binary-build = ["instant"]
+benchmark-helpers = ["instant"]
 
 [dependencies]
 humantime = "2.1.0"
