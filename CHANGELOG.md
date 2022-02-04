@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.10.1] - 2022-02-04
+
+### Bug Fixes
+
+- With disabled default features the benchmark helpers did not work anymore. now they have the feature 'benchmark-helpers'
+
 ## [0.10.0] - 2022-02-04
 
 ### Bug Fixes
