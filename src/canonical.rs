@@ -131,9 +131,19 @@ impl Serialize for CanonicalBlock {
         seq.serialize_element(&self.block_control_flags)?;
         seq.serialize_element(&crc_code)?;
         //seq.serialize_element(&self.data)?;
-        seq.serialize_element(&serde_bytes::Bytes::new(
-            &serde_cbor::to_vec(&self.data).unwrap(),
-        ))?;
+        match self.data {
+            CanonicalData::Data(ref payload) => {
+                seq.serialize_element(&serde_bytes::Bytes::new(payload))?;
+            }
+            CanonicalData::Unknown(ref payload) => {
+                seq.serialize_element(&serde_bytes::Bytes::new(payload))?;
+            }
+            _ => {
+                seq.serialize_element(&serde_bytes::Bytes::new(
+                    &serde_cbor::to_vec(&self.data).unwrap(),
+                ))?;
+            }
+        };
 
         if self.crc.has_crc() {
             seq.serialize_element(&serde_bytes::Bytes::new(self.crc.bytes().unwrap()))?;
@@ -182,12 +192,14 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
 
                 // parse nested payload according to block_type
                 let data = if block_type == PAYLOAD_BLOCK {
+                    dbg!(crate::helpers::hexify(&raw_payload));
                     CanonicalData::Data(
-                        serde_cbor::from_slice::<serde_bytes::ByteBuf>(&raw_payload)
-                            .map_err(|err| {
-                                de::Error::custom(format!("error decoding payload block: {}", err))
-                            })?
-                            .into_vec(),
+                        /*serde_cbor::from_slice::<serde_bytes::ByteBuf>(&raw_payload)
+                        .map_err(|err| {
+                            de::Error::custom(format!("error decoding payload block: {}", err))
+                        })?
+                        .into_vec(),*/
+                        raw_payload,
                     )
                 } else if block_type == BUNDLE_AGE_BLOCK {
                     CanonicalData::BundleAge(serde_cbor::from_slice::<u64>(&raw_payload).map_err(
@@ -210,13 +222,7 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                         },
                     )?)
                 } else {
-                    CanonicalData::Unknown(
-                        serde_cbor::from_slice::<serde_bytes::ByteBuf>(&raw_payload)
-                            .map_err(|err| {
-                                de::Error::custom(format!("error decoding canoncial data: {}", err))
-                            })?
-                            .into_vec(),
-                    )
+                    CanonicalData::Unknown(raw_payload)
                 };
                 let crc = if crc_type == CRC_NO {
                     CrcValue::CrcNo
