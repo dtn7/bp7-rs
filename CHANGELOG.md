@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.10.2] - 2022-02-05
+
+### Bug Fixes
+
+- Fixed a bug where payload data was double encoded
+
 ## [0.10.1] - 2022-02-04
 
 ### Bug Fixes
