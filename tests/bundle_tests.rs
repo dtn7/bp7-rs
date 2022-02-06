@@ -129,6 +129,35 @@ fn bundle_tests() {
 }
 
 #[test]
+fn bundle_id_tests() {
+    let dst = eid::EndpointID::with_dtn("node2/inbox").unwrap();
+    let src = eid::EndpointID::with_dtn("node1/outbox").unwrap();
+
+    let pblock = primary::PrimaryBlockBuilder::default()
+        .destination(dst)
+        .source(src.clone())
+        .report_to(src)
+        .creation_timestamp(CreationTimestamp::with_time_and_seq(0, 0))
+        .lifetime(Duration::from_secs(60 * 60))
+        .build()
+        .unwrap();
+
+    let mut b = bundle::Bundle {
+        primary: pblock,
+        canonicals: vec![],
+    };
+    assert_eq!(b.id(), "dtn://node1/outbox-0-0");
+
+    assert_eq!(b.to_string(), "dtn://node1/outbox-0-0_dtn://node2/inbox");
+
+    b.primary.source = eid::EndpointID::with_dtn("node1").unwrap();
+    assert_eq!(b.id(), "dtn://node1/-0-0");
+
+    b.primary.destination = eid::EndpointID::with_dtn("node2").unwrap();
+    assert_eq!(b.to_string(), "dtn://node1/-0-0_dtn://node2/");
+}
+
+#[test]
 fn bundle_helpers() {
     let bndl = new_complete_bundle(crc::CRC_NO);
     assert!(bndl.previous_node().is_some());

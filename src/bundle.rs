@@ -360,9 +360,12 @@ impl Bundle {
     /// the souce node and creation timestamp. If this bundle is a fragment, the
     /// offset is also present.
     pub fn id(&self) -> String {
+        let src = self.primary.source.to_string();
         let mut id = format!(
             "{}-{}-{}",
-            self.primary.source,
+            // should IDs contain trailing '/' in the source?
+            // src.strip_suffix('/').unwrap_or(&src),
+            src,
             self.primary.creation_timestamp.dtntime(),
             self.primary.creation_timestamp.seqno(),
             //self.primary.destination
