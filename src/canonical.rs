@@ -192,15 +192,8 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
 
                 // parse nested payload according to block_type
                 let data = if block_type == PAYLOAD_BLOCK {
-                    dbg!(crate::helpers::hexify(&raw_payload));
-                    CanonicalData::Data(
-                        /*serde_cbor::from_slice::<serde_bytes::ByteBuf>(&raw_payload)
-                        .map_err(|err| {
-                            de::Error::custom(format!("error decoding payload block: {}", err))
-                        })?
-                        .into_vec(),*/
-                        raw_payload,
-                    )
+                    //dbg!(crate::helpers::hexify(&raw_payload));
+                    CanonicalData::Data(raw_payload)
                 } else if block_type == BUNDLE_AGE_BLOCK {
                     CanonicalData::BundleAge(serde_cbor::from_slice::<u64>(&raw_payload).map_err(
                         |err| {
