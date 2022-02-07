@@ -1,6 +1,6 @@
 [package]
 name = "bp7"
-version = "0.10.3" # managed by release.sh
+version = "0.10.4" # managed by release.sh
 authors = ["Lars Baumgaertner <baumgaertner@cs.tu-darmstadt.de>"]
 edition = "2018"
 description = "Rust implementation of dtn Bundle Protocol Version 7 ([RFC 9171]"

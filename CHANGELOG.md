@@ -1,11 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [0.10.3] - 2022-02-07
+## [0.10.4] - 2022-02-07
 
 ### Bug Fixes
 
 - Removed leftover dbg!() in canonical block deserializer
+- Workaround for bug in upstream test-case crate (v1.2.2)
 
 ### Refactor
 
