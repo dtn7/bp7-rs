@@ -92,16 +92,7 @@ fn encode_from_stdin(manifest: &str, hex: bool) {
 fn decode(bundle: &str, payload_only: bool) {
     let buf = unhexify(bundle).unwrap();
     //println!("decode: {:02x?}", &buf);
-    let bndl: Bundle = buf.try_into().expect("Error decoding bundle!");
-    if payload_only {
-        if bndl.payload().is_some() {
-            std::io::stdout()
-                .write_all(bndl.payload().unwrap())
-                .unwrap();
-        }
-    } else {
-        dbg!(&bndl);
-    }
+    buf_to_bundle(buf, payload_only);
 }
 fn decode_from_stdin(payload_only: bool) {
     let mut buf: Vec<u8> = Vec::new();
@@ -110,18 +101,20 @@ fn decode_from_stdin(payload_only: bool) {
         .expect("Error reading from stdin.");
     //println!("decode: {:02x?}", &buf);
     //serde_cbor::from_slice::<serde_cbor::Value>(&buf).unwrap();
+    buf_to_bundle(buf, payload_only);
+}
+fn buf_to_bundle(buf: Vec<u8>, payload_only: bool) {
     let bndl: Bundle = buf.try_into().expect("Error decoding bundle!");
     if payload_only {
         if bndl.payload().is_some() {
             std::io::stdout()
                 .write_all(bndl.payload().unwrap())
-                .expect("error writing to stdout");
+                .unwrap();
         }
     } else {
-        dbg!(&bndl);
+        println!("{:#?}", &bndl);
     }
 }
-
 #[cfg(target_arch = "wasm32")]
 fn main() {}
 
