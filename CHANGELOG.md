@@ -1,6 +1,20 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.10.3] - 2022-02-07
+
+### Bug Fixes
+
+- Removed leftover dbg!() in canonical block deserializer
+
+### Refactor
+
+- Use println! instead of dbg! in CLI for printing decoded bundles
+
+### Testing
+
+- Added tests for bundle ID and bundle ToString functionality
+
 ## [0.10.2] - 2022-02-05
 
 ### Bug Fixes
