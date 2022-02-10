@@ -426,6 +426,18 @@ impl TryFrom<ByteBuffer> for Bundle {
     }
 }
 
+/// Deserialize from CBOR byte slice.
+impl TryFrom<&[u8]> for Bundle {
+    type Error = Error;
+
+    fn try_from(item: &[u8]) -> Result<Self, Self::Error> {
+        match serde_cbor::from_slice(item) {
+            Ok(bndl) => Ok(bndl),
+            Err(err) => Err(err.into()),
+        }
+    }
+}
+
 /// Deserialize from JSON string.
 impl TryFrom<String> for Bundle {
     type Error = Error;

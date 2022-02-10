@@ -217,7 +217,7 @@ pub fn bench_bundle_load(runs: i64, crc_type: crc::CrcRawType, mut bundles: Vec<
     let bench_now = Instant::now();
     for _x in 0..runs {
         let b = bundles.pop().unwrap();
-        let _deserialized: Bundle = Bundle::try_from(b).unwrap();
+        let _deserialized: Bundle = Bundle::try_from(b.as_slice()).unwrap();
         _deserialized.validate().unwrap();
     }
     let elapsed = bench_now.elapsed();

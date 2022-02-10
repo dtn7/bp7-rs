@@ -126,6 +126,11 @@ fn bundle_tests() {
     let encoded = bndl.to_cbor();
     let decoded: Bundle = encoded.try_into().unwrap();
     assert_eq!(bndl, decoded);
+
+    let mut bndl = new_complete_bundle(crc::CRC_32);
+    let encoded = bndl.to_cbor();
+    let decoded: Bundle = encoded.as_slice().try_into().unwrap();
+    assert_eq!(bndl, decoded);
 }
 
 #[test]

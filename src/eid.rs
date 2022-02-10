@@ -1,4 +1,3 @@
-use core::convert::From;
 use core::convert::TryFrom;
 use core::convert::TryInto;
 use core::fmt;
@@ -421,9 +420,9 @@ impl EndpointID {
 /// Load EndpointID from URL string.
 ///
 /// Support for ipn and dtn schemes.
-impl TryFrom<String> for EndpointID {
+impl TryFrom<&str> for EndpointID {
     type Error = EndpointIdError;
-    fn try_from(item: String) -> Result<Self, Self::Error> {
+    fn try_from(item: &str) -> Result<Self, Self::Error> {
         let items: Vec<&str> = item.splitn(2, ':').collect();
         if items.len() != 2 {
             return Err(EndpointIdError::InvalidUrlFormat);
@@ -462,10 +461,10 @@ impl TryFrom<String> for EndpointID {
     }
 }
 
-impl TryFrom<&str> for EndpointID {
+impl TryFrom<String> for EndpointID {
     type Error = EndpointIdError;
-    fn try_from(item: &str) -> Result<Self, Self::Error> {
-        EndpointID::try_from(String::from(item))
+    fn try_from(item: String) -> Result<Self, Self::Error> {
+        EndpointID::try_from(item.as_str())
     }
 }
 impl TryFrom<IpnAddress> for EndpointID {

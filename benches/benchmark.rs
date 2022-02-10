@@ -105,7 +105,7 @@ fn criterion_benchmark_bundle_decode(c: &mut Criterion) {
 
     c.bench_function("decode bundle no crc", move |b| {
         b.iter(|| {
-            let _deserialized: Bundle = Bundle::try_from(b_no.clone()).unwrap();
+            let _deserialized: Bundle = Bundle::try_from(b_no.as_slice()).unwrap();
             _deserialized.validate().unwrap();
         })
     });
@@ -114,7 +114,7 @@ fn criterion_benchmark_bundle_decode(c: &mut Criterion) {
 
     c.bench_function("decode bundle crc 16", move |b| {
         b.iter(|| {
-            let _deserialized: Bundle = Bundle::try_from(b_16.clone()).unwrap();
+            let _deserialized: Bundle = Bundle::try_from(b_16.as_slice()).unwrap();
             _deserialized.validate().unwrap();
         })
     });
@@ -123,7 +123,7 @@ fn criterion_benchmark_bundle_decode(c: &mut Criterion) {
 
     c.bench_function("decode bundle crc 32", move |b| {
         b.iter(|| {
-            let _deserialized: Bundle = Bundle::try_from(b_32.clone()).unwrap();
+            let _deserialized: Bundle = Bundle::try_from(b_32.as_slice()).unwrap();
             _deserialized.validate().unwrap();
         })
     });
