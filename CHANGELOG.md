@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.10.5] - 2022-02-10
+
+### Features
+
+- Load bundles from slices, no need for an owned copy
+
 ## [0.10.4] - 2022-02-07
 
 ### Bug Fixes
