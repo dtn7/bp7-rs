@@ -6,9 +6,10 @@ use core::num::ParseIntError;
 use nanorand::{Rng, WyRand};
 #[cfg(feature = "instant")]
 use std::convert::TryFrom;
+use std::fmt::Write as _;
 #[cfg(feature = "instant")]
 use std::io::{stdout, Write};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH}; // import without risk of name clashing
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn unix_timestamp() -> u64 {
@@ -40,7 +41,7 @@ pub fn ts_ms() -> u64 {
 pub fn hexify(buf: &[u8]) -> String {
     let mut hexstr = String::new();
     for &b in buf {
-        hexstr.push_str(&format!("{:02x?}", b));
+        let _ = write!(hexstr, "{:02x}", b);
     }
     hexstr
 }
