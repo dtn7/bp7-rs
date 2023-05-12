@@ -72,7 +72,7 @@ pub unsafe extern "C" fn buffer_free(buf: *mut Buffer) {
     if buf.is_null() {
         return;
     }
-    Box::from_raw(buf);
+    drop(Box::from_raw(buf));
 }
 
 /// Try to decode a bundle from a given buffer.
@@ -179,7 +179,7 @@ pub unsafe extern "C" fn bundle_free(ptr: *mut Bundle) {
     if ptr.is_null() {
         return;
     }
-    Box::from_raw(ptr);
+    drop(Box::from_raw(ptr));
 }
 
 /// Get the metadata from a given bundle.

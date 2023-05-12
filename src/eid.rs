@@ -52,16 +52,7 @@ impl DtnAddress {
             .expect("invalid internal dtn address format")
     }
     pub fn service_name(&self) -> Option<&str> {
-        match self.0.splitn(4, '/').nth(3) {
-            Some(s) => {
-                if !s.is_empty() {
-                    Some(s)
-                } else {
-                    None
-                }
-            }
-            None => None,
-        }
+        self.0.splitn(4, '/').nth(3).filter(|&s| !s.is_empty())
     }
     pub fn is_non_singleton(&self) -> bool {
         self.service_name().unwrap_or_default().starts_with('~')
@@ -360,7 +351,7 @@ impl EndpointID {
     pub fn is_node_id(&self) -> bool {
         match self {
             EndpointID::DtnNone(_, _) => false,
-            EndpointID::Dtn(_, eid) => eid.service_name() == None,
+            EndpointID::Dtn(_, eid) => eid.service_name().is_none(),
             EndpointID::Ipn(_, addr) => addr.1 == 0,
         }
     }

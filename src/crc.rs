@@ -13,8 +13,9 @@ use crc::{Crc, CRC_16_IBM_SDLC, CRC_32_ISCSI};
 pub const X25: Crc<u16> = Crc::<u16>::new(&CRC_16_IBM_SDLC);
 pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum CrcValue {
+    #[default]
     CrcNo,
     Crc16Empty,
     Crc32Empty,
@@ -22,11 +23,7 @@ pub enum CrcValue {
     Crc32([u8; 4]),
     Unknown(CrcRawType),
 }
-impl Default for CrcValue {
-    fn default() -> Self {
-        CrcValue::CrcNo
-    }
-}
+
 impl CrcValue {
     pub fn has_crc(&self) -> bool {
         // TODO: handle unknown

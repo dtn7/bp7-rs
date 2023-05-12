@@ -319,26 +319,18 @@ impl Bundle {
         &self,
         block_type: CanonicalBlockType,
     ) -> Option<&CanonicalBlock> {
-        for b in &self.canonicals {
-            if b.block_type == block_type && b.extension_validation().is_ok() {
-                //let cdata = b.get_data().clone();
-                return Some(b);
-            }
-        }
-        None
+        self.canonicals
+            .iter()
+            .find(|&b| b.block_type == block_type && b.extension_validation().is_ok())
     }
     /// Get mutable reference for first extension block matching the block type
     pub fn extension_block_by_type_mut(
         &mut self,
         block_type: CanonicalBlockType,
     ) -> Option<&mut CanonicalBlock> {
-        for b in &mut self.canonicals {
-            if b.block_type == block_type && b.extension_validation().is_ok() {
-                //let cdata = b.get_data().clone();
-                return Some(b);
-            }
-        }
-        None
+        self.canonicals
+            .iter_mut()
+            .find(|b| b.block_type == block_type && b.extension_validation().is_ok())
     }
 
     /// Serialize bundle as CBOR encoded byte buffer.

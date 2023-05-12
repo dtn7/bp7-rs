@@ -21,7 +21,7 @@ pub trait DtnTimeHelpers {
 impl DtnTimeHelpers for DtnTime {
     /// Convert to unix timestamp (in seconds).
     fn unix(self) -> u64 {
-        ((self + MS1970_TO2K) / 1000) as u64
+        (self + MS1970_TO2K) / 1000
     }
 
     /// Convert to human readable rfc3339 compliant time string.
