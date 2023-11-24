@@ -267,16 +267,18 @@ impl EndpointID {
     /// let ipn_addr_2 = EndpointID::with_ipn(23, 7).unwrap();
     ///
     /// assert_eq!(ipn_addr_1, ipn_addr_2.new_endpoint("42").unwrap());
+    /// assert_eq!(ipn_addr_1.node_id(), Some("ipn:23.0".to_string()));
     ///
     /// let ipn_addr_1 = EndpointID::with_ipn(23, 42).unwrap();    
     ///
-    /// assert!(ipn_addr_1.new_endpoint("-42").is_err());    
+    /// assert!(ipn_addr_1.new_endpoint("-42").is_err());  
     ///
     /// // For dtn addresses
     /// let dtn_addr_1 = EndpointID::with_dtn( "//node1/incoming").unwrap();
     /// let dtn_addr_2 = EndpointID::with_dtn( "//node1/inbox").unwrap();
     ///
     /// assert_eq!(dtn_addr_1, dtn_addr_2.new_endpoint("incoming").unwrap());
+    /// assert_eq!(dtn_addr_1.node_id(), Some("dtn://node1/".to_string()));
     ///
     /// // For non endpoint this is not possible
     ///
@@ -344,7 +346,8 @@ impl EndpointID {
     pub fn node_id(&self) -> Option<String> {
         match self {
             EndpointID::DtnNone(_, _) => None,
-            _ => Some(format!("{}://{}/", self.scheme(), self.node()?)),
+            EndpointID::Ipn(_, ssp) => Some(format!("{}:{}.0", self.scheme(), ssp.node_number())),
+            EndpointID::Dtn(_, ssp) => Some(format!("{}://{}/", self.scheme(), ssp.node_name())),
         }
     }
 
@@ -352,7 +355,7 @@ impl EndpointID {
         match self {
             EndpointID::DtnNone(_, _) => false,
             EndpointID::Dtn(_, eid) => eid.service_name().is_none(),
-            EndpointID::Ipn(_, addr) => addr.1 == 0,
+            EndpointID::Ipn(_, addr) => addr.service_number() == 0,
         }
     }
     pub fn service_name(&self) -> Option<String> {

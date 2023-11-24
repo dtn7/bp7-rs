@@ -82,8 +82,8 @@ pub fn vec_dump<T: serde::ser::Serialize>(input: &T, cbor: Vec<u8>, hr: &str) {
 }
 pub fn rnd_bundle(now: dtntime::CreationTimestamp) -> bundle::Bundle {
     let mut rng = WyRand::new();
-    let singletons = vec!["sms", "files", "123456", "incoming", "mavlink"];
-    let groups = vec!["~news", "~tele", "~mavlink"];
+    let singletons = ["sms", "files", "123456", "incoming", "mavlink"];
+    let groups = ["~news", "~tele", "~mavlink"];
     //rng.shuffle(&mut singletons);
     //rng.shuffle(&mut groups);
     let concatenated = [&singletons[..], &groups[..]].concat();
