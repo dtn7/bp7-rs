@@ -1,6 +1,27 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.10.6] - 2023-11-24
+
+### Bug Fixes
+
+- Calling node_id() on an IPN eid now returns correct URL instead of an dtn scheme formatted IPN address
+
+### Documentation
+
+- Added matrix badge to dtn7 space in README
+
+### Miscellaneous Tasks
+
+- Switched to most recent test-case crate, making "allow_result" feature obsolete
+- Upgraded dependencies
+- Pleased clippy
+- Updated dependencies
+
+### Refactor
+
+- Replaced push_str with write in hexify helper, one less allocation
+
 ## [0.10.5] - 2022-02-10
 
 ### Features
@@ -48,6 +69,7 @@ All notable changes to this project will be documented in this file.
 
 - Validation now rejects bundles without payload
 - Marked extern C functions which can lead to UB as unsafe #2
+- Fixed build script of ffi example, adding -lm flag
 
 ### Documentation
 
