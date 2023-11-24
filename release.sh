@@ -4,7 +4,15 @@
 if [ -n "$1" ]; then
 	# update the version
 	msg="# managed by release.sh"
-	sed "s/^version = .* $msg$/version = \"${1#v}\" $msg/" -i Cargo.toml
+	
+	# on macos use gsed instead of set
+	if [ "$(uname)" == "Darwin" ]; then
+		sed="gsed"
+	else
+		sed="sed"
+	fi
+	$sed "s/^version = .* $msg$/version = \"${1#v}\" $msg/" -i Cargo.toml
+
 	# update the changelog
 	git cliff --tag "$1" > CHANGELOG.md
 	git add -A && git commit -m "chore(release): prepare for $1"
