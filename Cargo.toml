@@ -34,6 +34,7 @@ harness = false
 default = ["binary-build"]
 binary-build = ["instant"]
 benchmark-helpers = ["instant"]
+bpsec = ["dep:sha2", "dep:hmac", "dep:hex-literal"]
 
 [dependencies]
 humantime = "2.1.0"
@@ -44,6 +45,11 @@ serde_bytes = "0.11.5"
 crc = "3.0.1"
 thiserror = "1.0.23"
 bitflags = "2.2.1"
+
+# bpsec dependencies
+sha2 = { version ="0.10.6", optional = true }
+hmac = { version ="0.12.1", optional = true }
+hex-literal = { version ="0.3.4", optional = true }
 
 # non wasm config
 
