@@ -49,6 +49,8 @@ pub mod ffi;
 pub mod flags;
 pub mod helpers;
 pub mod primary;
+#[cfg(feature = "bpsec")]
+pub mod security;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
