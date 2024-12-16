@@ -1,23 +1,14 @@
 //use std::convert::TryInto;
 use std::fmt;
 
-use super::bundle::ByteBuffer;
-use super::flags::BlockControlFlags;
+use crate::bundle::ByteBuffer;
+use crate::flags::BlockControlFlags;
 //use super::flags::BlockControlFlagsType;
-use super::primary::PrimaryBlock;
-use super::*;
+use crate::primary::PrimaryBlock;
+use crate::*;
 
 use bitflags::bitflags;
 use thiserror::Error;
-
-// use aes_gcm::aead::{
-//     generic_array::{typenum, GenericArray},
-//     Aead, KeyInit, Payload,
-// };
-// use aes_gcm::aes::{Aes128, Aes256};
-// use aes_gcm::AesGcm;
-
-// use aes_kw::Kek;
 
 use hmac::{Hmac, Mac};
 use sha2::{Sha256, Sha384, Sha512};
@@ -26,37 +17,8 @@ use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
 
-// https://www.rfc-editor.org/rfc/rfc9172.html#BlockType
-pub const INTEGRITY_BLOCK: CanonicalBlockType = 11;
-pub const CONFIDENTIALITY_BLOCK: CanonicalBlockType = 12;
-
-// SHA Variant
-// https://www.rfc-editor.org/rfc/rfc9173.html#name-sha-variant
-pub type ShaVariantType = u16;
-pub const HMAC_SHA_256: ShaVariantType = 5;
-pub const HMAC_SHA_384: ShaVariantType = 6; // default
-pub const HMAC_SHA_512: ShaVariantType = 7;
-
-// Security Context Id
-// https://www.rfc-editor.org/rfc/rfc9173.html#name-security-context-identifier
-// https://www.rfc-editor.org/rfc/rfc9172.html#SecCtx
-pub type SecurityContextId = i16;
-pub const BIB_HMAC_SHA2_ID: SecurityContextId = 1; // BIB-HMAC-SHA2
-pub const BCB_AES_GCM_ID: SecurityContextId = 2; // BCB-AES-GCM
-
-// Security Context Flags
-//
-pub type SecurityContextFlag = u8;
-pub const SEC_CONTEXT_ABSENT: SecurityContextFlag = 0; // Security context parameters should be empty
-pub const SEC_CONTEXT_PRESENT: SecurityContextFlag = 1; // Security context parameters are defined
-
-// AES Variant
-// https://www.rfc-editor.org/rfc/rfc9173.html#name-aes-gcm
-pub type AesVariantType = u16;
-pub const AES_128_GCM: AesVariantType = 1;
-pub const AES_256_GCM: AesVariantType = 3; // default
-
-pub type SecurityBlockHeader = (CanonicalBlockType, u64, flags::BlockControlFlagsType);
+use super::*;
+pub use rfc9173::bib::*;
 
 /// IntegrityProtectedPlaintext Builder. See IntegrityProtectedPlaintext Doc for usage.
 #[derive(Debug, Clone, PartialEq)]
@@ -390,7 +352,7 @@ impl<'de> Deserialize<'de> for BibSecurityContextParameter {
 
 #[derive(Error, Debug)]
 pub enum IntegrityBlockBuilderError {
-    #[error("Security Tragets MUST have at least one enrty")]
+    #[error("Security Targets MUST have at least one entry")]
     MissingSecurityTargets,
     #[error("Security Context Flag set but no context parameter given")]
     FlagSetButNoParameter,

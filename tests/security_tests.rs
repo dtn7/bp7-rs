@@ -1,11 +1,11 @@
-use bp7::flags::*;
 #[cfg(feature = "bpsec")]
-use bp7::security::*;
+use bp7::bpsec::*;
+use bp7::flags::*;
 use bp7::*;
 use helpers::*;
 use std::convert::TryInto;
 use std::time::Duration;
-//use bp7::security::AES_128_GCM;
+//use bp7::bpsec::AES_128_GCM;
 
 #[test]
 #[cfg(feature = "bpsec")]
@@ -32,8 +32,7 @@ fn encode_decode_test_canonical(data: CanonicalBlock) {
 #[test]
 #[cfg(feature = "bpsec")]
 fn canonical_block_tests() {
-    let data =
-        bp7::security::new_integrity_block(1, BlockControlFlags::empty(), b"ABCDEFG".to_vec());
+    let data = bp7::bpsec::new_integrity_block(1, BlockControlFlags::empty(), b"ABCDEFG".to_vec());
     encode_decode_test_canonical(data);
 }
 
@@ -120,7 +119,7 @@ fn simple_integrity_test() {
 
     // First Create Integrity-Protected Plaintext
     let sec_block_header: (CanonicalBlockType, u64, bp7::flags::BlockControlFlagsType) = (
-        bp7::security::INTEGRITY_BLOCK,
+        bp7::bpsec::INTEGRITY_BLOCK,
         2,
         BlockControlFlags::empty().bits(),
     );
@@ -131,7 +130,7 @@ fn simple_integrity_test() {
         integrity_scope_flags: Some((3, 0x0000)),
     };
 
-    let mut ippt = bp7::security::IpptBuilder::default()
+    let mut ippt = bp7::bpsec::IpptBuilder::default()
         .primary_block(primary_block.clone())
         .security_header(sec_block_header)
         .scope_flags(0x0000)
@@ -148,8 +147,8 @@ fn simple_integrity_test() {
 
     // Second Create Abstract Security Block
     let sec_ctx_para =
-        bp7::security::BibSecurityContextParameter::new(Some((1, 7)), None, Some((3, 0x0000)));
-    let mut sec_block_payload = bp7::security::IntegrityBlockBuilder::default()
+        bp7::bpsec::BibSecurityContextParameter::new(Some((1, 7)), None, Some((3, 0x0000)));
+    let mut sec_block_payload = bp7::bpsec::IntegrityBlockBuilder::default()
         .security_targets(vec![1]) // Payload block
         .security_context_flags(1) // Parameters Present
         .security_source(EndpointID::with_ipn(2, 1).unwrap()) // ipn:2.1
@@ -176,7 +175,7 @@ fn simple_integrity_test() {
 
     // The BIB
     let block_integrity_block =
-        bp7::security::new_integrity_block(2, BlockControlFlags::empty(), canonical_payload);
+        bp7::bpsec::new_integrity_block(2, BlockControlFlags::empty(), canonical_payload);
     let cbor_bib = serde_cbor::to_vec(&block_integrity_block).unwrap();
     let cbor_bib = hexify(&cbor_bib);
     let example_bib = "850b0200005856810101018202820201828201078203008181820158403bdc69b3a34a2b5d3a8554368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550fdfb1cc636b904e2f1a73e303dcd4b6ccece003e95e8164dcc89a156e1";
