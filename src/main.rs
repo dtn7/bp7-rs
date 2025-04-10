@@ -104,7 +104,7 @@ fn decode_from_stdin(payload_only: bool) {
     buf_to_bundle(buf, payload_only);
 }
 fn buf_to_bundle(buf: Vec<u8>, payload_only: bool) {
-    let bndl: Bundle = buf.try_into().expect("Error decoding bundle!");
+    let mut bndl: Bundle = buf.try_into().expect("Error decoding bundle!");
     if payload_only {
         if bndl.payload().is_some() {
             std::io::stdout()
@@ -113,6 +113,14 @@ fn buf_to_bundle(buf: Vec<u8>, payload_only: bool) {
         }
     } else {
         println!("{:#?}", &bndl);
+    }
+    if let Err(errs) = bndl.validate() {
+        eprintln!("Error validating bundle: {:?}", errs);
+        std::process::exit(1);
+    }
+    if !bndl.crc_valid() {
+        eprintln!("Error validating bundle CRC");
+        std::process::exit(1);
     }
 }
 #[cfg(target_arch = "wasm32")]

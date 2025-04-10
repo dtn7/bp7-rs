@@ -314,6 +314,9 @@ impl CanonicalBlock {
         if let Err(err) = self.extension_validation() {
             errors.push(err);
         }
+        if self.has_crc() && !self.clone().check_crc() {
+            errors.push(Error::CanonicalBlockError("CRC check failed".to_string()));
+        }
 
         if errors.is_empty() {
             Ok(())

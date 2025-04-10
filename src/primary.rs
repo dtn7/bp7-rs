@@ -314,6 +314,10 @@ impl PrimaryBlock {
             errors.push(chk_err.into());
         }
 
+        if self.has_crc() && !self.clone().check_crc() {
+            errors.push(Error::PrimaryBlockError("CRC check failed".to_string()));
+        }
+
         if !errors.is_empty() {
             return Err(errors);
         }
