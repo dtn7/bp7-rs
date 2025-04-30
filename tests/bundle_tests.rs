@@ -21,7 +21,6 @@ fn new_complete_bundle(crc_type: bp7::crc::CrcRawType) -> Bundle {
     let mut b = bundle::BundleBuilder::default()
         .primary(pblock)
         .canonicals(vec![
-            canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
             canonical::new_bundle_age_block(
                 2,                          // block number
                 BlockControlFlags::empty(), // flags
@@ -37,6 +36,7 @@ fn new_complete_bundle(crc_type: bp7::crc::CrcRawType) -> Bundle {
                 BlockControlFlags::empty(),         // flags
                 "dtn://node23".try_into().unwrap(), // previous node EID
             ),
+            canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
         ])
         .build()
         .unwrap();
@@ -227,16 +227,16 @@ fn bundle_add_cblock() {
     // Already present, should be ignored
     assert!(b.canonicals.len() == 1);
 
-    b.add_canonical_block(canonical::new_payload_block(
-        BlockControlFlags::empty(),
-        b"ABC".to_vec(),
-    ));
-    assert!(b.canonicals.len() == 2);
-
     b.add_canonical_block(canonical::new_bundle_age_block(
         666,                        // block number
         BlockControlFlags::empty(), // flags
         0,                          // time elapsed
+    ));
+    assert!(b.canonicals.len() == 2);
+
+    b.add_canonical_block(canonical::new_payload_block(
+        BlockControlFlags::empty(),
+        b"ABC".to_vec(),
     ));
     assert!(b.canonicals.len() == 3);
 
