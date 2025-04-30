@@ -217,6 +217,11 @@ impl Bundle {
         if self.payload().is_none() {
             errors.push(Error::BundleError("Missing Payload Block".to_string()));
         }
+        if self.canonicals.last().unwrap().block_type != PAYLOAD_BLOCK {
+            errors.push(Error::BundleError(
+                "Last block must be a payload block".to_string(),
+            ));
+        }
 
         if !errors.is_empty() {
             return Err(errors);
