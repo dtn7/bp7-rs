@@ -4,6 +4,7 @@ use core::fmt;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
+use std::any::Any;
 use thiserror::Error;
 
 /******************************
@@ -155,19 +156,31 @@ impl<'de> Deserialize<'de> for EndpointID {
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
                 if eid_type == ENDPOINT_URI_SCHEME_DTN {
                     // TODO: rewrite to check following type, currently if not string return dtn:none
-                    let name: String = seq.next_element().unwrap_or_default().unwrap_or_default();
-                    if name.is_empty() {
-                        Ok(EndpointID::none())
-                    } else {
-                        /*if name.starts_with("//") {
-                            Ok(EndpointID::Dtn(
-                                eid_type,
-                                name.trim_start_matches('/').into(),
-                            ))
-                        } else {*/
-                        // Technically this should be invalid!
+                    //let peek_next_str = seq.next_element::<String>();
+                    let peek_next = seq.next_element::<serde_cbor::Value>()?;
+                    if peek_next.is_none() {
+                        return Err(de::Error::invalid_length(1, &self));
+                    }
+                    let peek_next = peek_next.unwrap();
+                    if let serde_cbor::Value::Text(name) = peek_next {
+                        // This is a dtn address
                         Ok(EndpointID::Dtn(eid_type, DtnAddress(name)))
-                        //}
+                    } else if let serde_cbor::Value::Integer(code) = peek_next {
+                        // This is the dtn:none endpoint
+                        let code = code as u64;
+                        if code != 0 {
+                            return Err(de::Error::invalid_value(
+                                de::Unexpected::Unsigned(code.into()),
+                                &"value for dtn:none must be 0",
+                            ));
+                        }
+                        let code = 0;
+                        Ok(EndpointID::DtnNone(eid_type, code))
+                    } else {
+                        return Err(de::Error::invalid_value(
+                            de::Unexpected::StructVariant,
+                            &self,
+                        ));
                     }
                 } else if eid_type == ENDPOINT_URI_SCHEME_IPN {
                     let ipnaddr: IpnAddress = seq
