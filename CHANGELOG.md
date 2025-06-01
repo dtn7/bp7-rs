@@ -1,6 +1,29 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.10.7] - 2025-06-01
+
+### Bug Fixes
+
+- Fixed release.sh to also work on macos and use gnu sed
+- Cleanup of bpsec tests, removed hex-literal crate
+- Checking if the payload block is the last canonical block in the bundle. fixes #5
+- Eid decoder now complains if dtn:none is encoded with a wrong integer
+
+### Features
+
+- Added initial BP security module (optional feature): With Block Integrity Block defined in RFC 9172 and a test case defined in RFC 9173 (#3)
+- Bp7 cli tool now also validates decoded bundles and outputs potential errors. validate() now also checks crc (beware: internal clone for mutability)
+
+### Miscellaneous Tasks
+
+- Eid imports cleanup
+- Updated various dependencies and pleased clippy
+
+### Testing
+
+- Fixed tests for correct payload position in canonical block list
+
 ## [0.10.6] - 2023-11-24
 
 ### Bug Fixes
@@ -68,8 +91,8 @@ All notable changes to this project will be documented in this file.
 ### Bug Fixes
 
 - Validation now rejects bundles without payload
-- Marked extern C functions which can lead to UB as unsafe #2
 - Fixed build script of ffi example, adding -lm flag
+- Marked extern C functions which can lead to UB as unsafe #2
 
 ### Documentation
 
@@ -83,8 +106,8 @@ All notable changes to this project will be documented in this file.
 
 ### Bug Fixes
 
-- Changed unwraps into proper error handling
 - Require a payload block in a new bundle as described in Bundle Protocol Draft
+- Changed unwraps into proper error handling
 
 ### Refactor
 
