@@ -169,7 +169,7 @@ impl<'de> Deserialize<'de> for EndpointID {
                         let code = code as u64;
                         if code != 0 {
                             return Err(de::Error::invalid_value(
-                                de::Unexpected::Unsigned(code.into()),
+                                de::Unexpected::Unsigned(code),
                                 &"value for dtn:none must be 0",
                             ));
                         }

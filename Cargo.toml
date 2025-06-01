@@ -37,28 +37,28 @@ benchmark-helpers = ["instant"]
 bpsec = ["dep:sha2", "dep:hmac"]
 
 [dependencies]
-humantime = "2.1.0"
-serde = { version = "1.0.216", features = ["derive"] }
-serde_cbor = "0.11.1"
-serde_json = "1.0.133"
-serde_bytes = "0.11.15"
-crc = "3.2.1"
-thiserror = "2.0.7"
+humantime = "2.2.0"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_cbor = "0.11.2"
+serde_json = "1.0.140"
+serde_bytes = "0.11.17"
+crc = "3.3.0"
+thiserror = "2.0.12"
 bitflags = "2.6.0"
 
 # bpsec dependencies
-sha2 = { version = "0.10.6", optional = true }
+sha2 = { version = "0.10.9", optional = true }
 hmac = { version = "0.12.1", optional = true }
 
 # non wasm config
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 nanorand = { version = "0.7.0", default-features = true }
-instant = { version = "0.1.9", features = ["now"], optional = true }
+instant = { version = "0.1.13", features = ["now"], optional = true }
 
 # wasm specific
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = "0.4.20"
 nanorand = { version = "0.7.0", features = ["getrandom"] }
-instant = { version = "0.1.9", features = ["stdweb", "now"], optional = true }
+instant = { version = "0.1.13", features = ["stdweb", "now"], optional = true }

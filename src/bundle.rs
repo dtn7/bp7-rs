@@ -87,7 +87,7 @@ impl BundleBuilder {
 
 /// Bundle represents a bundle as defined in section 4.2.1. Each Bundle contains
 /// one primary block and multiple canonical blocks.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Bundle {
     pub primary: PrimaryBlock,
     pub canonicals: Vec<CanonicalBlock>,
@@ -145,14 +145,6 @@ impl<'de> Deserialize<'de> for Bundle {
     }
 }
 
-impl Default for Bundle {
-    fn default() -> Self {
-        Bundle {
-            primary: PrimaryBlock::new(),
-            canonicals: Vec::new(),
-        }
-    }
-}
 impl Bundle {
     pub fn new(primary: PrimaryBlock, canonicals: Vec<CanonicalBlock>) -> Bundle {
         Bundle {
