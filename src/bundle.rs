@@ -201,7 +201,7 @@ impl Bundle {
                 ));
             }
         }
-        if self.primary.creation_timestamp.dtntime() == 0 && b_types.contains(&BUNDLE_AGE_BLOCK) {
+        if self.primary.creation_timestamp.dtntime() == 0 && !b_types.contains(&BUNDLE_AGE_BLOCK) {
             errors.push(Error::BundleError(
                 "Creation Timestamp is zero, but no Bundle Age block is present".to_string(),
             ));
