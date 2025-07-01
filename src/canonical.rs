@@ -335,7 +335,7 @@ impl CanonicalBlock {
                 }
                 if self.block_number != 1 {
                     return Err(Error::CanonicalBlockError(
-                        "Payload Block's block number is not zero".to_string(),
+                        "Payload Block's block number is not one".to_string(),
                     ));
                 }
             }
