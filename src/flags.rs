@@ -127,14 +127,7 @@ pub trait BundleValidation {
                 "Given flag contains reserved bits".to_string(),
             ));
         }
-        if flags.contains(BundleControlFlags::BUNDLE_IS_FRAGMENT)
-            && flags.contains(BundleControlFlags::BUNDLE_MUST_NOT_FRAGMENTED)
-        {
-            errors.push(Error::BundleControlFlagsError(
-                "Both 'bundle is a fragment' and 'bundle must not be fragmented' flags are set"
-                    .to_string(),
-            ));
-        }
+
         let admin_rec_check = !flags
             .contains(BundleControlFlags::BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
             || (!flags.contains(BundleControlFlags::BUNDLE_STATUS_REQUEST_RECEPTION)
