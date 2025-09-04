@@ -2,7 +2,7 @@
 name = "bp7"
 version = "0.10.7"                                                               # managed by release.sh
 authors = ["Lars Baumgaertner <baumgaertner@cs.tu-darmstadt.de>"]
-edition = "2018"
+edition = "2021"
 description = "Rust implementation of dtn Bundle Protocol Version 7 ([RFC 9171]"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/dtn7/bp7-rs"

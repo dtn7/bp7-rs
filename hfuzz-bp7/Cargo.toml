@@ -2,7 +2,7 @@
 name = "hfuzz-bp7"
 version = "0.1.0"
 authors = ["gh0st <1264131+gh0st42@users.noreply.github.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
