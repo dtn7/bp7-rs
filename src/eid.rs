@@ -176,10 +176,10 @@ impl<'de> Deserialize<'de> for EndpointID {
                         let code = 0;
                         Ok(EndpointID::DtnNone(eid_type, code))
                     } else {
-                        return Err(de::Error::invalid_value(
+                        Err(de::Error::invalid_value(
                             de::Unexpected::StructVariant,
                             &self,
-                        ));
+                        ))
                     }
                 } else if eid_type == ENDPOINT_URI_SCHEME_IPN {
                     let ipnaddr: IpnAddress = seq
