@@ -24,7 +24,7 @@ use sha2::{Sha256, Sha384, Sha512};
 
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
-use serde::{de, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 
 // https://www.rfc-editor.org/rfc/rfc9172.html#BlockType
 pub const INTEGRITY_BLOCK: CanonicalBlockType = 11;
@@ -554,7 +554,9 @@ impl IntegrityBlock {
 
                 self.security_results.push(vec![(ippt.0, result_value)]);
             } else {
-                eprint!("Security Target and Ippt mismatch. Make sure there is an ippt for each target.")
+                eprint!(
+                    "Security Target and Ippt mismatch. Make sure there is an ippt for each target."
+                )
             }
         }
     }

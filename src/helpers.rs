@@ -1,11 +1,11 @@
 use crate::ByteBuffer;
-use crate::{bundle, canonical, crc, dtntime, eid, flags::BlockControlFlags, primary, Bundle};
+use crate::{Bundle, bundle, canonical, crc, dtntime, eid, flags::BlockControlFlags, primary};
 
 use core::num::ParseIntError;
 use nanorand::{Rng, WyRand};
 use std::convert::TryFrom;
 use std::fmt::Write as _;
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub fn unix_timestamp() -> u64 {

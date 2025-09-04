@@ -11,9 +11,13 @@ use std::io::prelude::*;
 
 fn usage(filepath: &str) {
     println!("usage {:?} <cmd> [args]", filepath);
-    println!("\t encode <manifest> <payloadfile | - > [-x] - encode bundle and output raw bytes or hex string (-x)");
+    println!(
+        "\t encode <manifest> <payloadfile | - > [-x] - encode bundle and output raw bytes or hex string (-x)"
+    );
     println!("\t decode <hexstring | - > [-p] - decode bundle or payload only (-p)");
-    println!("\t dtntime [dtntimestamp] - prints current time as dtntimestamp or prints dtntime human readable");
+    println!(
+        "\t dtntime [dtntimestamp] - prints current time as dtntimestamp or prints dtntime human readable"
+    );
     println!("\t d2u [dtntimestamp] - converts dtntime to unixstimestamp");
     println!("\t rnd [-r] - return a random bundle either hexencoded or raw bytes (-r)");
     println!("\t benchmark - run a simple benchmark encoding/decoding bundles");

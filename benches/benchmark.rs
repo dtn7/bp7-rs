@@ -5,7 +5,7 @@ use criterion::Criterion;
 use std::convert::TryFrom;
 
 use bp7::{
-    bundle, canonical, crc, dtntime, eid, flags::BlockControlFlags, primary, Bundle, ByteBuffer,
+    Bundle, ByteBuffer, bundle, canonical, crc, dtntime, eid, flags::BlockControlFlags, primary,
 };
 
 fn bench_bundle_create(crc_type: crc::CrcRawType) -> ByteBuffer {
