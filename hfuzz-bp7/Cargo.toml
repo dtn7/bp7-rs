@@ -8,4 +8,4 @@ edition = "2018"
 
 [dependencies]
 honggfuzz = "0.5"
-bp7 = { path = ".."}
+bp7 = { path = ".." }
