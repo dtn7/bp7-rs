@@ -1,17 +1,13 @@
-#[cfg(feature = "instant")]
 use crate::ByteBuffer;
 use crate::{bundle, canonical, crc, dtntime, eid, flags::BlockControlFlags, primary, Bundle};
 
 use core::num::ParseIntError;
 use nanorand::{Rng, WyRand};
-#[cfg(feature = "instant")]
 use std::convert::TryFrom;
 use std::fmt::Write as _;
-#[cfg(feature = "instant")]
 use std::io::{stdout, Write};
-use std::time::{SystemTime, UNIX_EPOCH}; // import without risk of name clashing
+use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
-#[cfg(not(target_arch = "wasm32"))]
 pub fn unix_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -19,22 +15,11 @@ pub fn unix_timestamp() -> u64 {
         .as_secs()
 }
 
-#[cfg(target_arch = "wasm32")]
-pub fn unix_timestamp() -> u64 {
-    (stdweb::web::Date::now() / 1000.0) as u64
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 pub fn ts_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards!!")
         .as_millis() as u64
-}
-
-#[cfg(target_arch = "wasm32")]
-pub fn ts_ms() -> u64 {
-    (stdweb::web::Date::now()) as u64
 }
 
 /// Convert byte slice into a hex string
@@ -145,10 +130,7 @@ pub fn get_bench_bundle(crc_type: crc::CrcRawType) -> Bundle {
     b.validate().unwrap();
     b
 }
-#[cfg(feature = "instant")]
-use instant::Instant;
 
-#[cfg(feature = "instant")]
 pub fn bench_bundle_create(runs: i64, crc_type: crc::CrcRawType) -> Vec<ByteBuffer> {
     let crc_str = match crc_type {
         crc::CRC_NO => "CRC_NO",
@@ -175,7 +157,6 @@ pub fn bench_bundle_create(runs: i64, crc_type: crc::CrcRawType) -> Vec<ByteBuff
     bundles
 }
 
-#[cfg(feature = "instant")]
 pub fn bench_bundle_encode(runs: i64, crc_type: crc::CrcRawType) -> Vec<ByteBuffer> {
     let crc_str = match crc_type {
         crc::CRC_NO => "CRC_NO",
@@ -205,7 +186,6 @@ pub fn bench_bundle_encode(runs: i64, crc_type: crc::CrcRawType) -> Vec<ByteBuff
     bundles
 }
 
-#[cfg(feature = "instant")]
 pub fn bench_bundle_load(runs: i64, crc_type: crc::CrcRawType, mut bundles: Vec<ByteBuffer>) {
     let crc_str = match crc_type {
         crc::CRC_NO => "CRC_NO",

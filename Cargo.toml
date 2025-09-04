@@ -32,8 +32,7 @@ harness = false
 [features]
 
 default = ["binary-build"]
-binary-build = ["instant"]
-benchmark-helpers = ["instant"]
+binary-build = []
 bpsec = ["dep:sha2", "dep:hmac"]
 
 [dependencies]
@@ -45,6 +44,7 @@ serde_bytes = "0.11.17"
 crc = "3.3.0"
 thiserror = "2.0.16"
 bitflags = "2.9.4"
+web-time = "1.1.0"
 
 # bpsec dependencies
 sha2 = { version = "0.10.9", optional = true }
@@ -54,11 +54,9 @@ hmac = { version = "0.12.1", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 nanorand = { version = "0.8.0", default-features = true }
-instant = { version = "0.1.13", features = ["now"], optional = true }
 
 # wasm specific
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 stdweb = "0.4.20"
 nanorand = { version = "0.8.0", features = ["getrandom"] }
-instant = { version = "0.1.13", features = ["stdweb", "now"], optional = true }
