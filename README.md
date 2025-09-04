@@ -145,44 +145,179 @@ $ cbindgen -c cbindgen.toml > target/bp7.h
 
 Example usages for Linux with C calling `bp7` as well as nodejs can be found in `examples/ffi`.
 
-## wasm support [defunct, unmaintained stdweb crate]
+## WebAssembly Support
 
-The library should build for wasm even though only very few functions get exported. The example benchmark can also be used in the browser through the `cargo-web` crate:
-```
-cargo web start --target wasm32-unknown-unknown --example benchmark --release
-```
+The library provides WebAssembly support and automatically builds JavaScript bindings when targeting any `wasm32-*` platform.
 
-Results should be shown in the javascript console on http://127.0.0.1:8000.
+### Quick Start
 
-The performance is quite similar to the native performance:
-```
-Creating 100000 bundles with CRC_NO: 	441696 bundles/second
-Creating 100000 bundles with CRC_16: 	416484 bundles/second
-Creating 100000 bundles with CRC_32: 	405022 bundles/second
-Encoding 100000 bundles with CRC_NO: 	1647039 bundles/second
-Encoding 100000 bundles with CRC_16: 	908059 bundles/second
-Encoding 100000 bundles with CRC_32: 	867603 bundles/second
-Loading 100000 bundles with CRC_NO: 	401727 bundles/second
-Loading 100000 bundles with CRC_16: 	388394 bundles/second
-Loading 100000 bundles with CRC_32: 	384186 bundles/second
+Install `wasm-pack` if you haven't already:
+```bash
+cargo install wasm-pack
 ```
 
-Some functions can easily be used from javascript (`cargo web deploy --release`):
+Build for your target platform (see [`wasm-pack` documentation](https://drager.github.io/wasm-pack/book/commands/build.html) for details):
+```bash
+# For web browsers
+wasm-pack build --target web --out-dir pkg-web
+
+# For Node.js
+wasm-pack build --target nodejs --out-dir pkg-node
+```
+
+### Available Functions
+
+The WASM module exports these functions (all return `Result<T, JsValue>` for proper error handling):
+
+**Bundle Creation:**
+- `new_std_bundle_now(src, dst, payload)` - Create standard bundle with current timestamp
+- `rnd_bundle_now()` - Create random bundle for testing
+
+**Encoding/Decoding:**
+- `encode_to_cbor(bundle)` - Encode bundle to CBOR bytes
+- `decode_from_cbor(bytes)` - Decode CBOR bytes to bundle
+
+**Metadata Extraction:**
+- `bid_from_bundle(bundle)` / `bid_from_cbor(bytes)` - Get bundle ID
+- `sender_from_bundle(bundle)` / `sender_from_cbor(bytes)` - Get sender address
+- `recipient_from_bundle(bundle)` / `recipient_from_cbor(bytes)` - Get recipient address
+- `timestamp_from_bundle(bundle)` / `timestamp_from_cbor(bytes)` - Get creation timestamp
+- `payload_from_bundle(bundle)` / `payload_from_cbor(bytes)` - Extract payload bytes
+
+**Validation:**
+- `valid_bundle(bundle)` / `valid_cbor(bytes)` - Validate bundle structure and lifetime
+- `bundle_is_administrative_record(bundle)` / `cbor_is_administrative_record(bytes)` - Check if bundle is administrative
+
+### JavaScript/Browser Usage
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>bp7-rs WASM Example</title>
+</head>
+<body>
+    <script type="module">
+        import init, * as bp7 from './pkg-web/bp7.js';
+        
+        async function run() {
+            await init();
+            
+            // Create a bundle
+            const bundle = bp7.new_std_bundle_now(
+                "dtn://sender/app",
+                "dtn://receiver/app", 
+                "Hello from the browser!"
+            );
+            
+            // Extract metadata
+            const bundleId = bp7.bid_from_bundle(bundle);
+            const sender = bp7.sender_from_bundle(bundle);
+            const recipient = bp7.recipient_from_bundle(bundle);
+            const timestamp = bp7.timestamp_from_bundle(bundle);
+            const payload = bp7.payload_from_bundle(bundle);
+            const isAdmin = bp7.bundle_is_administrative_record(bundle);
+            
+            console.log(`Bundle: ${bundleId}`);
+            console.log(`Route: ${sender} → ${recipient}`);
+            console.log(`Created: ${timestamp}`);
+            console.log(`Payload: "${new TextDecoder().decode(new Uint8Array(payload))}"`);
+            console.log(`Administrative: ${isAdmin}`);
+            
+            // CBOR operations
+            const cborBytes = bp7.encode_to_cbor(bundle);
+            const isValid = bp7.valid_cbor(cborBytes);
+            
+            console.log(`CBOR: ${cborBytes.length} bytes, valid: ${isValid}`);
+            
+            // Decode and verify roundtrip
+            const decoded = bp7.decode_from_cbor(cborBytes);
+            const decodedId = bp7.bid_from_bundle(decoded);
+            console.log(`Roundtrip success: ${bundleId === decodedId}`);
+        }
+        
+        run().catch(console.error);
+    </script>
+</body>
+</html>
+```
+
+### Node.js Usage
+
 ```javascript
-Rust.bp7.then(function(bp7) {
-  var b = bp7.rnd_bundle_now(); 
-  var enc = bp7.encode_to_cbor(b); 
-  var payload = bp7.payload_from_bundle(b)
-  console.log(payload); 
-  console.log(String.fromCharCode.apply(null, payload));
-  console.log(bp7.cbor_is_administrative_record(enc)); 
-  console.log(bp7.sender_from_cbor(enc)); 
-  console.log(bp7.recipient_from_bundle(b)); 
-  console.log(bp7.valid_bundle(b)); 
-});
+const bp7 = require('./pkg-node');
+
+async function example() {
+    // Create a bundle
+    const bundle = bp7.new_std_bundle_now(
+        "dtn://sender/app",
+        "dtn://receiver/app", 
+        "Hello from Node.js!"
+    );
+    
+    // Extract metadata
+    const bundleId = bp7.bid_from_bundle(bundle);
+    const sender = bp7.sender_from_bundle(bundle);
+    const recipient = bp7.recipient_from_bundle(bundle);
+    const timestamp = bp7.timestamp_from_bundle(bundle);
+    const payload = bp7.payload_from_bundle(bundle);
+    const isAdmin = bp7.bundle_is_administrative_record(bundle);
+    
+    console.log(`Bundle: ${bundleId}`);
+    console.log(`Route: ${sender} → ${recipient}`);
+    console.log(`Created: ${timestamp}`);
+    console.log(`Payload: "${new TextDecoder().decode(new Uint8Array(payload))}"`);
+    console.log(`Administrative: ${isAdmin}`);
+    
+    // CBOR operations
+    const cborBytes = bp7.encode_to_cbor(bundle);
+    const isValid = bp7.valid_cbor(cborBytes);
+    
+    console.log(`CBOR: ${cborBytes.length} bytes, valid: ${isValid}`);
+    
+    // Decode and verify roundtrip
+    const decoded = bp7.decode_from_cbor(cborBytes);
+    const decodedId = bp7.bid_from_bundle(decoded);
+    console.log(`Roundtrip success: ${bundleId === decodedId}`);
+}
+
+example().catch(console.error);
 ```
 
-Note that at the moment all functions have a variant working on the binary bundle and one working on the decoded bundle struct.
+### WASI Support & Benchmarking
+
+For server-side WASI environments, install the WASI runtime:
+
+```bash
+cargo install wasmtime-cli
+```
+
+Build and run WASI applications:
+```bash
+# Build for WASI
+cargo build --target wasm32-wasip1 --release --example benchmark
+
+# Run with wasmtime
+wasmtime run target/wasm32-wasip1/release/examples/benchmark.wasm
+```
+
+Example WASI benchmark performance:
+```
+Creating 100000 bundles with CRC_NO:             511956 bundles/second
+Creating 100000 bundles with CRC_16:             147850 bundles/second
+Creating 100000 bundles with CRC_32:             145072 bundles/second
+Encoding 100000 bundles with CRC_NO:            1072625 bundles/second
+Encoding 100000 bundles with CRC_16:             450680 bundles/second
+Encoding 100000 bundles with CRC_32:             447624 bundles/second
+Loading 100000 bundles with CRC_NO:              520731 bundles/second
+Loading 100000 bundles with CRC_16:              231351 bundles/second
+Loading 100000 bundles with CRC_32:              230073 bundles/second
+```
+
+### Feature Flags
+
+For WASM targets, the library provides a `wasm-js` feature flag that enables proper randomness support via getrandom's `wasm_js` backend. Following [getrandom's recommendations](https://docs.rs/getrandom/latest/getrandom/#webassembly-support), this feature is included in the default feature set for convenience, but can be disabled for library users who want to choose their own `getrandom` backend.
 
 ### Acknowledging this work
 
