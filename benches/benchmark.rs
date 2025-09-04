@@ -24,16 +24,17 @@ fn bench_bundle_create(crc_type: crc::CrcRawType) -> ByteBuffer {
         .unwrap();
 
     let cblocks = vec![
-        canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
         canonical::new_bundle_age_block(
             2,                          // block number
             BlockControlFlags::empty(), // flags
             0,                          // time elapsed
         ),
+        canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
     ];
     let mut b = bundle::Bundle::new(pblock, cblocks);
 
     b.set_crc(crc_type);
+    b.calculate_crc();
     b.validate().unwrap();
     b.to_cbor()
 }
@@ -69,16 +70,17 @@ fn criterion_benchmark_bundle_encode(c: &mut Criterion) {
     let mut b = bundle::BundleBuilder::default()
         .primary(pblock)
         .canonicals(vec![
-            canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
             canonical::new_bundle_age_block(
-                1,                          // block number
+                2,                          // block number
                 BlockControlFlags::empty(), // flags
                 0,                          // time elapsed
             ),
+            canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
         ])
         .build()
         .unwrap();
     b.set_crc(crc::CRC_NO);
+    b.calculate_crc();
     b.validate().unwrap();
     let mut bndl = b.clone();
     c.bench_function("encode bundle no crc", move |bench| {
@@ -86,6 +88,7 @@ fn criterion_benchmark_bundle_encode(c: &mut Criterion) {
     });
 
     b.set_crc(crc::CRC_16);
+    b.calculate_crc();
     b.validate().unwrap();
     let mut bndl = b.clone();
     c.bench_function("encode bundle crc 16", move |bench| {
@@ -93,6 +96,7 @@ fn criterion_benchmark_bundle_encode(c: &mut Criterion) {
     });
 
     b.set_crc(crc::CRC_32);
+    b.calculate_crc();
     b.validate().unwrap();
     let mut bndl = b;
     c.bench_function("encode bundle crc 32", move |bench| {

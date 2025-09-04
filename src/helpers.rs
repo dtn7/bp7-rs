@@ -125,12 +125,12 @@ pub fn get_bench_bundle(crc_type: crc::CrcRawType) -> Bundle {
         .build()
         .unwrap();
     let cblocks = vec![
-        canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
         canonical::new_bundle_age_block(
             2,                          // block number
             BlockControlFlags::empty(), // flags
             0,                          // time elapsed
         ),
+        canonical::new_payload_block(BlockControlFlags::empty(), b"ABC".to_vec()),
     ];
     //let cblocks = Vec::new();
     let mut b = bundle::Bundle::new(pblock, cblocks);
@@ -141,6 +141,7 @@ pub fn get_bench_bundle(crc_type: crc::CrcRawType) -> Bundle {
     .build()
     .unwrap();*/
     b.set_crc(crc_type);
+    b.calculate_crc();
     b.validate().unwrap();
     b
 }
