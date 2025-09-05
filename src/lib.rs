@@ -57,7 +57,7 @@ pub mod wasm;
 
 pub use bundle::{Bundle, ByteBuffer};
 pub use canonical::*;
-pub use dtntime::{dtn_time_now, CreationTimestamp, DtnTime};
+pub use dtntime::{CreationTimestamp, DtnTime, dtn_time_now};
 pub use eid::EndpointID;
 pub use helpers::hexify;
 

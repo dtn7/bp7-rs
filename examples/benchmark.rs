@@ -1,28 +1,33 @@
 use bp7::{crc, helpers::*};
 
-#[cfg(target_arch = "wasm32")]
-use stdweb::*;
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+use web_sys::console;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+thread_local! {
+    static PRINT_BUFFER: std::cell::RefCell<String> = std::cell::RefCell::new(String::new());
+}
+
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 macro_rules! print {
     ($($tt:tt)*) => {{
         let msg = format!($($tt)*);
-        js! {
-            if(!window.tbuf) window.tbuf = "";
-            window.tbuf += @{msg};
-        }
+        PRINT_BUFFER.with(|buffer| {
+            buffer.borrow_mut().push_str(&msg);
+        });
     }}
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 macro_rules! println {
     ($($tt:tt)*) => {{
         let msg = format!($($tt)*);
-        js! {
-            if(!window.tbuf) window.tbuf = "";
-            console.log(window.tbuf + @{ msg });
-            window.tbuf = "";
-        }
+        PRINT_BUFFER.with(|buffer| {
+            let mut buf = buffer.borrow_mut();
+            buf.push_str(&msg);
+            console::log_1(&wasm_bindgen::JsValue::from_str(&buf));
+            buf.clear();
+        });
     }}
 }
 
