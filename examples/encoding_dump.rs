@@ -1,9 +1,9 @@
 use bp7::crc::CrcBlock;
 use bp7::flags::BlockControlFlags;
 use bp7::{
-    canonical, crc,
+    EndpointID, canonical, crc,
     helpers::{ser_dump, vec_dump},
-    primary, EndpointID,
+    primary,
 };
 use std::convert::TryInto;
 

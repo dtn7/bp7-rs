@@ -1,8 +1,8 @@
 [package]
 name = "bp7"
-version = "0.10.7" # managed by release.sh
+version = "0.10.7"                                                               # managed by release.sh
 authors = ["Lars Baumgaertner <baumgaertner@cs.tu-darmstadt.de>"]
-edition = "2018"
+edition = "2024"
 description = "Rust implementation of dtn Bundle Protocol Version 7 ([RFC 9171]"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/dtn7/bp7-rs"
@@ -22,8 +22,12 @@ name = "bp7"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dev-dependencies]
-criterion = "0.5.1"
-test-case = { version = "3.3.1" }
+# criterion enables rayon by default; rayon is incompatible with wasm32, so we disable default features
+criterion = { version = "0.7.0", default-features = false, features = [
+    "cargo_bench_support",
+    "plotters",
+] }
+test-case = "3.3.1"
 
 [[bench]]
 name = "benchmark"
@@ -32,33 +36,28 @@ harness = false
 [features]
 
 default = ["binary-build"]
-binary-build = ["instant"]
-benchmark-helpers = ["instant"]
+binary-build = ["wasm-js"]
+wasm-js = ["nanorand/getrandom"]
 bpsec = ["dep:sha2", "dep:hmac"]
 
 [dependencies]
 humantime = "2.2.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_cbor = "0.11.2"
-serde_json = "1.0.140"
+serde_json = "1.0.143"
 serde_bytes = "0.11.17"
 crc = "3.3.0"
-thiserror = "2.0.12"
-bitflags = "2.6.0"
+thiserror = "2.0.16"
+bitflags = "2.9.4"
+web-time = "1.1.0"
+nanorand = "0.8.0"
 
 # bpsec dependencies
 sha2 = { version = "0.10.9", optional = true }
 hmac = { version = "0.12.1", optional = true }
 
-# non wasm config
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-nanorand = { version = "0.7.0", default-features = true }
-instant = { version = "0.1.13", features = ["now"], optional = true }
-
-# wasm specific
-
+# wasm dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-stdweb = "0.4.20"
-nanorand = { version = "0.7.0", features = ["getrandom"] }
-instant = { version = "0.1.13", features = ["stdweb", "now"], optional = true }
+wasm-bindgen = { version = "0.2.100", features = ["serde-serialize"] }
+serde-wasm-bindgen = "0.6.5"
+web-sys = { version = "0.3.77", features = ["console"] }
