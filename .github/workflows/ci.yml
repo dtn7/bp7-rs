@@ -1,0 +1,48 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cargo:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - { name: check, cmd: "check --all-targets --all-features" }
+          - {
+              name: test,
+              cmd: "test --all-targets --all-features --lib --bins --tests --examples",
+            }
+          - { name: fmt, cmd: "fmt --all -- --check" }
+          - {
+              name: clippy,
+              cmd: "clippy --all-targets --all-features --tests --examples -- -D warnings",
+            }
+          - {
+              name: doc,
+              cmd: "doc --no-deps --all-features --document-private-items",
+            }
+    name: ${{ matrix.task.name }}
+
+    steps:
+      - name: Checkout Sources
+        uses: actions/checkout@v5
+
+      - name: Install Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+          cache: true
+
+      - name: Run ${{ matrix.task.name }}
+        run: cargo ${{ matrix.task.cmd }}
