@@ -121,7 +121,7 @@ impl IpptBuilder {
 /// * `scope_flags` - Bit field
 /// * `primary_block` - A reference to the primary block
 /// * `security_header` - A tuple with the values of the block_type,
-///     the block_number and the block_control_flags
+///   the block_number and the block_control_flags
 /// * `security_target_contents` - A Vector with the result values
 ///
 /// # RFC references
