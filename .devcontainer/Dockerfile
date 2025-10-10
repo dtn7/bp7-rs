@@ -1,10 +1,17 @@
-FROM ubuntu:18.04
+FROM ubuntu:latest
 
-WORKDIR /home/
-
-COPY . .
-
-RUN bash ./setup.sh
-
-ENV PATH="/root/.cargo/bin:$PATH"
-
+# Install basic dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    curl \
+    wget \
+    git \
+    ca-certificates \
+    gnupg2 \
+    jq \
+    sudo \
+    nano \
+    vim \
+    build-essential \
+    openssl && \
+    rm -rf /var/lib/apt/lists/*
