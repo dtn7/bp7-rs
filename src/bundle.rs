@@ -14,9 +14,6 @@ use super::primary::*;
 use crate::error::{Error, ErrorList};
 use thiserror::Error;
 
-#[cfg(feature = "bpsec")]
-pub use crate::security::IntegrityBlock;
-
 /// Version for upcoming bundle protocol standard is 7.
 pub const DTN_VERSION: u32 = 7;
 
@@ -170,21 +167,6 @@ impl Bundle {
         if let Err(mut err) = self.primary.validate() {
             errors.append(&mut err);
         }
-        #[cfg(feature = "bpsec")]
-        if self.primary.crc == CrcValue::CrcNo {
-            let mut primary_protected_by_bib: bool = false;
-            let bibs: Vec<IntegrityBlock> = self.decode_bibs();
-            for data in bibs {
-                if data.security_targets.contains(&1) {
-                    primary_protected_by_bib = true;
-                }
-            }
-            if !primary_protected_by_bib {
-                errors.push(Error::BundleError(
-                    "Primary Block has no CRC and is not protected by a BIB".to_string(),
-                ));
-            }
-        }
         for blck in &self.canonicals {
             if let Err(mut err) = blck.validate() {
                 errors.append(&mut err);
@@ -200,8 +182,8 @@ impl Bundle {
                     .contains(BlockControlFlags::BLOCK_STATUS_REPORT)
             {
                 errors.push(Error::BundleError(
-                    "Bundle Processing Control Flags indicate that this bundle's payload is an administrative record or the source node is omitted, but the \"Transmit status report if block cannot be processed\" Block Processing Control Flag was set in a Canonical Block".to_string()
-                ));
+                        "Bundle Processing Control Flags indicate that this bundle's payload is an administrative record or the source node is omitted, but the \"Transmit status report if block cannot be processed\" Block Processing Control Flag was set in a Canonical Block".to_string()
+                    ));
             }
             if !b_num.insert(blck.block_number) {
                 errors.push(Error::BundleError(
@@ -326,24 +308,6 @@ impl Bundle {
         for b in &mut self.canonicals {
             b.update_crc();
         }
-    }
-
-    /// Return decoded BIBs if block integrity blocks exists.
-    #[cfg(feature = "bpsec")]
-    pub fn decode_bibs(&self) -> Vec<IntegrityBlock> {
-        return self
-            .canonicals
-            .iter()
-            .filter(|b| {
-                b.block_type == crate::security::INTEGRITY_BLOCK && b.extension_validation().is_ok()
-            })
-            .filter_map(|b| match b.data() {
-                CanonicalData::Unknown(bytes) => {
-                    serde_cbor::from_slice::<crate::security::IntegrityBlock>(bytes).ok()
-                }
-                _ => None,
-            })
-            .collect();
     }
 
     /// Get first extension block matching the block type
