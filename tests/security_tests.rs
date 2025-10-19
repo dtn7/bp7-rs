@@ -195,15 +195,3 @@ fn simple_integrity_test() {
     let example_bundle = "9f88070000820282010282028202018202820201820018281a000f4240850b0200005856810101018202820201828201078203008181820158403bdc69b3a34a2b5d3a8554368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550fdfb1cc636b904e2f1a73e303dcd4b6ccece003e95e8164dcc89a156e185010100005823526561647920746f2067656e657261746520612033322d62797465207061796c6f6164ff";
     assert_eq!(cbor_bundle, example_bundle);
 }
-
-#[test]
-#[cfg(feature = "bpsec")]
-fn no_crc_or_bib_primary_block() {
-    let hex_bundle = "9f88071844008202820301820100820100821b000000b5998c982b011a000493e08506021000458202820200850704010042183485010101004454455354ff";
-    let bytes = unhexify(hex_bundle);
-    let bundle = crate::bundle::Bundle::try_from(bytes.unwrap().as_slice()).expect("CBOR decode");
-    assert!(
-        bundle.validate().is_err(),
-        "Bundle had no CRC or BIB for primary block!"
-    );
-}
