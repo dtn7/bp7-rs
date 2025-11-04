@@ -18,6 +18,7 @@ const ENDPOINT_URI_SCHEME_IPN: u8 = 2;
 #[deprecated(note = "Please use EndpointID::none() instead")]
 pub const DTN_NONE: EndpointID = EndpointID::DtnNone(ENDPOINT_URI_SCHEME_DTN, 0);
 
+// TODO Implement RFC 9758
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct IpnAddress(u64, u64);
 
@@ -182,9 +183,14 @@ impl<'de> Deserialize<'de> for EndpointID {
                         ))
                     }
                 } else if eid_type == ENDPOINT_URI_SCHEME_IPN {
-                    let ipnaddr: IpnAddress = seq
+                    let mut ipnaddr: IpnAddress = seq
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                    if ipnaddr.node_number() == 0 && ipnaddr.service_number() != 0 {
+                        // RFC 9758 §3.4.1: “Any ipn URI with a zero (0) Allocator Identifier and a zero (0) Node Number, but a non-zero Service Number component, is invalid.
+                        // Such ipn URIs MUST NOT be composed, and processors of such ipn URIs MUST consider them as the Null ipn URI.”
+                        ipnaddr = IpnAddress::new(0, 0);
+                    }
                     if let Ok(ipn) = ipnaddr.try_into() {
                         // Conversion can fail as validation happens within function
                         Ok(ipn)
@@ -401,8 +407,12 @@ impl EndpointID {
                         *code,
                         ENDPOINT_URI_SCHEME_IPN,
                     ))
-                } else if addr.node_number() < 1 {
+                } else if addr.node_number() == 0 && addr.service_number() != 0 {
+                    // Reject ipn:0.<nonzero> in validate. They should be treated by serialization and deserialization as the Null ipn
                     Err(EndpointIdError::InvalidNodeNumber(addr.node_number()))
+                } else if addr.node_number() == 0 && addr.service_number() == 0 {
+                    // ipn:0.0 is valid since RFC 9758 and identifies a unreachable resource
+                    Ok(())
                 } else {
                     Ok(())
                 }
@@ -518,7 +528,7 @@ mod tests {
     #[test_case(EndpointID::DtnNone(1, 1) => false)]
     #[test_case(EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, IpnAddress::new(23, 42)) => true)]
     #[test_case(EndpointID::Ipn(ENDPOINT_URI_SCHEME_DTN, IpnAddress::new(23, 42)) => false)]
-    #[test_case(EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, IpnAddress::new(0, 0)) => false)]
+    #[test_case(EndpointID::Ipn(ENDPOINT_URI_SCHEME_IPN, IpnAddress::new(0, 0)) => true)]
     fn validate_test(eid: EndpointID) -> bool {
         eid.validate().is_ok()
     }
