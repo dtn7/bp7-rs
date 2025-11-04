@@ -331,8 +331,7 @@ impl Bundle {
     /// Return decoded BIBs if block integrity blocks exists.
     #[cfg(feature = "bpsec")]
     pub fn decode_bibs(&self) -> Vec<IntegrityBlock> {
-        return self
-            .canonicals
+        self.canonicals
             .iter()
             .filter(|b| {
                 b.block_type == crate::security::INTEGRITY_BLOCK && b.extension_validation().is_ok()
@@ -343,7 +342,7 @@ impl Bundle {
                 }
                 _ => None,
             })
-            .collect();
+            .collect()
     }
 
     /// Get first extension block matching the block type
