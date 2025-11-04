@@ -1,7 +1,7 @@
+use bp7::crc::CRC_16;
 use bp7::helpers::unhexify;
 use bp7::{Bundle, primary};
 use std::time::Duration;
-use bp7::crc::CRC_16;
 
 #[test]
 fn test_lifetime() {
