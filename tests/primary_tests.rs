@@ -1,4 +1,5 @@
-use bp7::primary;
+use bp7::helpers::unhexify;
+use bp7::{Bundle, primary};
 use std::time::Duration;
 
 #[test]
@@ -26,4 +27,16 @@ fn test_lifetime() {
         Duration::from_secs(10),
     );
     assert!(p2.is_lifetime_exceeded());
+}
+
+#[test]
+fn test_ipn_accept() {
+    let hex_bundle = "9f88070000820282020182028201018202820001821b00ff00bb0e20b4ea001a000927c08507020100410085010100004d48656c6f2c20576f726c642142ff";
+    let bytes = unhexify(hex_bundle);
+
+    let bundle = Bundle::try_from(bytes.clone().unwrap().as_slice()).expect("CBOR decode");
+    assert!(
+        bundle.validate().is_ok(),
+        "ipn:0.<nonzero> should get accepted and treated as ipn:0.0"
+    );
 }
