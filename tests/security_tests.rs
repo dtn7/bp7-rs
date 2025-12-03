@@ -42,7 +42,7 @@ fn canonical_block_tests() {
 fn rfc_example_tests() {
     simple_integrity_test();
 
-    //simple_confidentiality_test();
+    simple_confidentiality_test();
 
     //multiple_sources_test();
 
@@ -194,4 +194,166 @@ fn simple_integrity_test() {
     let cbor_bundle = hexify(&b.to_cbor());
     let example_bundle = "9f88070000820282010282028202018202820201820018281a000f4240850b0200005856810101018202820201828201078203008181820158403bdc69b3a34a2b5d3a8554368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550fdfb1cc636b904e2f1a73e303dcd4b6ccece003e95e8164dcc89a156e185010100005823526561647920746f2067656e657261746520612033322d62797465207061796c6f6164ff";
     assert_eq!(cbor_bundle, example_bundle);
+}
+
+#[test]
+#[cfg(feature = "bpsec")]
+/// # Simple Confidentiality Test
+///
+/// Tests BCB (Block Confidentiality Block) with AES-256-GCM encryption/decryption
+///
+/// ## Test Flow:
+/// 1. Create a bundle with a payload block
+/// 2. Encrypt the payload using BCB with AES-256-GCM
+/// 3. Decrypt the payload and verify it matches the original
+///
+fn simple_confidentiality_test() {
+    println!("Simple Confidentiality Test");
+
+    // Create test payload
+    let plaintext_payload = b"This is a secret message!".to_vec();
+
+    let payload_block = bp7::new_payload_block(
+        BlockControlFlags::empty(),
+        plaintext_payload.clone(),
+    );
+
+    // Create primary block for AAD construction
+    let dst = eid::EndpointID::with_ipn(1, 2).unwrap();
+    let src = eid::EndpointID::with_ipn(2, 1).unwrap();
+    let now = dtntime::CreationTimestamp::with_time_and_seq(0, 40);
+
+    let primary_block = primary::PrimaryBlockBuilder::default()
+        .destination(dst)
+        .source(src.clone())
+        .report_to(src.clone())
+        .creation_timestamp(now)
+        .lifetime(Duration::from_millis(1000000))
+        .build()
+        .unwrap();
+
+    // Setup BCB with AES-256-GCM
+    let sec_ctx_para = BcbSecurityContextParameter::new(
+        Some((1, AES_256_GCM)), // AES-256-GCM
+        None,                    // No wrapped key
+        Some((4, 0x0007)),       // All AAD scope flags
+    );
+
+    let mut bcb = ConfidentialityBlockBuilder::default()
+        .security_targets(vec![1]) // Target the payload block
+        .security_context_flags(1) // Parameters present
+        .security_source(src)
+        .security_context_parameters(sec_ctx_para.clone())
+        .build()
+        .unwrap();
+
+    // Prepare AAD (Additional Authenticated Data)
+    let sec_block_header: (CanonicalBlockType, u64, bp7::flags::BlockControlFlagsType) = (
+        bp7::security::CONFIDENTIALITY_BLOCK,
+        2,
+        BlockControlFlags::empty().bits(),
+    );
+
+    let mut aad_builder = AadBuilder::new()
+        .primary_block(primary_block.clone())
+        .security_header(sec_block_header)
+        .scope_flags(0x0007)
+        .build();
+
+    let aad = aad_builder.create(&payload_block);
+
+    // Encryption parameters
+    let key_256: [u8; 32] = [
+        0x71, 0x69, 0x63, 0x56, 0x68, 0x7A, 0x4A, 0x59,
+        0x6C, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41,
+        0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41,
+        0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41,
+    ];
+
+    let iv: [u8; 12] = [
+        0x5e, 0xdc, 0x5d, 0xd6, 0x09, 0xd7,
+        0x8e, 0xdc, 0xb1, 0x04, 0x5d, 0x8c,
+    ];
+
+    // Encrypt the payload
+    let iv_list = vec![(payload_block.block_number, iv)];
+    let aad_list = vec![(payload_block.block_number, &aad)];
+    let plaintext_list = vec![(payload_block.block_number, &plaintext_payload)];
+
+    let encrypt_result = bcb.encrypt_targets(&key_256, iv_list.clone(), aad_list.clone(), plaintext_list);
+    assert!(encrypt_result.is_ok(), "Encryption should succeed");
+
+    // Verify security results were generated
+    assert_eq!(bcb.security_results.len(), 1, "Should have results for one target");
+    assert_eq!(bcb.security_results[0].len(), 2, "Should have auth tag and IV");
+
+    // Extract auth tag and IV from results
+    let auth_tag = &bcb.security_results[0]
+        .iter()
+        .find(|(id, _)| *id == 1)
+        .expect("Auth tag should exist")
+        .1;
+
+    let result_iv = &bcb.security_results[0]
+        .iter()
+        .find(|(id, _)| *id == 2)
+        .expect("IV should exist")
+        .1;
+
+    assert_eq!(result_iv.len(), 12, "IV should be 12 bytes");
+    assert_eq!(auth_tag.len(), 16, "Auth tag should be 16 bytes");
+    assert_eq!(result_iv.as_slice(), &iv, "IV should match");
+
+    println!("Encryption successful");
+    println!("  Auth Tag: {}", hexify(auth_tag));
+    println!("  IV: {}", hexify(result_iv));
+
+    // Now test decryption
+    // In a real scenario, the ciphertext would be the encrypted payload
+    // For this test, we'll simulate it by encrypting again and getting the ciphertext
+    let bcb_for_decrypt = bcb.clone();
+
+    // Simulate getting ciphertext (in reality this would come from the encrypted bundle)
+    // Re-encrypt to get ciphertext
+    use aes_gcm::aead::{Aead, KeyInit, Payload};
+    let cipher = aes_gcm::Aes256Gcm::new((&key_256).into());
+    let nonce = aes_gcm::Nonce::from_slice(&iv);
+
+    let payload = Payload {
+        msg: &plaintext_payload,
+        aad: &aad,
+    };
+
+    let full_ciphertext = cipher.encrypt(nonce, payload).expect("Encryption failed");
+    let ciphertext_only = full_ciphertext[..full_ciphertext.len().saturating_sub(16)].to_vec();
+
+    // Decrypt
+    let ciphertext_list = vec![(payload_block.block_number, &ciphertext_only)];
+    let decrypt_result = bcb_for_decrypt.decrypt_targets(&key_256, aad_list, ciphertext_list);
+
+    assert!(decrypt_result.is_ok(), "Decryption should succeed");
+
+    let decrypted_plaintexts = decrypt_result.unwrap();
+    assert_eq!(decrypted_plaintexts.len(), 1, "Should decrypt one target");
+    assert_eq!(decrypted_plaintexts[0].0, payload_block.block_number, "Block number should match");
+    assert_eq!(decrypted_plaintexts[0].1, plaintext_payload, "Decrypted plaintext should match original");
+
+    println!("Decryption successful");
+    println!("  Original:  {}", String::from_utf8_lossy(&plaintext_payload));
+    println!("  Decrypted: {}", String::from_utf8_lossy(&decrypted_plaintexts[0].1));
+
+    // Test CBOR serialization
+    let canonical_bcb = bcb.to_cbor();
+    println!("BCB CBOR length: {} bytes", canonical_bcb.len());
+
+    // Create the full BCB block
+    let bcb_block = bp7::security::new_confidentiality_block(
+        2,
+        BlockControlFlags::empty(),
+        canonical_bcb,
+    );
+
+    let cbor_bcb = serde_cbor::to_vec(&bcb_block).unwrap();
+    println!("Full BCB block CBOR length: {} bytes", cbor_bcb.len());
+    println!("BCB block: {}", hexify(&cbor_bcb));
 }
