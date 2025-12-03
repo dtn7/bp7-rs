@@ -391,10 +391,10 @@ impl CanonicalBlock {
         }
     }
     pub fn hop_count_get(&self) -> Option<(u8, u8)> {
-        if self.block_type == HOP_COUNT_BLOCK
-            && let CanonicalData::HopCount(hc_limit, hc_count) = self.data()
-        {
-            return Some((*hc_limit, *hc_count));
+        if self.block_type == HOP_COUNT_BLOCK {
+            if let CanonicalData::HopCount(hc_limit, hc_count) = self.data() {
+                return Some((*hc_limit, *hc_count));
+            }
         }
         None
     }
@@ -407,11 +407,12 @@ impl CanonicalBlock {
         false
     }
     pub fn hop_count_exceeded(&self) -> bool {
-        if self.block_type == HOP_COUNT_BLOCK
-            && let CanonicalData::HopCount(hc_limit, hc_count) = self.data()
-            && *hc_count > *hc_limit
-        {
-            return true;
+        if self.block_type == HOP_COUNT_BLOCK {
+            if let CanonicalData::HopCount(hc_limit, hc_count) = self.data() {
+                if *hc_count > *hc_limit {
+                    return true;
+                }
+            }
         }
         false
     }
@@ -423,10 +424,10 @@ impl CanonicalBlock {
         false
     }
     pub fn bundle_age_get(&self) -> Option<u128> {
-        if self.block_type == BUNDLE_AGE_BLOCK
-            && let CanonicalData::BundleAge(age) = self.data()
-        {
-            return Some((*age).into());
+        if self.block_type == BUNDLE_AGE_BLOCK {
+            if let CanonicalData::BundleAge(age) = self.data() {
+                return Some((*age).into());
+            }
         }
         None
     }
@@ -438,10 +439,10 @@ impl CanonicalBlock {
         false
     }
     pub fn previous_node_get(&self) -> Option<&EndpointID> {
-        if self.block_type == PREVIOUS_NODE_BLOCK
-            && let CanonicalData::PreviousNode(eid) = self.data()
-        {
-            return Some(eid);
+        if self.block_type == PREVIOUS_NODE_BLOCK {
+            if let CanonicalData::PreviousNode(eid) = self.data() {
+                return Some(eid);
+            }
         }
         None
     }
