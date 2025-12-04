@@ -377,13 +377,13 @@ impl Bundle {
         if let Some(pnblock) = self.extension_block_by_type_mut(PREVIOUS_NODE_BLOCK) {
             pnblock.previous_node_update(local_node);
         }
-        if let Some(bablock) = self.extension_block_by_type_mut(BUNDLE_AGE_BLOCK)
-            && let Some(ba_orig) = bablock.bundle_age_get()
-        {
-            bablock.bundle_age_update(ba_orig + residence_time);
-            if ba_orig + residence_time > self.primary.lifetime.as_micros() {
-                // TODO: check lifetime exceeded calculations with rfc
-                return false;
+        if let Some(bablock) = self.extension_block_by_type_mut(BUNDLE_AGE_BLOCK) {
+            if let Some(ba_orig) = bablock.bundle_age_get() {
+                bablock.bundle_age_update(ba_orig + residence_time);
+                if ba_orig + residence_time > self.primary.lifetime.as_micros() {
+                    // TODO: check lifetime exceeded calculations with rfc
+                    return false;
+                }
             }
         }
         !self.primary.is_lifetime_exceeded()

@@ -38,7 +38,7 @@ harness = false
 default = ["binary-build"]
 binary-build = ["wasm-js"]
 wasm-js = ["nanorand/getrandom"]
-bpsec = ["dep:sha2", "dep:hmac"]
+bpsec = ["dep:sha2", "dep:hmac", "dep:aes-gcm"]
 
 [dependencies]
 humantime = "2.2.0"
@@ -55,6 +55,7 @@ nanorand = "0.8.0"
 # bpsec dependencies
 sha2 = { version = "0.10.9", optional = true }
 hmac = { version = "0.12.1", optional = true }
+aes-gcm = { version = "0.10.3", optional = true }
 
 # wasm dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
