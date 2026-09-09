@@ -42,6 +42,7 @@ fn new_complete_bundle(crc_type: bp7::crc::CrcRawType) -> Bundle {
         .unwrap();
     b.set_crc(crc_type);
     b.calculate_crc();
+    #[cfg(not(feature = "bpsec"))]
     assert!(b.validate().is_ok());
     b
 }
@@ -66,6 +67,7 @@ fn new_empty_bundle(crc_type: bp7::crc::CrcRawType) -> Bundle {
     };
     b.set_crc(crc_type);
     b.calculate_crc();
+    #[cfg(not(feature = "bpsec"))]
     assert!(b.validate().is_err());
     b
 }

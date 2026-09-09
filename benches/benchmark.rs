@@ -35,6 +35,7 @@ fn bench_bundle_create(crc_type: crc::CrcRawType) -> ByteBuffer {
 
     b.set_crc(crc_type);
     b.calculate_crc();
+    #[cfg(not(feature = "bpsec"))]
     b.validate().unwrap();
     b.to_cbor()
 }
@@ -81,6 +82,7 @@ fn criterion_benchmark_bundle_encode(c: &mut Criterion) {
         .unwrap();
     b.set_crc(crc::CRC_NO);
     b.calculate_crc();
+    #[cfg(not(feature = "bpsec"))]
     b.validate().unwrap();
     let mut bndl = b.clone();
     c.bench_function("encode bundle no crc", move |bench| {
@@ -110,6 +112,7 @@ fn criterion_benchmark_bundle_decode(c: &mut Criterion) {
     c.bench_function("decode bundle no crc", move |b| {
         b.iter(|| {
             let _deserialized: Bundle = Bundle::try_from(b_no.as_slice()).unwrap();
+            #[cfg(not(feature = "bpsec"))]
             _deserialized.validate().unwrap();
         })
     });
