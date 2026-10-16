@@ -311,6 +311,13 @@ impl CanonicalBlock {
             errors.push(err);
         }
 
+        // block number 0 is reserved for the primary block (RFC 9171 4.3.2)
+        if self.block_number == 0 {
+            errors.push(Error::CanonicalBlockError(
+                "Block number zero is reserved for the primary block".to_string(),
+            ));
+        }
+
         if let Err(err) = self.extension_validation() {
             errors.push(err);
         }

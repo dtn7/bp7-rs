@@ -160,3 +160,11 @@ fn bundle_age_update_tests() {
     assert!(block.bundle_age_update(u128::MAX));
     assert_eq!(block.bundle_age_get(), Some(u64::MAX as u128));
 }
+
+#[test]
+fn block_number_zero_tests() {
+    let block = new_hop_count_block(0, BlockControlFlags::empty(), 16);
+    assert!(block.validate().is_err());
+    let block = new_hop_count_block(2, BlockControlFlags::empty(), 16);
+    assert!(block.validate().is_ok());
+}
