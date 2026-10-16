@@ -91,6 +91,12 @@ fn hopcount_tests() {
     assert!(!wrong_block.hop_count_increase());
     assert!(!wrong_block.hop_count_exceeded());
     assert_eq!(wrong_block.hop_count_get(), None);
+
+    // increasing a hop count of u8::MAX must not overflow
+    let mut max_block = new_hop_count_block(1, BlockControlFlags::empty(), 255);
+    max_block.set_data(CanonicalData::HopCount(255, 255));
+    assert!(max_block.hop_count_increase());
+    assert_eq!(max_block.hop_count_get(), Some((255, 255)));
 }
 
 #[test]

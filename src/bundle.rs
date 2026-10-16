@@ -404,8 +404,10 @@ impl Bundle {
     /// Return false if hop count is exceeded, bundle age exceeds life time or bundle lifetime itself is exceeded
     pub fn update_extensions(&mut self, local_node: EndpointID, residence_time: u128) -> bool {
         if let Some(hcblock) = self.extension_block_by_type_mut(HOP_COUNT_BLOCK) {
+            // a hop count of u8::MAX can't be increased and exceeds any limit after this hop
+            let at_max = matches!(hcblock.hop_count_get(), Some((_, u8::MAX)));
             hcblock.hop_count_increase();
-            if hcblock.hop_count_exceeded() {
+            if at_max || hcblock.hop_count_exceeded() {
                 return false;
             }
         }

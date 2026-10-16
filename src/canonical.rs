@@ -401,7 +401,7 @@ impl CanonicalBlock {
     }
     pub fn hop_count_increase(&mut self) -> bool {
         if let Some((hc_limit, mut hc_count)) = self.hop_count_get() {
-            hc_count += 1;
+            hc_count = hc_count.saturating_add(1);
             self.set_data(CanonicalData::HopCount(hc_limit, hc_count));
             return true;
         }

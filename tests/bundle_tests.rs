@@ -210,6 +210,18 @@ fn bundle_canonical_update_tests() {
 }
 
 #[test]
+fn bundle_hop_count_max_tests() {
+    let mut bndl = new_complete_bundle(crc::CRC_NO);
+    bndl.extension_block_by_type_mut(HOP_COUNT_BLOCK)
+        .unwrap()
+        .set_data(CanonicalData::HopCount(255, 254));
+    // 255 hops are still within the limit
+    assert!(bndl.update_extensions("dtn://newnode".try_into().unwrap(), 0));
+    // the next hop exceeds any possible limit
+    assert!(!bndl.update_extensions("dtn://newnode".try_into().unwrap(), 0));
+}
+
+#[test]
 fn bundle_add_cblock() {
     let mut b = new_empty_bundle(crc::CRC_NO);
     assert!(b.canonicals.is_empty());
