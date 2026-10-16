@@ -470,22 +470,23 @@ impl IntegrityBlockBuilder {
         self
     }
     pub fn build(self) -> Result<IntegrityBlock, IntegrityBlockBuilderError> {
-        if let Some(security_targets) = self.security_targets {
-            if let Some(_security_context_parameters) = self.security_context_parameters.clone() {
-                Ok(IntegrityBlock {
-                    security_targets,
-                    security_context_id: self.security_context_id,
-                    security_context_flags: self.security_context_flags,
-                    security_source: self.security_source,
-                    security_context_parameters: self.security_context_parameters,
-                    security_results: self.security_results,
-                })
-            } else {
-                Err(IntegrityBlockBuilderError::FlagSetButNoParameter)
-            }
-        } else {
-            Err(IntegrityBlockBuilderError::MissingSecurityTargets)
+        let Some(security_targets) = self.security_targets else {
+            return Err(IntegrityBlockBuilderError::MissingSecurityTargets);
+        };
+        // parameters are only required if indicated by the security context flags
+        if self.security_context_flags & SEC_CONTEXT_PRESENT != 0
+            && self.security_context_parameters.is_none()
+        {
+            return Err(IntegrityBlockBuilderError::FlagSetButNoParameter);
         }
+        Ok(IntegrityBlock {
+            security_targets,
+            security_context_id: self.security_context_id,
+            security_context_flags: self.security_context_flags,
+            security_source: self.security_source,
+            security_context_parameters: self.security_context_parameters,
+            security_results: self.security_results,
+        })
     }
 }
 

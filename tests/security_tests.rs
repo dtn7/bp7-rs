@@ -357,3 +357,34 @@ fn bib_context_parameter_decoding_tests() {
         p
     );
 }
+
+#[test]
+#[cfg(feature = "bpsec")]
+fn integrity_block_builder_tests() {
+    // parameters are optional without the parameters present flag
+    assert!(
+        IntegrityBlockBuilder::default()
+            .security_targets(vec![1])
+            .build()
+            .is_ok()
+    );
+    assert!(matches!(
+        IntegrityBlockBuilder::default()
+            .security_targets(vec![1])
+            .security_context_flags(SEC_CONTEXT_PRESENT)
+            .build(),
+        Err(IntegrityBlockBuilderError::FlagSetButNoParameter)
+    ));
+    assert!(
+        IntegrityBlockBuilder::default()
+            .security_targets(vec![1])
+            .security_context_flags(SEC_CONTEXT_PRESENT)
+            .security_context_parameters(BibSecurityContextParameter::default())
+            .build()
+            .is_ok()
+    );
+    assert!(matches!(
+        IntegrityBlockBuilder::default().build(),
+        Err(IntegrityBlockBuilderError::MissingSecurityTargets)
+    ));
+}
