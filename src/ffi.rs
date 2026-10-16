@@ -1,5 +1,5 @@
 use std::{
-    convert::TryInto,
+    convert::TryFrom,
     ffi::{CStr, CString},
     os::raw::c_char,
 };
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn buffer_free(buf: *mut Buffer) {
 
 /// Try to decode a bundle from a given buffer.
 ///
-/// In case of failure, a null pointer is returned instead of a bundle.
+/// In case of failure, e.g., invalid CBOR or an invalid bundle, a null pointer is returned instead of a bundle.
 ///
 /// # Safety
 ///
@@ -94,14 +94,9 @@ pub unsafe extern "C" fn bundle_from_cbor(ptr: *mut Buffer) -> *mut Bundle {
         assert!(!buf.data.is_null());
         let buffer = core::slice::from_raw_parts(buf.data, buf.len as usize);
         //println!("buffer {}", helpers::hexify(buffer));
-        let bndl: Bundle = buffer
-            .to_owned()
-            .try_into()
-            .expect("failed to load bundle from buffer");
-        if bndl.validate().is_ok() {
-            Box::into_raw(Box::new(bndl))
-        } else {
-            std::ptr::null_mut::<Bundle>()
+        match Bundle::try_from(buffer) {
+            Ok(bndl) if bndl.validate().is_ok() => Box::into_raw(Box::new(bndl)),
+            _ => std::ptr::null_mut::<Bundle>(),
         }
     }
 }
@@ -127,6 +122,8 @@ pub unsafe extern "C" fn bundle_to_cbor(bndl: *mut Bundle) -> *mut Buffer {
 
 /// Create a new bundle with standard configuration and a given payload
 ///
+/// If source or destination are not valid endpoint IDs, a null pointer is returned.
+///
 /// # Safety
 ///
 /// Should only be called from FFI interface.
@@ -142,20 +139,30 @@ pub unsafe extern "C" fn bundle_new_default(
         assert!(!src.is_null());
         let c_str_src = CStr::from_ptr(src);
 
-        let r_src = c_str_src.to_str().unwrap();
-        let src_eid: EndpointID = r_src.try_into().unwrap();
+        let Some(src_eid) = c_str_src
+            .to_str()
+            .ok()
+            .and_then(|s| EndpointID::try_from(s).ok())
+        else {
+            return std::ptr::null_mut::<Bundle>();
+        };
 
         assert!(!dst.is_null());
         let c_str_dst = CStr::from_ptr(dst);
-        let r_dst = c_str_dst.to_str().unwrap();
-        let dst_eid: EndpointID = r_dst.try_into().unwrap();
+        let Some(dst_eid) = c_str_dst
+            .to_str()
+            .ok()
+            .and_then(|s| EndpointID::try_from(s).ok())
+        else {
+            return std::ptr::null_mut::<Bundle>();
+        };
 
         assert!(!ptr.is_null());
         let payload = &mut *ptr;
         assert!(!payload.data.is_null());
         let data = core::slice::from_raw_parts(payload.data, payload.len as usize);
 
-        let pblock = primary::PrimaryBlockBuilder::default()
+        let Ok(pblock) = primary::PrimaryBlockBuilder::default()
             .bundle_control_flags(BundleControlFlags::BUNDLE_MUST_NOT_FRAGMENTED.bits())
             .destination(dst_eid)
             .source(src_eid.clone())
@@ -163,7 +170,10 @@ pub unsafe extern "C" fn bundle_new_default(
             .creation_timestamp(CreationTimestamp::now())
             .lifetime(core::time::Duration::from_millis(lifetime))
             .build()
-            .unwrap();
+        else {
+            // destination is dtn:none
+            return std::ptr::null_mut::<Bundle>();
+        };
         let mut b = Bundle::new(
             pblock,
             vec![new_payload_block(
@@ -194,6 +204,8 @@ pub unsafe extern "C" fn bundle_free(ptr: *mut Bundle) {
 
 /// Get the metadata from a given bundle.
 ///
+/// If an endpoint ID can not be represented as a C string, a null pointer is returned.
+///
 /// # Safety
 ///
 /// Should only be called from FFI interface.
@@ -206,9 +218,14 @@ pub unsafe extern "C" fn bundle_get_metadata(bndl: *mut Bundle) -> *mut BundleMe
         let timestamp = bndl.primary.creation_timestamp.dtntime();
         let seqno = bndl.primary.creation_timestamp.seqno();
         let lifetime = bndl.primary.lifetime.as_millis() as u64;
-        let src_str = CString::new(bndl.primary.source.to_string()).unwrap();
+        // endpoint IDs received from the network may contain NUL bytes
+        let (Ok(src_str), Ok(dst_str)) = (
+            CString::new(bndl.primary.source.to_string()),
+            CString::new(bndl.primary.destination.to_string()),
+        ) else {
+            return std::ptr::null_mut::<BundleMetaData>();
+        };
         let src = src_str.into_raw();
-        let dst_str = CString::new(bndl.primary.destination.to_string()).unwrap();
         let dst = dst_str.into_raw();
         Box::into_raw(Box::new(BundleMetaData {
             src,
