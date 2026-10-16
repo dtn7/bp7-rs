@@ -643,21 +643,36 @@ impl<'de> Deserialize<'de> for IntegrityBlock {
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
 
-                let security_context_id = seq.next_element()?.unwrap();
-                let security_context_flags = seq.next_element()?.unwrap();
-                let security_source = seq.next_element()?.unwrap();
+                let security_context_id = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let security_context_flags = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let security_source = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(3, &self))?;
 
-                let security_context_parameters = seq.next_element()?.unwrap();
+                let security_context_parameters = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(4, &self))?;
 
                 // TODO: deal with multiple targets
-                let results: Vec<Vec<(u64, &[u8])>> = seq.next_element()?.unwrap();
+                let results: Vec<Vec<(u64, &[u8])>> = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(5, &self))?;
+                // there must be one set of results per security target
+                if results.len() != security_targets.len() {
+                    return Err(de::Error::invalid_length(results.len(), &self));
+                }
                 let mut security_results = Vec::new();
 
-                (0..security_targets.len()).for_each(|i| {
-                    let next_result = &results[i];
-                    let temp_mac = next_result[0].1.to_vec();
-                    security_results.push(vec![(next_result[0].0, temp_mac)]);
-                });
+                for next_result in &results {
+                    let (result_id, temp_mac) = next_result
+                        .first()
+                        .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                    security_results.push(vec![(*result_id, temp_mac.to_vec())]);
+                }
                 Ok(IntegrityBlock {
                     security_targets,
                     security_context_id,

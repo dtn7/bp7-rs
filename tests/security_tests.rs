@@ -207,3 +207,39 @@ fn no_crc_or_bib_primary_block() {
         "Bundle had no CRC or BIB for primary block!"
     );
 }
+
+#[test]
+#[cfg(feature = "bpsec")]
+fn malformed_integrity_block_tests() {
+    // [[0], 1, 0, dtn:none, [[1, 6], [3, 7]], [[[1, h'010203']]]]
+    let valid = "8681000100820100828201068203078181820143010203";
+    assert!(serde_cbor::from_slice::<IntegrityBlock>(&unhexify(valid).unwrap()).is_ok());
+
+    for hex in [
+        // only security targets
+        "818100",
+        // missing security results
+        "8581000100820100828201068203 07",
+        // no results for security target
+        "8681000100820100828201068203 0780",
+        // empty result set for security target
+        "8681000100820100828201068203 078180",
+    ] {
+        let bytes = unhexify(&hex.replace(' ', "")).unwrap();
+        assert!(
+            serde_cbor::from_slice::<IntegrityBlock>(&bytes).is_err(),
+            "decoding {} should fail",
+            hex
+        );
+
+        // a bundle carrying such a block must be rejected, not panic
+        let mut bndl = bundle::new_std_payload_bundle(
+            "dtn://node1/".try_into().unwrap(),
+            "dtn://node2/inbox".try_into().unwrap(),
+            b"ABC".to_vec(),
+        );
+        bndl.add_canonical_block(new_integrity_block(0, BlockControlFlags::empty(), bytes));
+        assert!(bndl.decode_bibs().is_empty());
+        assert!(bndl.validate().is_err());
+    }
+}
