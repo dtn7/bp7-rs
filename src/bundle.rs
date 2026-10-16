@@ -367,8 +367,14 @@ impl Bundle {
     /// Serialize bundle as CBOR encoded byte buffer.
     pub fn to_cbor(&mut self) -> ByteBuffer {
         self.calculate_crc();
-        let mut bytebuf = serde_cbor::to_vec(&self).expect("Error serializing bundle as cbor.");
-        bytebuf[0] = 0x9f; // TODO: fix hack, indefinite-length array encoding
+        // bundles are encoded as indefinite-length arrays (RFC 9171 4.1)
+        let mut bytebuf = vec![0x9f];
+        serde_cbor::to_writer(&mut bytebuf, &self.primary)
+            .expect("Error serializing primary block as cbor.");
+        for c in &self.canonicals {
+            serde_cbor::to_writer(&mut bytebuf, c)
+                .expect("Error serializing canonical block as cbor.");
+        }
         bytebuf.push(0xff); // break mark
         bytebuf
     }

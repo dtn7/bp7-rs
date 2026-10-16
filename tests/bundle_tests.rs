@@ -269,3 +269,24 @@ fn bundle_add_cblock() {
     b.set_payload("123".into());
     assert_eq!(b.payload().unwrap(), b"123");
 }
+
+#[test]
+fn bundle_many_cblocks_roundtrip() {
+    let mut b = new_complete_bundle(crc::CRC_32);
+    // more than 23 blocks require a multi-byte array length in definite encoding
+    for _ in 0..30 {
+        b.add_canonical_block(canonical::new_canonical_block(
+            200,
+            0,
+            0,
+            CanonicalData::Unknown(b"X".to_vec()),
+        ));
+    }
+    assert_eq!(b.canonicals.len(), 34);
+
+    let cbor = b.to_cbor();
+    assert_eq!(cbor.first(), Some(&0x9f));
+    assert_eq!(cbor.last(), Some(&0xff));
+    let decoded = Bundle::try_from(cbor.as_slice()).expect("decoding failed");
+    assert_eq!(decoded, b);
+}
