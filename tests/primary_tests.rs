@@ -28,6 +28,15 @@ fn test_lifetime() {
         Duration::from_secs(10),
     );
     assert!(p2.is_lifetime_exceeded());
+
+    // a maximal lifetime must not overflow
+    let p3 = primary::new_primary_block(
+        "dtn://node1/",
+        "dtn://node2/",
+        bp7::dtntime::CreationTimestamp::now(),
+        Duration::from_millis(u64::MAX),
+    );
+    assert!(!p3.is_lifetime_exceeded());
 }
 
 #[test]

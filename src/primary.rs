@@ -288,7 +288,11 @@ impl PrimaryBlock {
         }
 
         let now = crate::dtn_time_now();
-        self.creation_timestamp.dtntime() + (self.lifetime.as_millis() as u64) <= now
+        let lifetime_ms = u64::try_from(self.lifetime.as_millis()).unwrap_or(u64::MAX);
+        self.creation_timestamp
+            .dtntime()
+            .saturating_add(lifetime_ms)
+            <= now
     }
     pub fn validate(&self) -> Result<(), ErrorList> {
         let mut errors: ErrorList = Vec::new();
