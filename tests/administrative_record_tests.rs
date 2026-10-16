@@ -88,3 +88,22 @@ fn status_report_tests() {
         BundleControlFlags::BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD.bits();
     assert!(bndl.is_administrative_record()); // actually not true since no payload block has been added
 }
+
+#[test]
+fn status_report_fragment_tests() {
+    let mut bndl = new_complete_bundle(crc::CRC_NO);
+    bndl.primary.bundle_control_flags = (BundleControlFlags::BUNDLE_IS_FRAGMENT
+        | BundleControlFlags::BUNDLE_STATUS_REQUEST_DELETION)
+        .bits();
+    bndl.primary.fragmentation_offset = 42;
+    bndl.primary.total_data_length = 100;
+
+    let sr = new_status_report(&bndl, DELETED_BUNDLE, LIFETIME_EXPIRED);
+    assert_eq!(sr.frag_offset, 42);
+    assert_eq!(sr.frag_len, 3);
+    assert_eq!(sr.refbundle(), bndl.id());
+
+    let encoded_sr = serde_cbor::to_vec(&sr).unwrap();
+    let sr_dec: StatusReport = serde_cbor::from_slice(&encoded_sr).unwrap();
+    assert_eq!(sr, sr_dec);
+}

@@ -376,8 +376,9 @@ pub fn new_status_report(
     };
 
     if bndl.primary.has_fragmentation() {
-        // TODO: add frag code
-        unimplemented!();
+        // RFC 9171 6.1.1: fragment offset and payload length of the subject bundle
+        sr.frag_offset = bndl.primary.fragmentation_offset;
+        sr.frag_len = bndl.payload().map_or(0, |p| p.len() as u64);
     }
 
     for i in 0..MAX_STATUS_INFORMATION_POS {
