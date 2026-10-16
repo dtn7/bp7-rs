@@ -314,3 +314,46 @@ fn bib_protected_primary_block_tests() {
     assert!(bundle_with_bib_targets(vec![0]).validate().is_ok());
     assert!(bundle_with_bib_targets(vec![1, 0]).validate().is_ok());
 }
+
+#[test]
+#[cfg(feature = "bpsec")]
+fn bib_context_parameter_decoding_tests() {
+    let decode =
+        |hex: &str| serde_cbor::from_slice::<BibSecurityContextParameter>(&unhexify(hex).unwrap());
+
+    // [[3, 0]]: only integrity scope flags
+    let p = decode("81820300").unwrap();
+    assert_eq!(
+        p,
+        BibSecurityContextParameter::new(None, None, Some((3, 0)))
+    );
+    // [[1, 7]]: only sha variant
+    let p = decode("81820107").unwrap();
+    assert_eq!(
+        p,
+        BibSecurityContextParameter::new(Some((1, 7)), None, None)
+    );
+    // [[3, 7], [1, 5]]: any order
+    let p = decode("82820307820105").unwrap();
+    assert_eq!(
+        p,
+        BibSecurityContextParameter::new(Some((1, 5)), None, Some((3, 7)))
+    );
+    // []: no parameters
+    assert_eq!(
+        decode("80").unwrap(),
+        BibSecurityContextParameter::new(None, None, None)
+    );
+    // [[4, 0]]: unknown parameter
+    assert!(decode("81820400").is_err());
+    // [[1, h'00']]: invalid value
+    assert!(decode("8182014100").is_err());
+
+    // all parameters including a wrapped key survive a roundtrip
+    let p = BibSecurityContextParameter::new(Some((1, 6)), Some((2, vec![1, 2, 3])), Some((3, 7)));
+    let encoded = serde_cbor::to_vec(&p).unwrap();
+    assert_eq!(
+        serde_cbor::from_slice::<BibSecurityContextParameter>(&encoded).unwrap(),
+        p
+    );
+}

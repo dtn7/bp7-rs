@@ -367,14 +367,37 @@ impl<'de> Deserialize<'de> for BibSecurityContextParameter {
             where
                 S: SeqAccess<'de>,
             {
-                let sha_variant = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                // TODO: deal with wrapped key
-                let wrapped_key = None;
-                let integrity_scope_flags = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let mut sha_variant = None;
+                let mut wrapped_key = None;
+                let mut integrity_scope_flags = None;
+
+                // all parameters are optional and identified by their id (RFC 9173 3.3.4)
+                while let Some((id, value)) = seq.next_element::<(u8, serde_cbor::Value)>()? {
+                    let unexpected =
+                        || de::Error::custom(format!("invalid value for parameter {}", id));
+                    match id {
+                        1 => {
+                            let variant =
+                                serde_cbor::value::from_value(value).map_err(|_| unexpected())?;
+                            sha_variant = Some((id, variant));
+                        }
+                        2 => match value {
+                            serde_cbor::Value::Bytes(key) => wrapped_key = Some((id, key)),
+                            _ => return Err(unexpected()),
+                        },
+                        3 => {
+                            let flags =
+                                serde_cbor::value::from_value(value).map_err(|_| unexpected())?;
+                            integrity_scope_flags = Some((id, flags));
+                        }
+                        _ => {
+                            return Err(de::Error::custom(format!(
+                                "unknown security context parameter {}",
+                                id
+                            )));
+                        }
+                    }
+                }
 
                 Ok(BibSecurityContextParameter {
                     sha_variant,
