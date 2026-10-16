@@ -208,7 +208,6 @@ impl IntegrityProtectedPlaintext {
         );
         ippt.append(&mut optional_ippt_data);
         ippt.append(&mut self.security_target_contents);
-        println!("ippt hex {:?}", hexify(&ippt));
         ippt
     }
 
