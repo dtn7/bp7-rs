@@ -284,3 +284,33 @@ fn integrity_block_sequence_decoding_tests() {
     let bundle = Bundle::try_from(unhexify(example_bundle).unwrap().as_slice()).unwrap();
     assert_eq!(bundle.decode_bibs().len(), 1);
 }
+
+#[test]
+#[cfg(feature = "bpsec")]
+fn bib_protected_primary_block_tests() {
+    fn bundle_with_bib_targets(targets: Vec<u64>) -> Bundle {
+        let mut b = bundle::new_std_payload_bundle(
+            "dtn://node1/".try_into().unwrap(),
+            "dtn://node2/inbox".try_into().unwrap(),
+            b"ABC".to_vec(),
+        );
+        let results = targets.iter().map(|_| vec![(1, vec![0; 48])]).collect();
+        let ib = IntegrityBlockBuilder::default()
+            .security_targets(targets)
+            .security_context_parameters(BibSecurityContextParameter::default())
+            .security_results(results)
+            .build()
+            .unwrap();
+        b.add_canonical_block(new_integrity_block(
+            0,
+            BlockControlFlags::empty(),
+            ib.to_cbor(),
+        ));
+        b
+    }
+
+    // a BIB only covering the payload block does not protect the primary block
+    assert!(bundle_with_bib_targets(vec![1]).validate().is_err());
+    assert!(bundle_with_bib_targets(vec![0]).validate().is_ok());
+    assert!(bundle_with_bib_targets(vec![1, 0]).validate().is_ok());
+}

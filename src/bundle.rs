@@ -175,7 +175,8 @@ impl Bundle {
             let mut primary_protected_by_bib: bool = false;
             let bibs: Vec<IntegrityBlock> = self.decode_bibs();
             for data in bibs {
-                if data.security_targets.contains(&1) {
+                // the primary block is always block number 0
+                if data.security_targets.contains(&0) {
                     primary_protected_by_bib = true;
                 }
             }
