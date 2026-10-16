@@ -407,6 +407,8 @@ impl Bundle {
     /// Update extension blocks such as hop count, bundle age and previous node.
     /// Return true if all successful, omit missing blocks.
     /// Return false if hop count is exceeded, bundle age exceeds life time or bundle lifetime itself is exceeded
+    ///
+    /// The `residence_time` is given in milliseconds, like the bundle age (RFC 9171 4.4.2).
     pub fn update_extensions(&mut self, local_node: EndpointID, residence_time: u128) -> bool {
         if let Some(hcblock) = self.extension_block_by_type_mut(HOP_COUNT_BLOCK) {
             // a hop count of u8::MAX can't be increased and exceeds any limit after this hop
@@ -422,9 +424,9 @@ impl Bundle {
         if let Some(bablock) = self.extension_block_by_type_mut(BUNDLE_AGE_BLOCK)
             && let Some(ba_orig) = bablock.bundle_age_get()
         {
-            bablock.bundle_age_update(ba_orig + residence_time);
-            if ba_orig + residence_time > self.primary.lifetime.as_micros() {
-                // TODO: check lifetime exceeded calculations with rfc
+            let age = ba_orig + residence_time;
+            bablock.bundle_age_update(age);
+            if age >= self.primary.lifetime.as_millis() {
                 return false;
             }
         }

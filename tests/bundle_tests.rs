@@ -210,6 +210,18 @@ fn bundle_canonical_update_tests() {
 }
 
 #[test]
+fn bundle_age_lifetime_tests() {
+    // without a clock, bundle age and lifetime are compared in milliseconds
+    let mut bndl = new_complete_bundle(crc::CRC_NO);
+    bndl.primary.creation_timestamp = dtntime::CreationTimestamp::with_time_and_seq(0, 0);
+    bndl.primary.lifetime = Duration::from_secs(3);
+    assert!(bndl.update_extensions("dtn://newnode".try_into().unwrap(), 1000));
+    assert!(!bndl.update_extensions("dtn://newnode".try_into().unwrap(), 2000));
+    let cb = bndl.extension_block_by_type(BUNDLE_AGE_BLOCK).unwrap();
+    assert_eq!(cb.bundle_age_get(), Some(3000));
+}
+
+#[test]
 fn bundle_hop_count_max_tests() {
     let mut bndl = new_complete_bundle(crc::CRC_NO);
     bndl.extension_block_by_type_mut(HOP_COUNT_BLOCK)
