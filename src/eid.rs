@@ -167,10 +167,10 @@ impl<'de> Deserialize<'de> for EndpointID {
                         Ok(eid)
                     } else if let serde_cbor::Value::Integer(code) = peek_next {
                         // This is the dtn:none endpoint
-                        let code = code as u64;
+                        // check before any conversion, as e.g. -2^64 would truncate to 0
                         if code != 0 {
                             return Err(de::Error::invalid_value(
-                                de::Unexpected::Unsigned(code),
+                                de::Unexpected::Other(&format!("integer `{}`", code)),
                                 &"value for dtn:none must be 0",
                             ));
                         }
@@ -592,6 +592,8 @@ mod tests {
     #[test_case(&[130, 1, 97, 120] ; "when decoding dtn address without double slash")]
     #[test_case(&[130, 1, 99, 47, 47, 47] ; "when decoding dtn address with empty node name")]
     #[test_case(&[130, 1, 96] ; "when decoding empty dtn address")]
+    #[test_case(&[130, 1, 1] ; "when decoding dtn:none with non-zero value")]
+    #[test_case(&[130, 1, 0x3b, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff] ; "when decoding dtn:none with -2^64")]
     fn test_ser_eid_invalid(cbor_eid: &[u8]) {
         assert!(serde_cbor::from_slice::<EndpointID>(cbor_eid).is_err());
     }
