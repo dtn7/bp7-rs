@@ -29,6 +29,23 @@ pub struct BundleMetaData {
     lifetime: u64,
 }
 
+/// Hand over a byte vector as a heap allocated buffer, to be freed with `buffer_free`.
+///
+/// Data that does not fit the 32 bit length field results in an empty buffer.
+fn into_buffer(data: Vec<u8>) -> *mut Buffer {
+    let buf = match u32::try_from(data.len()) {
+        Ok(len) => Buffer {
+            data: Box::into_raw(data.into_boxed_slice()) as *mut u8,
+            len,
+        },
+        Err(_) => Buffer {
+            data: std::ptr::null_mut(),
+            len: 0,
+        },
+    };
+    Box::into_raw(Box::new(buf))
+}
+
 /// A simple test for the bp7 FFI interface.
 /// On success it should always return the number 23.
 #[unsafe(no_mangle)]
@@ -40,32 +57,21 @@ pub extern "C" fn bp7_working() -> u8 {
 /// The returned buffer contains the following bytes: [0x42, 0x43, 0x44, 0x45]
 #[unsafe(no_mangle)]
 pub extern "C" fn bp7_buffer_test() -> *mut Buffer {
-    let input = vec![0x42, 0x43, 0x44, 0x45];
-
-    let mut buf = input.into_boxed_slice();
-    let data = buf.as_mut_ptr();
-    let len = buf.len() as u32;
-    std::mem::forget(buf);
-    Box::into_raw(Box::new(Buffer { data, len }))
+    into_buffer(vec![0x42, 0x43, 0x44, 0x45])
 }
 
 /// Generate a random bundle as a raw buffer.
 #[unsafe(no_mangle)]
 pub extern "C" fn helper_rnd_bundle() -> *mut Buffer {
     let mut bndl = helpers::rnd_bundle(CreationTimestamp::now());
-
-    let mut buf = bndl.to_cbor().into_boxed_slice();
-    let data = buf.as_mut_ptr();
-    let len = buf.len() as u32;
-    std::mem::forget(buf);
-    Box::into_raw(Box::new(Buffer { data, len }))
+    into_buffer(bndl.to_cbor())
 }
 
-/// Free the memory of a given buffer.
+/// Free the memory of a given buffer, including its data.
 ///
 /// # Safety
 ///
-/// Should only be called from FFI interface.
+/// Should only be called from FFI interface and only for buffers returned by this library.
 /// This function can lead to UB as pointer cannot be validated!
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn buffer_free(buf: *mut Buffer) {
@@ -73,7 +79,13 @@ pub unsafe extern "C" fn buffer_free(buf: *mut Buffer) {
         if buf.is_null() {
             return;
         }
-        drop(Box::from_raw(buf));
+        let buf = Box::from_raw(buf);
+        if !buf.data.is_null() {
+            drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                buf.data,
+                buf.len as usize,
+            )));
+        }
     }
 }
 
@@ -112,11 +124,7 @@ pub unsafe extern "C" fn bundle_to_cbor(bndl: *mut Bundle) -> *mut Buffer {
     unsafe {
         assert!(!bndl.is_null());
         let bndl = &mut *bndl;
-        let mut buf = bndl.to_cbor().into_boxed_slice();
-        let data = buf.as_mut_ptr();
-        let len = buf.len() as u32;
-        std::mem::forget(buf);
-        Box::into_raw(Box::new(Buffer { data, len }))
+        into_buffer(bndl.to_cbor())
     }
 }
 
@@ -247,7 +255,7 @@ pub unsafe extern "C" fn bundle_get_metadata(bndl: *mut Bundle) -> *mut BundleMe
 pub unsafe extern "C" fn bundle_metadata_free(ptr: *mut BundleMetaData) {
     unsafe {
         assert!(!ptr.is_null());
-        let meta = &mut *ptr;
+        let meta = Box::from_raw(ptr);
         if !meta.src.is_null() {
             drop(CString::from_raw(meta.src));
         }
@@ -286,11 +294,7 @@ pub unsafe extern "C" fn bundle_payload(bndl: *mut Bundle) -> *mut Buffer {
         if !bndl.is_null() {
             let bndl = &mut *bndl;
             if let Some(payload) = bndl.payload() {
-                let mut buf = payload.clone().into_boxed_slice();
-                let data = buf.as_mut_ptr();
-                let len = buf.len() as u32;
-                std::mem::forget(buf);
-                return Box::into_raw(Box::new(Buffer { data, len }));
+                return into_buffer(payload.clone());
             }
         }
         Box::into_raw(Box::new(Buffer {
