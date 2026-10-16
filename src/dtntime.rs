@@ -1,8 +1,8 @@
 use core::fmt;
-use core::sync::atomic::{AtomicUsize, Ordering};
 use core::time::Duration;
 use humantime::format_rfc3339;
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 
 /// Time since the year 2k in milliseconds
@@ -77,14 +77,16 @@ impl CreationTimestamp {
     /// assert_eq!(time3.seqno(), 0);
     /// ```
     pub fn now() -> CreationTimestamp {
-        static LAST_CREATION_TIMESTAMP: AtomicUsize = AtomicUsize::new(0);
-        static LAST_CREATION_SEQ: AtomicUsize = AtomicUsize::new(0);
+        // time and sequence number are updated together to stay unique across threads
+        static LAST_CREATION: Mutex<(DtnTime, u64)> = Mutex::new((0, 0));
+        let mut last = LAST_CREATION.lock().unwrap_or_else(|e| e.into_inner());
         let now = dtn_time_now();
-        if now != LAST_CREATION_TIMESTAMP.swap(now as usize, Ordering::Relaxed) as u64 {
-            LAST_CREATION_SEQ.store(0, Ordering::SeqCst)
+        if now != last.0 {
+            *last = (now, 0);
         }
-        let seq = LAST_CREATION_SEQ.fetch_add(1, Ordering::SeqCst);
+        let seq = last.1;
+        last.1 += 1;
 
-        CreationTimestamp::with_time_and_seq(now, seq as u64)
+        CreationTimestamp::with_time_and_seq(now, seq)
     }
 }
