@@ -107,3 +107,33 @@ fn status_report_fragment_tests() {
     let sr_dec: StatusReport = serde_cbor::from_slice(&encoded_sr).unwrap();
     assert_eq!(sr, sr_dec);
 }
+
+#[test]
+fn status_report_indefinite_length_tests() {
+    // [_ true, 1234] and [_ false]
+    let item: BundleStatusItem =
+        serde_cbor::from_slice(&[0x9f, 0xf5, 0x19, 0x04, 0xd2, 0xff]).unwrap();
+    assert!(item.asserted && item.status_requested);
+    assert_eq!(item.time, 1234);
+    let item: BundleStatusItem = serde_cbor::from_slice(&[0x9f, 0xf4, 0xff]).unwrap();
+    assert!(!item.asserted && !item.status_requested);
+
+    let mut bndl = new_complete_bundle(crc::CRC_NO);
+    bndl.primary.bundle_control_flags = (BundleControlFlags::BUNDLE_IS_FRAGMENT
+        | BundleControlFlags::BUNDLE_REQUEST_STATUS_TIME)
+        .bits();
+    bndl.primary.fragmentation_offset = 42;
+    let sr = new_status_report(&bndl, RECEIVED_BUNDLE, NO_INFORMATION);
+
+    // same report as indefinite-length array
+    let mut encoded = vec![0x9f];
+    encoded.extend(serde_cbor::to_vec(&sr.status_information).unwrap());
+    encoded.extend(serde_cbor::to_vec(&sr.report_reason).unwrap());
+    encoded.extend(serde_cbor::to_vec(&sr.source_node).unwrap());
+    encoded.extend(serde_cbor::to_vec(&sr.timestamp).unwrap());
+    encoded.extend(serde_cbor::to_vec(&sr.frag_offset).unwrap());
+    encoded.extend(serde_cbor::to_vec(&sr.frag_len).unwrap());
+    encoded.push(0xff);
+    let sr_dec: StatusReport = serde_cbor::from_slice(&encoded).unwrap();
+    assert_eq!(sr, sr_dec);
+}

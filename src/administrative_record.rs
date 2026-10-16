@@ -190,15 +190,10 @@ impl<'de> Deserialize<'de> for BundleStatusItem {
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
 
-                let mut status_requested = false;
-
-                let time: crate::DtnTime = if seq.size_hint() == Some(1) {
-                    status_requested = true;
-                    seq.next_element::<DtnTime>()?
-                        .ok_or_else(|| de::Error::invalid_length(1, &self))?
-                } else {
-                    0
-                };
+                // the time is only present if requested, read it independent of the array encoding
+                let time: Option<DtnTime> = seq.next_element()?;
+                let status_requested = time.is_some();
+                let time = time.unwrap_or(0);
 
                 Ok(BundleStatusItem {
                     asserted,
@@ -330,17 +325,15 @@ impl<'de> Deserialize<'de> for StatusReport {
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(3, &self))?;
 
-                let mut frag_offset = 0;
+                // fragment fields are only present for fragments, read them independent of the array encoding
                 let mut frag_len = 0;
-
-                if seq.size_hint() == Some(2) {
-                    frag_offset = seq
-                        .next_element()?
-                        .ok_or_else(|| de::Error::invalid_length(4, &self))?;
+                let frag_offset = seq.next_element()?;
+                if frag_offset.is_some() {
                     frag_len = seq
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(5, &self))?;
                 }
+                let frag_offset = frag_offset.unwrap_or(0);
 
                 Ok(StatusReport {
                     status_information,
