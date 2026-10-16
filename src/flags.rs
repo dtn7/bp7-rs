@@ -23,7 +23,8 @@ bitflags! {
         /// Discard block if it can't be processed.
         const BLOCK_REMOVE = 0x10;
 
-        const BLOCK_CFRESERVED_FIELDS = 0xF0;
+        /// Reserved bits 3, 5 and 6 (RFC 9171 4.2.4).
+        const BLOCK_CFRESERVED_FIELDS = 0x68;
     }
 }
 
@@ -36,7 +37,7 @@ pub trait BlockValidation {
     {
         if self
             .flags()
-            .contains(BlockControlFlags::BLOCK_CFRESERVED_FIELDS)
+            .intersects(BlockControlFlags::BLOCK_CFRESERVED_FIELDS)
         {
             Err(Error::BlockControlFlagsError(
                 "Given flag contains reserved bits".to_string(),
@@ -103,7 +104,8 @@ bitflags! {
 /// The bundle is a fragment.
     const BUNDLE_IS_FRAGMENT = 0x000001;
 
-    const BUNDLE_CFRESERVED_FIELDS = 0xE218;
+/// Reserved bits 3-4, 7-13, 15 and 19-20 (RFC 9171 4.2.3).
+    const BUNDLE_CFRESERVED_FIELDS = 0x18BF98;
     }
 }
 
@@ -122,7 +124,7 @@ pub trait BundleValidation {
     {
         let mut errors: ErrorList = Vec::new();
         let flags = self.flags();
-        if flags.contains(BundleControlFlags::BUNDLE_CFRESERVED_FIELDS) {
+        if flags.intersects(BundleControlFlags::BUNDLE_CFRESERVED_FIELDS) {
             errors.push(Error::BundleControlFlagsError(
                 "Given flag contains reserved bits".to_string(),
             ));
