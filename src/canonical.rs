@@ -5,7 +5,6 @@ use super::bundle::*;
 use super::crc::{CRC_16, CRC_32, CRC_NO, CrcBlock, CrcRawType, CrcValue};
 use super::eid::*;
 use super::flags::*;
-use core::convert::TryInto;
 use core::fmt;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
@@ -418,7 +417,8 @@ impl CanonicalBlock {
     }
     pub fn bundle_age_update(&mut self, age: u128) -> bool {
         if self.bundle_age_get().is_some() {
-            self.set_data(CanonicalData::BundleAge(age.try_into().unwrap()));
+            let age = u64::try_from(age).unwrap_or(u64::MAX);
+            self.set_data(CanonicalData::BundleAge(age));
             return true;
         }
         false

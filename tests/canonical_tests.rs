@@ -150,3 +150,13 @@ fn bundleage_tests() {
     assert_eq!(wrong_block.bundle_age_get(), None);
     assert!(!wrong_block.bundle_age_update(2342));
 }
+
+#[test]
+fn bundle_age_update_tests() {
+    let mut block = new_bundle_age_block(2, BlockControlFlags::empty(), 0);
+    assert!(block.bundle_age_update(23));
+    assert_eq!(block.bundle_age_get(), Some(23));
+    // ages beyond u64 saturate
+    assert!(block.bundle_age_update(u128::MAX));
+    assert_eq!(block.bundle_age_get(), Some(u64::MAX as u128));
+}
