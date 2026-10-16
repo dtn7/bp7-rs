@@ -579,7 +579,7 @@ impl IntegrityBlock {
                 // | Id |Value|    | Id |Value|     | Id |Value|    | Id | Value|
                 // +----+-----+    +----+-----+     +----+-----+    +----+------+
 
-                self.security_results.push(vec![(ippt.0, result_value)]);
+                self.security_results.push(vec![(1, result_value)]);
             } else {
                 eprint!(
                     "Security Target and Ippt mismatch. Make sure there is an ippt for each target."

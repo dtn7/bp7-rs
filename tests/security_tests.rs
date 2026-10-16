@@ -415,3 +415,21 @@ fn compute_hmac_without_panic_tests() {
     // encoding with missing results does not panic
     let _ = ib.to_cbor();
 }
+
+#[test]
+#[cfg(feature = "bpsec")]
+fn compute_hmac_result_id_tests() {
+    let ippt = vec![1u8, 2, 3];
+    let mut ib = IntegrityBlockBuilder::default()
+        .security_targets(vec![0, 2])
+        .build()
+        .unwrap();
+    ib.compute_hmac([0x1a; 16], vec![(0, &ippt), (2, &ippt)]);
+    // the result id of the expected HMAC is always 1 (RFC 9173 3.4)
+    assert_eq!(ib.security_results.len(), 2);
+    assert!(
+        ib.security_results
+            .iter()
+            .all(|r| r.len() == 1 && r[0].0 == 1)
+    );
+}
