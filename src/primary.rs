@@ -199,11 +199,15 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                     .ok_or_else(|| de::Error::invalid_length(7, &self))?;
                 let lifetime = Duration::from_millis(lifetime_u64);
 
-                let rest = seq.size_hint().unwrap_or(0);
+                // fragment fields are present if the bundle is a fragment, independent of
+                // the array encoding, which may be of indefinite length
+                let is_fragment =
+                    bundle_control_flags.contains(BundleControlFlags::BUNDLE_IS_FRAGMENT);
+                let crc_index = if is_fragment { 10 } else { 8 };
                 let mut fragmentation_offset: FragOffsetType = 0;
                 let mut total_data_length: TotalDataLengthType = 0;
 
-                if rest > 1 {
+                if is_fragment {
                     fragmentation_offset = seq
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(8, &self))?;
@@ -216,22 +220,22 @@ impl<'de> Deserialize<'de> for PrimaryBlock {
                 } else if crc_type == CRC_16 {
                     let crcbuf: ByteBuffer = seq
                         .next_element::<serde_bytes::ByteBuf>()?
-                        .ok_or_else(|| de::Error::invalid_length(7 + rest, &self))?
+                        .ok_or_else(|| de::Error::invalid_length(crc_index, &self))?
                         .into_vec();
                     let mut outbuf: [u8; 2] = [0; 2];
                     if crcbuf.len() != outbuf.len() {
-                        return Err(de::Error::invalid_length(7 + rest, &self));
+                        return Err(de::Error::invalid_length(crc_index, &self));
                     }
                     outbuf.copy_from_slice(&crcbuf);
                     CrcValue::Crc16(outbuf)
                 } else if crc_type == CRC_32 {
                     let crcbuf: ByteBuffer = seq
                         .next_element::<serde_bytes::ByteBuf>()?
-                        .ok_or_else(|| de::Error::invalid_length(7 + rest, &self))?
+                        .ok_or_else(|| de::Error::invalid_length(crc_index, &self))?
                         .into_vec();
                     let mut outbuf: [u8; 4] = [0; 4];
                     if crcbuf.len() != outbuf.len() {
-                        return Err(de::Error::invalid_length(7 + rest, &self));
+                        return Err(de::Error::invalid_length(crc_index, &self));
                     }
                     outbuf.copy_from_slice(&crcbuf);
                     CrcValue::Crc32(outbuf)

@@ -52,3 +52,44 @@ fn test_ipn_accept() {
         "ipn:0.<nonzero> should get accepted and treated as ipn:0.0"
     );
 }
+
+#[test]
+fn test_fragment_fields_decoding() {
+    use bp7::crc::{CRC_NO, CrcBlock};
+    use bp7::flags::BundleControlFlags;
+    use bp7::primary::PrimaryBlock;
+
+    for crc_type in [CRC_NO, CRC_16] {
+        let mut p = primary::new_primary_block(
+            "dtn://node1/",
+            "dtn://node2/",
+            bp7::dtntime::CreationTimestamp::with_time_and_seq(23, 42),
+            Duration::from_secs(10),
+        );
+        p.bundle_control_flags = BundleControlFlags::BUNDLE_IS_FRAGMENT.bits();
+        p.fragmentation_offset = 100;
+        p.total_data_length = 1000;
+        p.set_crc_type(crc_type);
+        p.update_crc();
+
+        let definite = serde_cbor::to_vec(&p).unwrap();
+        assert_eq!(
+            serde_cbor::from_slice::<PrimaryBlock>(&definite).unwrap(),
+            p
+        );
+
+        // same block as indefinite-length array
+        let mut indefinite = definite.clone();
+        indefinite[0] = 0x9f;
+        indefinite.push(0xff);
+        assert_eq!(
+            serde_cbor::from_slice::<PrimaryBlock>(&indefinite).unwrap(),
+            p
+        );
+
+        // fragment fields without fragment flag are rejected
+        let mut no_flag = definite.clone();
+        no_flag[2] = 0x00; // bundle control flags
+        assert!(serde_cbor::from_slice::<PrimaryBlock>(&no_flag).is_err());
+    }
+}
