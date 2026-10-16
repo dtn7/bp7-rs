@@ -144,13 +144,16 @@ pub fn calculate_crc<T: CrcBlock + Block>(blck: &mut T) -> CrcValue {
             CrcValue::Crc32(output_crc)
         }
         _ => {
-            panic!("Unknown crc type");
+            // unknown crc types cannot be calculated, keep the value as is
+            blck.crc_value().clone()
         }
     }
 }
 pub fn check_crc<T: CrcBlock + Block>(blck: &mut T) -> bool {
-    if !blck.has_crc() {
-        return !blck.has_crc();
+    match blck.crc_value() {
+        CrcValue::CrcNo => true,
+        // unknown crc types cannot be verified
+        CrcValue::Unknown(_) => false,
+        _ => calculate_crc(blck).bytes() == blck.crc(),
     }
-    calculate_crc(blck).bytes() == blck.crc()
 }

@@ -123,7 +123,8 @@ impl Serialize for CanonicalBlock {
         S: Serializer,
     {
         let crc_code = self.crc.to_code();
-        let num_elems = if crc_code == CRC_NO { 5 } else { 6 };
+        // unknown crc types carry no crc value
+        let num_elems = if self.crc.bytes().is_none() { 5 } else { 6 };
 
         let mut seq = serializer.serialize_seq(Some(num_elems))?;
         seq.serialize_element(&self.block_type)?;
@@ -145,8 +146,8 @@ impl Serialize for CanonicalBlock {
             }
         };
 
-        if self.crc.has_crc() {
-            seq.serialize_element(&serde_bytes::Bytes::new(self.crc.bytes().unwrap()))?;
+        if let Some(crc) = self.crc.bytes() {
+            seq.serialize_element(&serde_bytes::Bytes::new(crc))?;
         }
 
         seq.end()

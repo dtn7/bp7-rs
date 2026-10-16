@@ -121,11 +121,13 @@ impl Serialize for PrimaryBlock {
     where
         S: Serializer,
     {
-        let num_elems = if !self.crc.has_crc() && !self.has_fragmentation() {
+        // unknown crc types carry no crc value
+        let has_crc_value = self.crc.bytes().is_some();
+        let num_elems = if !has_crc_value && !self.has_fragmentation() {
             8
-        } else if self.crc.has_crc() && !self.has_fragmentation() {
+        } else if has_crc_value && !self.has_fragmentation() {
             9
-        } else if !self.crc.has_crc() && self.has_fragmentation() {
+        } else if !has_crc_value && self.has_fragmentation() {
             10
         } else {
             11
@@ -145,8 +147,8 @@ impl Serialize for PrimaryBlock {
             seq.serialize_element(&self.total_data_length)?;
         }
 
-        if self.crc.has_crc() {
-            seq.serialize_element(&serde_bytes::Bytes::new(self.crc.bytes().unwrap()))?;
+        if let Some(crc) = self.crc.bytes() {
+            seq.serialize_element(&serde_bytes::Bytes::new(crc))?;
         }
 
         seq.end()
