@@ -243,3 +243,44 @@ fn malformed_integrity_block_tests() {
         assert!(bndl.validate().is_err());
     }
 }
+
+#[test]
+#[cfg(feature = "bpsec")]
+fn integrity_block_sequence_decoding_tests() {
+    // BIB block-type-specific data of RFC 9173 Example 1
+    let rfc_bib = unhexify("810101018202820201828201078203008181820158403bdc69b3a34a2b5d3a8554368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550fdfb1cc636b904e2f1a73e303dcd4b6ccece003e95e8164dcc89a156e1").unwrap();
+    let ib = IntegrityBlock::from_cbor(&rfc_bib).expect("decoding RFC example BIB");
+    assert_eq!(ib.security_targets, vec![1]);
+    assert_eq!(ib.security_context_id, BIB_HMAC_SHA2_ID);
+    assert_eq!(ib.security_context_flags, SEC_CONTEXT_PRESENT);
+    assert_eq!(ib.security_source, EndpointID::with_ipn(2, 1).unwrap());
+    assert_eq!(
+        ib.security_context_parameters.as_ref().unwrap().sha_variant,
+        Some((1, HMAC_SHA_512))
+    );
+    assert_eq!(ib.security_results[0][0].0, 1);
+    assert_eq!(ib.security_results[0][0].1.len(), 64);
+    assert_eq!(ib.to_cbor(), rfc_bib);
+
+    // without parameters the field is omitted
+    let ib = IntegrityBlockBuilder::default()
+        .security_targets(vec![0, 1])
+        .security_context_parameters(BibSecurityContextParameter::default())
+        .security_results(vec![vec![(1, vec![1, 2])], vec![(1, vec![3, 4])]])
+        .build()
+        .unwrap();
+    let decoded = IntegrityBlock::from_cbor(&ib.to_cbor()).expect("decoding BIB");
+    assert_eq!(decoded.security_context_parameters, None);
+    assert_eq!(decoded.security_targets, ib.security_targets);
+    assert_eq!(decoded.security_results, ib.security_results);
+
+    // trailing data is rejected
+    let mut trailing = rfc_bib.clone();
+    trailing.push(0x00);
+    assert!(IntegrityBlock::from_cbor(&trailing).is_err());
+
+    // BIBs of a decoded bundle are found
+    let example_bundle = "9f88070000820282010282028202018202820201820018281a000f4240850b0200005856810101018202820201828201078203008181820158403bdc69b3a34a2b5d3a8554368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550fdfb1cc636b904e2f1a73e303dcd4b6ccece003e95e8164dcc89a156e185010100005823526561647920746f2067656e657261746520612033322d62797465207061796c6f6164ff";
+    let bundle = Bundle::try_from(unhexify(example_bundle).unwrap().as_slice()).unwrap();
+    assert_eq!(bundle.decode_bibs().len(), 1);
+}

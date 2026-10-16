@@ -568,7 +568,12 @@ impl IntegrityBlock {
         cbor_format.append(&mut serde_cbor::to_vec(&self.security_context_id).unwrap());
         cbor_format.append(&mut serde_cbor::to_vec(&self.security_context_flags).unwrap());
         cbor_format.append(&mut serde_cbor::to_vec(&self.security_source).unwrap());
-        cbor_format.append(&mut serde_cbor::to_vec(&self.security_context_parameters).unwrap());
+        // parameters are only present if indicated by the security context flags (RFC 9172 3.6)
+        if self.security_context_flags & SEC_CONTEXT_PRESENT != 0
+            && let Some(params) = &self.security_context_parameters
+        {
+            cbor_format.append(&mut serde_cbor::to_vec(params).unwrap());
+        }
 
         // iterate through each target. Create bytes for each signature and onstruct security results format again
         let mut res = Vec::new();
@@ -579,6 +584,50 @@ impl IntegrityBlock {
         }
         cbor_format.append(&mut serde_cbor::to_vec(&res).unwrap());
         cbor_format
+    }
+
+    /// Decode the abstract security block from its encoding as CBOR sequence (RFC 9172 3.6),
+    /// as found in the block-type-specific data of a BIB.
+    pub fn from_cbor(data: &[u8]) -> Result<IntegrityBlock, serde_cbor::Error> {
+        let mut de = serde_cbor::Deserializer::from_slice(data);
+
+        let security_targets: Vec<u64> = Deserialize::deserialize(&mut de)?;
+        let security_context_id = Deserialize::deserialize(&mut de)?;
+        let security_context_flags: SecurityContextFlag = Deserialize::deserialize(&mut de)?;
+        let security_source = Deserialize::deserialize(&mut de)?;
+        let security_context_parameters = if security_context_flags & SEC_CONTEXT_PRESENT != 0 {
+            Some(Deserialize::deserialize(&mut de)?)
+        } else {
+            None
+        };
+
+        // TODO: deal with multiple results per target
+        let results: Vec<Vec<(u64, serde_bytes::ByteBuf)>> = Deserialize::deserialize(&mut de)?;
+        de.end()?;
+
+        // there must be one non-empty set of results per security target
+        if results.len() != security_targets.len() || results.iter().any(|r| r.is_empty()) {
+            return Err(de::Error::invalid_length(
+                results.len(),
+                &"one set of results per security target",
+            ));
+        }
+        let security_results = results
+            .into_iter()
+            .map(|mut r| {
+                let (result_id, value) = r.swap_remove(0);
+                vec![(result_id, value.into_vec())]
+            })
+            .collect();
+
+        Ok(IntegrityBlock {
+            security_targets,
+            security_context_id,
+            security_context_flags,
+            security_source,
+            security_context_parameters,
+            security_results,
+        })
     }
 }
 

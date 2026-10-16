@@ -337,9 +337,7 @@ impl Bundle {
                 b.block_type == crate::security::INTEGRITY_BLOCK && b.extension_validation().is_ok()
             })
             .filter_map(|b| match b.data() {
-                CanonicalData::Unknown(bytes) => {
-                    serde_cbor::from_slice::<crate::security::IntegrityBlock>(bytes).ok()
-                }
+                CanonicalData::Unknown(bytes) => IntegrityBlock::from_cbor(bytes).ok(),
                 _ => None,
             })
             .collect()
