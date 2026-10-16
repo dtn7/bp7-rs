@@ -47,10 +47,8 @@ impl DtnAddress {
         DtnAddress(format!("//{}/{}", node, service))
     }
     pub fn node_name(&self) -> &str {
-        self.0
-            .split('/')
-            .nth(2)
-            .expect("invalid internal dtn address format")
+        // empty for malformed addresses, these are rejected by EndpointID::validate
+        self.0.split('/').nth(2).unwrap_or_default()
     }
     pub fn service_name(&self) -> Option<&str> {
         self.0.splitn(4, '/').nth(3).filter(|&s| !s.is_empty())
@@ -164,7 +162,9 @@ impl<'de> Deserialize<'de> for EndpointID {
                     let peek_next = peek_next.unwrap();
                     if let serde_cbor::Value::Text(name) = peek_next {
                         // This is a dtn address
-                        Ok(EndpointID::Dtn(eid_type, DtnAddress(name)))
+                        let eid = EndpointID::Dtn(eid_type, DtnAddress(name));
+                        eid.validate().map_err(de::Error::custom)?;
+                        Ok(eid)
                     } else if let serde_cbor::Value::Integer(code) = peek_next {
                         // This is the dtn:none endpoint
                         let code = code as u64;
@@ -400,7 +400,19 @@ impl EndpointID {
 
     pub fn validate(&self) -> Result<(), EndpointIdError> {
         match self {
-            EndpointID::Dtn(_, _) => Ok(()), // TODO: Implement validation for dtn scheme
+            EndpointID::Dtn(code, addr) => {
+                if *code != ENDPOINT_URI_SCHEME_DTN {
+                    Err(EndpointIdError::SchemeMismatch(
+                        *code,
+                        ENDPOINT_URI_SCHEME_DTN,
+                    ))
+                } else if !addr.0.starts_with("//") || addr.node_name().is_empty() {
+                    // dtn addresses must be of the form //node-name/demux
+                    Err(EndpointIdError::InvalidUrlFormat)
+                } else {
+                    Ok(())
+                }
+            }
             EndpointID::Ipn(code, addr) => {
                 if *code != ENDPOINT_URI_SCHEME_IPN {
                     Err(EndpointIdError::SchemeMismatch(
@@ -575,5 +587,21 @@ mod tests {
     fn test_ser_eid(cbor_eid: &[u8]) -> String {
         let deserialized: EndpointID = serde_cbor::from_slice(cbor_eid).unwrap();
         deserialized.to_string()
+    }
+
+    #[test_case(&[130, 1, 97, 120] ; "when decoding dtn address without double slash")]
+    #[test_case(&[130, 1, 99, 47, 47, 47] ; "when decoding dtn address with empty node name")]
+    #[test_case(&[130, 1, 96] ; "when decoding empty dtn address")]
+    fn test_ser_eid_invalid(cbor_eid: &[u8]) {
+        assert!(serde_cbor::from_slice::<EndpointID>(cbor_eid).is_err());
+    }
+
+    #[test_case(EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, DtnAddress("x".into())) ; "when missing double slash")]
+    #[test_case(EndpointID::Dtn(ENDPOINT_URI_SCHEME_DTN, DtnAddress("///".into())) ; "when node name is empty")]
+    #[test_case(EndpointID::Dtn(ENDPOINT_URI_SCHEME_IPN, DtnAddress("//node1/".into())) ; "when scheme code mismatches")]
+    fn validate_dtn_invalid_test(eid: EndpointID) {
+        assert!(eid.validate().is_err());
+        // accessors must not panic on malformed addresses
+        let _ = (eid.node(), eid.node_id(), eid.service_name());
     }
 }
