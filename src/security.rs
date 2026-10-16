@@ -546,21 +546,24 @@ impl IntegrityBlock {
         // match ippt_list values to security targets
         self.security_results = vec![];
 
+        // HMAC-SHA-384 is used if no sha variant is given (RFC 9173 3.3.1)
+        let sha_variant = self
+            .security_context_parameters
+            .as_ref()
+            .and_then(|p| p.sha_variant)
+            .map_or(HMAC_SHA_384, |v| v.1);
+
         for ippt in ippt_list {
             if self.security_targets.contains(&ippt.0) {
                 //let key_bytes = hex!("1a2b1a2b1a2b1a2b1a2b1a2b1a2b1a2b");
-                let result_value = match self
-                    .security_context_parameters
-                    .as_ref()
-                    .unwrap()
-                    .sha_variant
-                    .unwrap()
-                    .1
-                {
-                    5 => self.hmac_sha256_compute(&key_bytes, ippt.1),
-                    6 => self.hmac_sha384_compute(&key_bytes, ippt.1),
-                    7 => self.hmac_sha512_compute(&key_bytes, ippt.1),
-                    _ => panic!("Undefined Sha Variant."),
+                let result_value = match sha_variant {
+                    HMAC_SHA_256 => self.hmac_sha256_compute(&key_bytes, ippt.1),
+                    HMAC_SHA_384 => self.hmac_sha384_compute(&key_bytes, ippt.1),
+                    HMAC_SHA_512 => self.hmac_sha512_compute(&key_bytes, ippt.1),
+                    _ => {
+                        eprintln!("Undefined Sha Variant {}.", sha_variant);
+                        continue;
+                    }
                 };
 
                 // Integrity Security Context BIB-HMAC-SHA2 has only one result field
@@ -599,13 +602,17 @@ impl IntegrityBlock {
             cbor_format.append(&mut serde_cbor::to_vec(params).unwrap());
         }
 
-        // iterate through each target. Create bytes for each signature and onstruct security results format again
-        let mut res = Vec::new();
-        for i in 0..self.security_targets.len() {
-            let next_result = &self.security_results[i];
-            let temp_mac = serde_bytes::Bytes::new(&next_result[0].1);
-            res.push(vec![(&next_result[0].0, temp_mac)]);
-        }
+        // iterate through the results of each target and encode the result values as byte strings
+        let res: Vec<Vec<(&u64, &serde_bytes::Bytes)>> = self
+            .security_results
+            .iter()
+            .map(|target_results| {
+                target_results
+                    .iter()
+                    .map(|(id, value)| (id, serde_bytes::Bytes::new(value)))
+                    .collect()
+            })
+            .collect();
         cbor_format.append(&mut serde_cbor::to_vec(&res).unwrap());
         cbor_format
     }

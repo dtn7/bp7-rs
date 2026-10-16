@@ -388,3 +388,30 @@ fn integrity_block_builder_tests() {
         Err(IntegrityBlockBuilderError::MissingSecurityTargets)
     ));
 }
+
+#[test]
+#[cfg(feature = "bpsec")]
+fn compute_hmac_without_panic_tests() {
+    let ippt = vec![1u8, 2, 3];
+    let key = [0x1a; 16];
+
+    // sha variant defaults to HMAC-SHA-384 without parameters
+    let mut ib = IntegrityBlockBuilder::default()
+        .security_targets(vec![1])
+        .build()
+        .unwrap();
+    ib.compute_hmac(key, vec![(1, &ippt)]);
+    assert_eq!(ib.security_results.len(), 1);
+    assert_eq!(ib.security_results[0][0].1.len(), 48);
+
+    // unknown sha variants produce no results
+    let mut ib = IntegrityBlockBuilder::default()
+        .security_targets(vec![1])
+        .security_context_parameters(BibSecurityContextParameter::new(Some((1, 99)), None, None))
+        .build()
+        .unwrap();
+    ib.compute_hmac(key, vec![(1, &ippt)]);
+    assert!(ib.security_results.is_empty());
+    // encoding with missing results does not panic
+    let _ = ib.to_cbor();
+}
