@@ -1341,3 +1341,22 @@ fn bib_bcb_interaction_tests() {
         Err(BpsecError::InvalidTarget(1, _))
     ));
 }
+
+#[test]
+fn bpsec_errors_map_to_security_reason_codes() {
+    use bp7::administrative_record::*;
+    assert_eq!(
+        BpsecError::Unsupported("x".to_string()).status_report_reason(),
+        UNKNOWN_SECURITY_OPERATION
+    );
+    assert_eq!(
+        BpsecError::UnknownParameter(9).status_report_reason(),
+        UNKNOWN_SECURITY_OPERATION
+    );
+    assert_eq!(
+        BpsecError::OperationFailed("x".to_string()).status_report_reason(),
+        FAILED_SECURITY_OPERATION
+    );
+    assert_eq!(MISSING_SECURITY_OPERATION, 12);
+    assert_eq!(CONFLICTING_SECURITY_OPERATION, 16);
+}

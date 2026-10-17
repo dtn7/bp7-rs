@@ -139,6 +139,21 @@ pub const TRAFFIC_PARED: StatusReportReason = 10;
 /// BLOCK_UNSUPPORTED bundle status report reason code.
 pub const BLOCK_UNSUPPORTED: StatusReportReason = 11;
 
+/// MISSING_SECURITY_OPERATION is the "Missing security operation" bundle status report reason code (RFC 9172, Section 7.1).
+pub const MISSING_SECURITY_OPERATION: StatusReportReason = 12;
+
+/// UNKNOWN_SECURITY_OPERATION is the "Unknown security operation" bundle status report reason code (RFC 9172, Section 7.1).
+pub const UNKNOWN_SECURITY_OPERATION: StatusReportReason = 13;
+
+/// UNEXPECTED_SECURITY_OPERATION is the "Unexpected security operation" bundle status report reason code (RFC 9172, Section 7.1).
+pub const UNEXPECTED_SECURITY_OPERATION: StatusReportReason = 14;
+
+/// FAILED_SECURITY_OPERATION is the "Failed security operation" bundle status report reason code (RFC 9172, Section 7.1).
+pub const FAILED_SECURITY_OPERATION: StatusReportReason = 15;
+
+/// CONFLICTING_SECURITY_OPERATION is the "Conflicting security operation" bundle status report reason code (RFC 9172, Section 7.1).
+pub const CONFLICTING_SECURITY_OPERATION: StatusReportReason = 16;
+
 // BundleStatusItem represents the a bundle status item, as used as an element
 // in the bundle status information array of each Bundle Status Report.
 #[derive(Debug, Clone, PartialEq)]

@@ -53,6 +53,22 @@ pub enum BpsecError {
     Cbor(#[from] serde_cbor::Error),
 }
 
+impl BpsecError {
+    /// Bundle status report reason code (RFC 9172 7.1) describing this error.
+    ///
+    /// Unsupported security context features and parameters are reported as unknown
+    /// security operations, all other errors as failed security operations.
+    pub fn status_report_reason(&self) -> crate::administrative_record::StatusReportReason {
+        use crate::administrative_record::*;
+        match self {
+            BpsecError::UnknownParameter(_) | BpsecError::Unsupported(_) => {
+                UNKNOWN_SECURITY_OPERATION
+            }
+            _ => FAILED_SECURITY_OPERATION,
+        }
+    }
+}
+
 /// Typed security context parameters of a security context, converted from and to
 /// the generic parameters of an abstract security block.
 pub trait SecurityContextParameters: Sized {
