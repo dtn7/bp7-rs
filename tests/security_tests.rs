@@ -1,5 +1,7 @@
+// all security tests require the bpsec feature
+#![cfg(feature = "bpsec")]
+
 use bp7::flags::*;
-#[cfg(feature = "bpsec")]
 use bp7::security::*;
 use bp7::*;
 use helpers::*;
@@ -8,7 +10,6 @@ use std::time::Duration;
 //use bp7::security::AES_128_GCM;
 
 #[test]
-#[cfg(feature = "bpsec")]
 fn security_data_tests() {
     let data = CanonicalData::Data(b"bla".to_vec());
     let encoded_data = serde_cbor::to_vec(&data).expect("encoding error");
@@ -30,7 +31,6 @@ fn encode_decode_test_canonical(data: CanonicalBlock) {
 }
 
 #[test]
-#[cfg(feature = "bpsec")]
 fn canonical_block_tests() {
     let data =
         bp7::security::new_integrity_block(1, BlockControlFlags::empty(), b"ABCDEFG".to_vec());
@@ -38,7 +38,6 @@ fn canonical_block_tests() {
 }
 
 #[test]
-#[cfg(feature = "bpsec")]
 fn rfc_example_tests() {
     simple_integrity_test();
 
@@ -54,7 +53,6 @@ fn rfc_example_tests() {
 }
 
 #[test]
-#[cfg(feature = "bpsec")]
 /// # Example 1 - Simple Integrity
 ///
 /// ## Original Bundle
@@ -197,7 +195,6 @@ fn simple_integrity_test() {
 }
 
 #[test]
-#[cfg(feature = "bpsec")]
 fn no_crc_or_bib_primary_block() {
     let hex_bundle = "9f88071844008202820301820100820100821b000000b5998c982b011a000493e08506021000458202820200850704010042183485010101004454455354ff";
     let bytes = unhexify(hex_bundle);
@@ -209,7 +206,6 @@ fn no_crc_or_bib_primary_block() {
 }
 
 #[test]
-#[cfg(feature = "bpsec")]
 fn malformed_integrity_block_tests() {
     // [[0], 1, 0, dtn:none, [[1, 6], [3, 7]], [[[1, h'010203']]]]
     let valid = "8681000100820100828201068203078181820143010203";
@@ -245,7 +241,6 @@ fn malformed_integrity_block_tests() {
 }
 
 #[test]
-#[cfg(feature = "bpsec")]
 fn integrity_block_sequence_decoding_tests() {
     // BIB block-type-specific data of RFC 9173 Example 1
     let rfc_bib = unhexify("810101018202820201828201078203008181820158403bdc69b3a34a2b5d3a8554368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550fdfb1cc636b904e2f1a73e303dcd4b6ccece003e95e8164dcc89a156e1").unwrap();
@@ -286,7 +281,6 @@ fn integrity_block_sequence_decoding_tests() {
 }
 
 #[test]
-#[cfg(feature = "bpsec")]
 fn bib_protected_primary_block_tests() {
     fn bundle_with_bib_targets(targets: Vec<u64>) -> Bundle {
         let mut b = bundle::new_std_payload_bundle(
@@ -316,7 +310,6 @@ fn bib_protected_primary_block_tests() {
 }
 
 #[test]
-#[cfg(feature = "bpsec")]
 fn bib_context_parameter_decoding_tests() {
     let decode =
         |hex: &str| serde_cbor::from_slice::<BibSecurityContextParameter>(&unhexify(hex).unwrap());
@@ -359,7 +352,6 @@ fn bib_context_parameter_decoding_tests() {
 }
 
 #[test]
-#[cfg(feature = "bpsec")]
 fn integrity_block_builder_tests() {
     // parameters are optional without the parameters present flag
     assert!(
@@ -390,7 +382,6 @@ fn integrity_block_builder_tests() {
 }
 
 #[test]
-#[cfg(feature = "bpsec")]
 fn compute_hmac_without_panic_tests() {
     let ippt = vec![1u8, 2, 3];
     let key = [0x1a; 16];
@@ -417,7 +408,6 @@ fn compute_hmac_without_panic_tests() {
 }
 
 #[test]
-#[cfg(feature = "bpsec")]
 fn compute_hmac_result_id_tests() {
     let ippt = vec![1u8, 2, 3];
     let mut ib = IntegrityBlockBuilder::default()
