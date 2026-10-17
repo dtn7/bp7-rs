@@ -1133,3 +1133,52 @@ fn bcb_aes_gcm_iv_length_tests() {
         assert_eq!(ciphertexts.len(), 9);
     }
 }
+
+#[test]
+fn reserved_integrity_scope_flags_tests() {
+    use bp7::bpsec::rfc9173::bib::sign;
+    let key = [0x1a; 16];
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    b.set_crc(crc::CRC_32);
+    // failed signing leaves the bundle and its CRCs unchanged
+    let unchanged = b.clone();
+    let unsupported = BibSecurityContextParameter::new(Some((1, 99)), None, None);
+    assert!(sign(&mut b, &[0, 1], &key, EndpointID::none(), unsupported).is_err());
+    let wrapped = BibSecurityContextParameter::new(None, Some((2, vec![0; 24])), None);
+    assert!(sign(&mut b, &[0, 1], &key, EndpointID::none(), wrapped).is_err());
+    for flags in [0x0008, 0x0080, 0x0100, 0x8000] {
+        let params = BibSecurityContextParameter::new(None, None, Some((3, flags)));
+        assert!(matches!(
+            sign(&mut b, &[0, 1], &key, EndpointID::none(), params),
+            Err(BpsecError::InvalidParameter(
+                INTEGRITY_SCOPE_FLAGS_PARAMETER
+            ))
+        ));
+    }
+    assert_eq!(b, unchanged);
+
+    // received BIBs with such flags are verified, the flags are not part of the IPPT
+    let ippt = vec![1u8, 2, 3];
+    let mut ib = IntegrityBlockBuilder::default()
+        .security_targets(vec![1])
+        .security_context_parameters(BibSecurityContextParameter::new(None, None, Some((3, 7))))
+        .build()
+        .unwrap();
+    ib.compute_hmac(key, vec![(1, &ippt)]).unwrap();
+    ib.set_parameters(&BibSecurityContextParameter::new(
+        None,
+        None,
+        Some((3, 0x0107)),
+    ));
+    assert!(verify_hmac(&ib, &key, &[(1, &ippt)]).unwrap());
+    assert!(matches!(
+        ib.compute_hmac(key, vec![(1, &ippt)]),
+        Err(BpsecError::InvalidParameter(
+            INTEGRITY_SCOPE_FLAGS_PARAMETER
+        ))
+    ));
+}

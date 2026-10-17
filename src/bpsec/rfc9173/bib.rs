@@ -391,6 +391,28 @@ fn sha_variant_and_key(
     Ok((variant, key))
 }
 
+/// Check the parameters of a BIB at the security source, returning SHA variant and HMAC key
+fn check_source_parameters(
+    bib: &IntegrityBlock,
+    key: &[u8],
+) -> Result<(ShaVariantType, ByteBuffer), BpsecError> {
+    let scope_flags = bib
+        .parameters::<BibSecurityContextParameter>()?
+        .and_then(|p| p.integrity_scope_flags);
+    if let Some((_, flags)) = scope_flags
+        && IntegrityScopeFlags::from_bits(flags).is_none()
+    {
+        return Err(BpsecError::InvalidParameter(
+            INTEGRITY_SCOPE_FLAGS_PARAMETER,
+        ));
+    }
+    let (variant, key) = sha_variant_and_key(bib, key)?;
+    if ![HMAC_SHA_256, HMAC_SHA_384, HMAC_SHA_512].contains(&variant) {
+        return Err(BpsecError::Unsupported(format!("sha variant {}", variant)));
+    }
+    Ok((variant, key))
+}
+
 fn compute_expected_hmac(
     variant: ShaVariantType,
     key: &[u8],
@@ -436,12 +458,15 @@ fn verify_expected_hmac(
 /// The BIB-HMAC-SHA2 context has a single result per target, the expected HMAC with
 /// result id 1 (RFC 9173 3.4). If the BIB has a wrapped key, `key` is the key encryption
 /// key to unwrap the HMAC key.
+///
+/// Reserved and unassigned integrity scope flags must not be set at the security source
+/// (RFC 9173 3.3.3).
 pub fn compute_hmac(
     bib: &mut IntegrityBlock,
     key: &[u8],
     ippt_list: &[(u64, &ByteBuffer)],
 ) -> Result<(), BpsecError> {
-    let (variant, key) = sha_variant_and_key(bib, key)?;
+    let (variant, key) = check_source_parameters(bib, key)?;
     if let Some((target, _)) = ippt_list
         .iter()
         .find(|(target, _)| !bib.security_targets.contains(target))
@@ -578,6 +603,14 @@ pub fn sign(
     let scope_flags = parameters
         .integrity_scope_flags
         .map_or(DEFAULT_INTEGRITY_SCOPE_FLAGS, |f| f.1);
+    let mut bib = SecurityBlockBuilder::default()
+        .security_targets(targets.to_vec())
+        .security_context_id(BIB_HMAC_SHA2_ID)
+        .security_source(security_source)
+        .security_context_parameters(parameters)
+        .build()?;
+    // fail before the bundle is changed
+    check_source_parameters(&bib, key)?;
 
     // the CRCs of the targets are removed (RFC 9173 3.8.1), the primary block may be part
     // of the IPPT with its final CRC
@@ -602,12 +635,6 @@ pub fn sign(
         scope_flags,
         (INTEGRITY_BLOCK, bib_block_number, bib_flags.bits()),
     )?;
-    let mut bib = SecurityBlockBuilder::default()
-        .security_targets(targets.to_vec())
-        .security_context_id(BIB_HMAC_SHA2_ID)
-        .security_source(security_source)
-        .security_context_parameters(parameters)
-        .build()?;
     let ippt_refs: Vec<(u64, &ByteBuffer)> = ippts.iter().map(|(t, i)| (*t, i)).collect();
     compute_hmac(&mut bib, key, &ippt_refs)?;
 
