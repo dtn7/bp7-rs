@@ -36,6 +36,10 @@ pub type TotalDataLengthType = u64;
 pub trait Block {
     /// Convert block struct to a serializable enum
     fn to_cbor(&self) -> ByteBuffer;
+    /// Write the cbor encoding of the block to the given writer
+    fn write_cbor(&self, writer: &mut dyn std::io::Write) -> std::io::Result<()> {
+        writer.write_all(&self.to_cbor())
+    }
 }
 
 /******************************

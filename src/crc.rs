@@ -83,7 +83,7 @@ pub trait CrcBlock: Block + Clone {
         self.set_crc(new_crc);
     }
     /// Check if crc value is valid
-    fn check_crc(&mut self) -> bool {
+    fn check_crc(&self) -> bool {
         check_crc(self)
     }
     /// Reset crc field to an empty value
@@ -121,28 +121,77 @@ pub trait CrcBlock: Block + Clone {
     fn set_crc(&mut self, crc: CrcValue);
 }
 
-pub fn calculate_crc<T: CrcBlock + Block>(blck: &mut T) -> CrcValue {
+/// Feeds the encoding of a block into a crc digest, replacing the trailing crc value
+/// of `n` bytes by zeros. This is the crc input without cloning the block or buffering
+/// its encoding, as the crc value is always the last element of a block and of fixed size.
+struct CrcWriter<F: FnMut(&[u8])> {
+    update: F,
+    n: usize,
+    tail: [u8; 4],
+    tail_len: usize,
+}
+
+impl<F: FnMut(&[u8])> CrcWriter<F> {
+    fn new(n: usize, update: F) -> Self {
+        CrcWriter {
+            update,
+            n,
+            tail: [0; 4],
+            tail_len: 0,
+        }
+    }
+    /// Feed zeros in place of the held back crc value
+    fn finish(mut self) {
+        (self.update)(&[0; 4][..self.n]);
+    }
+}
+
+impl<F: FnMut(&[u8])> std::io::Write for CrcWriter<F> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let total = self.tail_len + buf.len();
+        if total <= self.n {
+            self.tail[self.tail_len..total].copy_from_slice(buf);
+            self.tail_len = total;
+            return Ok(buf.len());
+        }
+        // pass on everything but the last n bytes
+        let emit = total - self.n;
+        let from_tail = emit.min(self.tail_len);
+        let from_buf = emit - from_tail;
+        (self.update)(&self.tail[..from_tail]);
+        (self.update)(&buf[..from_buf]);
+
+        let mut tail = [0; 4];
+        let kept = self.tail_len - from_tail;
+        tail[..kept].copy_from_slice(&self.tail[from_tail..self.tail_len]);
+        tail[kept..self.n].copy_from_slice(&buf[from_buf..]);
+        self.tail = tail;
+        self.tail_len = self.n;
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+pub fn calculate_crc<T: CrcBlock + Block>(blck: &T) -> CrcValue {
     match blck.crc_type() {
         CRC_NO => CrcValue::CrcNo,
         CRC_16 => {
-            let crc_bak = blck.crc_value().clone(); // Backup original crc
-            blck.reset_crc(); // set empty crc
-            let data = blck.to_cbor(); // TODO: optimize this encoding away
-            // also tried crc16 crate, not a bit faster
-            let chksm = X25.checksum(&data);
-            let output_crc = chksm.to_be_bytes();
-            blck.set_crc(crc_bak); // restore orginal crc
-            CrcValue::Crc16(output_crc)
+            let mut digest = X25.digest();
+            let mut writer = CrcWriter::new(2, |data| digest.update(data));
+            blck.write_cbor(&mut writer)
+                .expect("Error encoding block for crc calculation");
+            writer.finish();
+            CrcValue::Crc16(digest.finalize().to_be_bytes())
         }
         CRC_32 => {
-            let crc_bak = blck.crc_value().clone(); // Backup original crc
-            blck.reset_crc(); // set empty crc
-            let data = blck.to_cbor(); // TODO: optimize this encoding away
-            // also tried crc32fast, was not significantly faster
-            let chksm = CASTAGNOLI.checksum(&data);
-            let output_crc = chksm.to_be_bytes();
-            blck.set_crc(crc_bak); // restore orginal crc
-            CrcValue::Crc32(output_crc)
+            let mut digest = CASTAGNOLI.digest();
+            let mut writer = CrcWriter::new(4, |data| digest.update(data));
+            blck.write_cbor(&mut writer)
+                .expect("Error encoding block for crc calculation");
+            writer.finish();
+            CrcValue::Crc32(digest.finalize().to_be_bytes())
         }
         _ => {
             // unknown crc types cannot be calculated, keep the value as is
@@ -150,11 +199,39 @@ pub fn calculate_crc<T: CrcBlock + Block>(blck: &mut T) -> CrcValue {
         }
     }
 }
-pub fn check_crc<T: CrcBlock + Block>(blck: &mut T) -> bool {
+pub fn check_crc<T: CrcBlock + Block>(blck: &T) -> bool {
     match blck.crc_value() {
         CrcValue::CrcNo => true,
         // unknown crc types cannot be verified
         CrcValue::Unknown(_) => false,
         _ => calculate_crc(blck).bytes() == blck.crc(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn crc_writer_tests() {
+        let data: Vec<u8> = (0..=255).cycle().take(1000).collect();
+        for n in [2, 4] {
+            let mut expected = data.clone();
+            let len = expected.len();
+            expected[len - n..].fill(0);
+            let expected = CASTAGNOLI.checksum(&expected);
+
+            // all chunk sizes, including writes shorter than the held back tail
+            for chunk in [1, 2, 3, 4, 5, 7, 64, 999, 1000] {
+                let mut digest = CASTAGNOLI.digest();
+                let mut writer = CrcWriter::new(n, |d| digest.update(d));
+                for part in data.chunks(chunk) {
+                    writer.write_all(part).unwrap();
+                }
+                writer.finish();
+                assert_eq!(digest.finalize(), expected, "n {} chunk {}", n, chunk);
+            }
+        }
     }
 }

@@ -324,7 +324,7 @@ impl PrimaryBlock {
             errors.push(chk_err.into());
         }
 
-        if self.has_crc() && !self.clone().check_crc() {
+        if self.has_crc() && !self.check_crc() {
             errors.push(Error::PrimaryBlockError("CRC check failed".to_string()));
         }
 
@@ -346,6 +346,9 @@ impl CrcBlock for PrimaryBlock {
 impl Block for PrimaryBlock {
     fn to_cbor(&self) -> ByteBuffer {
         serde_cbor::to_vec(&self).expect("Error exporting primary block to cbor")
+    }
+    fn write_cbor(&self, writer: &mut dyn std::io::Write) -> std::io::Result<()> {
+        serde_cbor::to_writer(writer, self).map_err(std::io::Error::other)
     }
 }
 pub fn new_primary_block(

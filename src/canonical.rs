@@ -276,6 +276,9 @@ impl Block for CanonicalBlock {
     fn to_cbor(&self) -> ByteBuffer {
         serde_cbor::to_vec(&self).unwrap()
     }
+    fn write_cbor(&self, writer: &mut dyn std::io::Write) -> std::io::Result<()> {
+        serde_cbor::to_writer(writer, self).map_err(std::io::Error::other)
+    }
 }
 
 pub fn new_canonical_block(
@@ -321,7 +324,7 @@ impl CanonicalBlock {
         if let Err(err) = self.extension_validation() {
             errors.push(err);
         }
-        if self.has_crc() && !self.clone().check_crc() {
+        if self.has_crc() && !self.check_crc() {
             errors.push(Error::CanonicalBlockError("CRC check failed".to_string()));
         }
 

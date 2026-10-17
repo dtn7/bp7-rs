@@ -56,3 +56,31 @@ fn crc_unknown_type_tests() {
     assert_eq!(reencoded, bytes);
     assert!(Bundle::try_from(reencoded.as_slice()).is_ok());
 }
+
+#[test]
+fn crc_streaming_matches_encoding_tests() {
+    // crc over the encoding with an empty crc value, as calculated before streaming
+    fn expected<T: crc::CrcBlock + bundle::Block>(blck: &T) -> crc::CrcValue {
+        let mut empty = blck.clone();
+        empty.reset_crc();
+        let data = empty.to_cbor();
+        match blck.crc_type() {
+            crc::CRC_16 => crc::CrcValue::Crc16(crc::X25.checksum(&data).to_be_bytes()),
+            _ => crc::CrcValue::Crc32(crc::CASTAGNOLI.checksum(&data).to_be_bytes()),
+        }
+    }
+
+    for crc_type in [crc::CRC_16, crc::CRC_32] {
+        let mut b = helpers::rnd_bundle(dtntime::CreationTimestamp::now());
+        b.set_payload(vec![0x42; 100_000]);
+        b.set_crc(crc_type);
+        b.calculate_crc();
+        assert_eq!(b.primary.crc, expected(&b.primary));
+        for c in &b.canonicals {
+            assert_eq!(c.crc, expected(c));
+            assert!(c.check_crc());
+        }
+        assert!(b.primary.check_crc());
+        assert!(b.validate().is_ok());
+    }
+}
