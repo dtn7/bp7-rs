@@ -188,7 +188,7 @@ impl Bundle {
             }
         }
         #[cfg(feature = "bpsec")]
-        self.validate_bcbs(&mut errors);
+        self.validate_security_blocks(&mut errors);
         for blck in &self.canonicals {
             if let Err(mut err) = blck.validate() {
                 errors.append(&mut err);
@@ -343,14 +343,32 @@ impl Bundle {
         self.decode_security_blocks(crate::bpsec::INTEGRITY_BLOCK)
     }
 
-    /// Check the constraints of BCBs (RFC 9172 3.8)
+    /// Check the constraints of BIBs and BCBs (RFC 9172 3.7, 3.8)
     #[cfg(feature = "bpsec")]
-    fn validate_bcbs(&self, errors: &mut ErrorList) {
+    fn validate_security_blocks(&self, errors: &mut ErrorList) {
         let bcb_blocks: Vec<&CanonicalBlock> = self
             .canonicals
             .iter()
             .filter(|b| b.block_type == crate::bpsec::CONFIDENTIALITY_BLOCK)
             .collect();
+        let security_blocks: Vec<u64> = self
+            .canonicals
+            .iter()
+            .filter(|b| {
+                b.block_type == crate::bpsec::INTEGRITY_BLOCK
+                    || b.block_type == crate::bpsec::CONFIDENTIALITY_BLOCK
+            })
+            .map(|b| b.block_number)
+            .collect();
+        if self.decode_bibs().iter().any(|bib| {
+            bib.security_targets
+                .iter()
+                .any(|t| security_blocks.contains(t))
+        }) {
+            errors.push(Error::BundleError(
+                "BIBs must not target security blocks".to_string(),
+            ));
+        }
         if bcb_blocks.iter().any(|b| {
             b.block_control_flags
                 .contains(BlockControlFlags::BLOCK_REMOVE)

@@ -1182,3 +1182,43 @@ fn reserved_integrity_scope_flags_tests() {
         ))
     ));
 }
+
+#[test]
+fn bib_target_validation_tests() {
+    let key = [0x1a; 16];
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    b.set_crc(crc::CRC_32);
+    let bcb = bp7::bpsec::rfc9173::bcb::encrypt(
+        &mut b,
+        1,
+        &[0x42; 32],
+        &[0x24; 12],
+        EndpointID::none(),
+        Default::default(),
+    )
+    .unwrap();
+    let valid = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    assert!(valid.validate().is_ok());
+
+    // a BIB over the BCB, as received from another node
+    let mut bib = IntegrityBlockBuilder::default()
+        .security_targets(vec![bcb])
+        .build()
+        .unwrap();
+    bib.compute_hmac(key, vec![(bcb, &vec![1, 2, 3])]).unwrap();
+    let mut invalid = valid.clone();
+    invalid.add_canonical_block(new_integrity_block(
+        0,
+        BlockControlFlags::empty(),
+        bib.to_cbor(),
+    ));
+    let errors = invalid.validate().unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string()
+            .contains("BIBs must not target security blocks")
+    }));
+}
