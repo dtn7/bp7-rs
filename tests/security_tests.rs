@@ -945,3 +945,145 @@ fn ippt_tests() {
     );
     assert_eq!(hexify(&ippt), "0043010203");
 }
+
+const RFC_ORIGINAL_BUNDLE: &str = "9f88070000820282010282028202018202820201820018281a000f424085010100005823526561647920746f2067656e657261746520612033322d62797465207061796c6f6164ff";
+
+#[test]
+fn rfc9173_example_1_sign_verify_test() {
+    use bp7::bpsec::rfc9173::bib::{sign, verify};
+    let final_bundle = "9f88070000820282010282028202018202820201820018281a000f4240850b0200005856810101018202820201828201078203008181820158403bdc69b3a34a2b5d3a8554368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550fdfb1cc636b904e2f1a73e303dcd4b6ccece003e95e8164dcc89a156e185010100005823526561647920746f2067656e657261746520612033322d62797465207061796c6f6164ff";
+    let key = unhexify("1a2b1a2b1a2b1a2b1a2b1a2b1a2b1a2b").unwrap();
+
+    let mut b = Bundle::try_from(unhexify(RFC_ORIGINAL_BUNDLE).unwrap().as_slice()).unwrap();
+    let params = BibSecurityContextParameter::new(Some((1, HMAC_SHA_512)), None, Some((3, 0)));
+    let bib = sign(
+        &mut b,
+        &[1],
+        &key,
+        EndpointID::with_ipn(2, 1).unwrap(),
+        params,
+    )
+    .unwrap();
+    assert_eq!(bib, 2);
+    assert_eq!(hexify(&b.to_cbor()), final_bundle);
+
+    let mut received = Bundle::try_from(unhexify(final_bundle).unwrap().as_slice()).unwrap();
+    assert!(verify(&received, 2, &key).unwrap());
+    assert!(!verify(&received, 2, &[0x2b; 16]).unwrap());
+    received.set_payload(b"Ready to generate a 32-byte paylaod".to_vec());
+    assert!(!verify(&received, 2, &key).unwrap());
+}
+
+/// RFC 9173 Example 3 - Security Blocks from Multiple Sources
+#[test]
+fn rfc9173_example_3_test() {
+    use bp7::bpsec::rfc9173::{bcb, bib};
+    let original_bundle = "9f88070000820282010282028202018202820201820018281a000f424085070200004319012c85010100005823526561647920746f2067656e657261746520612033322d62797465207061796c6f6164ff";
+    let final_bundle = "9f88070000820282010282028202018202820201820018281a000f4240850b030000585c8200020101820282030082820105820300828182015820cac6ce8e4c5dae57988b757e49a6dd1431dc04763541b2845098265bc817241b81820158203ed614c0d97f49b3633627779aa18a338d212bf3c92b97759d9739cd50725596850c04010058348101020182028202018382014c5477656c76653132313231328202018204008181820150efa4b5ac0108e3816c5606479801bc0485070200004319012c850101000058233a09c1e63fe23a7f66a59c7303837241e070b02619fc59c5214a22f08cd70795e73e9aff";
+    let hmac_key = unhexify("1a2b1a2b1a2b1a2b1a2b1a2b1a2b1a2b").unwrap();
+    let content_key = unhexify("71776572747975696f70617364666768").unwrap();
+    let iv = unhexify("5477656c7665313231323132").unwrap();
+
+    // BIB over primary block and bundle age block, BCB over the payload
+    let mut b = Bundle::try_from(unhexify(original_bundle).unwrap().as_slice()).unwrap();
+    let bib_params = BibSecurityContextParameter::new(Some((1, HMAC_SHA_256)), None, Some((3, 0)));
+    let bib_number = bib::sign(
+        &mut b,
+        &[0, 2],
+        &hmac_key,
+        EndpointID::with_ipn(3, 0).unwrap(),
+        bib_params,
+    )
+    .unwrap();
+    assert_eq!(bib_number, 3);
+    let bcb_params = BcbSecurityContextParameter {
+        aes_variant: Some(AES_128_GCM),
+        aad_scope_flags: Some(0),
+        ..Default::default()
+    };
+    let bcb_number = bcb::encrypt(
+        &mut b,
+        1,
+        &content_key,
+        &iv,
+        EndpointID::with_ipn(2, 1).unwrap(),
+        bcb_params,
+    )
+    .unwrap();
+    assert_eq!(bcb_number, 4);
+    assert_eq!(hexify(&b.to_cbor()), final_bundle);
+
+    // and back
+    let mut b = Bundle::try_from(unhexify(final_bundle).unwrap().as_slice()).unwrap();
+    assert!(bib::verify(&b, 3, &hmac_key).unwrap());
+    bcb::decrypt(&mut b, 4, &content_key).unwrap();
+    assert!(bib::verify(&b, 3, &hmac_key).unwrap());
+    assert_eq!(
+        b.payload().unwrap(),
+        &b"Ready to generate a 32-byte payload".to_vec()
+    );
+    // the primary block is a security target
+    b.primary.lifetime += Duration::from_millis(1);
+    assert!(!bib::verify(&b, 3, &hmac_key).unwrap());
+}
+
+/// RFC 9173 Example 4 - Security Blocks with Full Scope, verified after decryption
+#[test]
+fn rfc9173_example_4_test() {
+    use bp7::bpsec::rfc9173::{bcb, bib};
+    let final_bundle = "9f88070000820282010282028202018202820201820018281a000f4240850b0300005846438ed6208eb1c1ffb94d952175167df0902902064a2983910c4fb2340790bf420a7d1921d5bf7c4721e02ab87a93ab1e0b75cf62e4948727c8b5dae46ed2af05439b88029191850c0201005849820301020182028202018382014c5477656c76653132313231328202038204078281820150220ffc45c8a901999ecc60991dd78b2981820150d2c51cb2481792dae8b21d848cede99b8501010000582390eab6457593379298a8724e16e61f837488e127212b59ac91f8a86287b7d07630a122ff";
+    let hmac_key = unhexify("1a2b1a2b1a2b1a2b1a2b1a2b1a2b1a2b").unwrap();
+    let content_key =
+        unhexify("71776572747975696f7061736466676871776572747975696f70617364666768").unwrap();
+
+    let mut b = Bundle::try_from(unhexify(final_bundle).unwrap().as_slice()).unwrap();
+    // the BIB is encrypted and can't be verified before decryption
+    assert!(bib::verify(&b, 3, &hmac_key).is_err());
+    bcb::decrypt(&mut b, 2, &content_key).unwrap();
+    assert!(bib::verify(&b, 3, &hmac_key).unwrap());
+    assert_eq!(
+        hexify(&b.to_cbor()),
+        "9f88070000820282010282028202018202820201820018281a000f4240850b030000584681010101820282020182820106820307818182015830f75fe4c37f76f046165855bd5ff72fbfd4e3a64b4695c40e2b787da005ae819f0a2e30a2e8b325527de8aefb52e73d7185010100005823526561647920746f2067656e657261746520612033322d62797465207061796c6f6164ff"
+    );
+}
+
+#[test]
+fn bib_sign_error_tests() {
+    use bp7::bpsec::rfc9173::bib::{sign, verify};
+    let key = [0x1a; 16];
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    b.set_crc(crc::CRC_32);
+    let source = || EndpointID::with_ipn(2, 1).unwrap();
+    assert!(matches!(
+        sign(&mut b, &[], &key, source(), Default::default()),
+        Err(BpsecError::MissingSecurityTargets)
+    ));
+    assert!(matches!(
+        sign(&mut b, &[9], &key, source(), Default::default()),
+        Err(BpsecError::MissingBlock(9))
+    ));
+    assert!(matches!(
+        sign(&mut b, &[1, 1], &key, source(), Default::default()),
+        Err(BpsecError::InvalidTarget(1, _))
+    ));
+    let bib = sign(&mut b, &[0, 1], &key, source(), Default::default()).unwrap();
+    assert!(verify(&b, bib, &key).unwrap());
+    // the primary block has no CRC as target of the BIB, but is protected by it
+    assert_eq!(b.primary.crc, crc::CrcValue::CrcNo);
+    let received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    assert!(received.validate().is_ok(), "{:?}", received.validate());
+    assert!(verify(&received, bib, &key).unwrap());
+    // BIBs must not target security blocks
+    assert!(matches!(
+        sign(&mut b, &[bib], &key, source(), Default::default()),
+        Err(BpsecError::InvalidTarget(..))
+    ));
+    assert!(matches!(
+        verify(&b, 1, &key),
+        Err(BpsecError::MissingBlock(1))
+    ));
+}

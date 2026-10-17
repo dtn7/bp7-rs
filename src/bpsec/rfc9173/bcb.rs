@@ -318,12 +318,14 @@ pub fn encrypt(
         .security_context_parameters(parameters)
         .security_results(vec![vec![(AUTHENTICATION_TAG_RESULT, Value::Bytes(tag))]])
         .build()?;
-    bundle.canonicals.push(new_confidentiality_block(
-        bcb_block_number,
-        BlockControlFlags::from_bits_truncate(bcb_flags),
-        bcb.to_cbor(),
-    ));
-    bundle.sort_canonicals();
+    insert_security_block(
+        bundle,
+        new_confidentiality_block(
+            bcb_block_number,
+            BlockControlFlags::from_bits_truncate(bcb_flags),
+            bcb.to_cbor(),
+        ),
+    );
     Ok(bcb_block_number)
 }
 

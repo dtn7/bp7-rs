@@ -11,8 +11,11 @@ use serde_cbor::Value;
 use sha2::{Sha256, Sha384, Sha512};
 
 use crate::bpsec::*;
-use crate::bundle::ByteBuffer;
+use crate::bundle::{Bundle, ByteBuffer};
 use crate::canonical::{CanonicalBlock, CanonicalData};
+use crate::crc::{CRC_NO, CrcBlock};
+use crate::eid::EndpointID;
+use crate::flags::BlockControlFlags;
 use crate::primary::PrimaryBlock;
 
 // SHA Variant
@@ -492,4 +495,163 @@ impl IntegrityBlock {
     ) -> Result<(), BpsecError> {
         compute_hmac(self, key.as_ref(), &ippt_list)
     }
+}
+
+/// Integrity scope flags assumed if not given, all assigned flags (RFC 9173 3.3.3)
+pub const DEFAULT_INTEGRITY_SCOPE_FLAGS: IntegrityScopeFlagsType = 0x0007;
+
+/// IPPT of every security target of a BIB, as pairs of target block number and IPPT
+fn ippt_list(
+    bundle: &Bundle,
+    targets: &[u64],
+    scope_flags: IntegrityScopeFlagsType,
+    security_header: SecurityBlockHeader,
+) -> Result<Vec<(u64, ByteBuffer)>, BpsecError> {
+    targets
+        .iter()
+        .map(|target| {
+            let ippt_target = if *target == 0 {
+                IpptTarget::PrimaryBlock(&bundle.primary)
+            } else {
+                IpptTarget::Block(
+                    bundle
+                        .canonicals
+                        .iter()
+                        .find(|b| b.block_number == *target)
+                        .ok_or(BpsecError::MissingBlock(*target))?,
+                )
+            };
+            let ippt = integrity_protected_plaintext(
+                scope_flags,
+                &bundle.primary,
+                ippt_target,
+                security_header,
+            );
+            Ok((*target, ippt))
+        })
+        .collect()
+}
+
+/// Sign blocks of a bundle with BIB-HMAC-SHA2 (RFC 9173 3.8.1) and add a BIB for this
+/// security operation to the bundle. Returns the block number of the new BIB.
+///
+/// The security targets are given by block number, 0 for the primary block. The SHA variant,
+/// integrity scope flags and wrapped key are taken from `parameters`, HMAC-SHA-384 and all
+/// integrity scope flags are used if not given. If `parameters` contain a wrapped key, `key`
+/// is the key encryption key to unwrap the HMAC key, otherwise the HMAC key itself.
+///
+/// The CRCs of the security targets are removed and the CRC of the primary block is
+/// calculated, as it may be part of the IPPT.
+pub fn sign(
+    bundle: &mut Bundle,
+    targets: &[u64],
+    key: &[u8],
+    security_source: EndpointID,
+    parameters: BibSecurityContextParameter,
+) -> Result<u64, BpsecError> {
+    if targets.is_empty() {
+        return Err(BpsecError::MissingSecurityTargets);
+    }
+    for (i, target) in targets.iter().enumerate() {
+        if targets[..i].contains(target) {
+            return Err(BpsecError::InvalidTarget(
+                *target,
+                "duplicate target".to_string(),
+            ));
+        }
+        if *target == 0 {
+            continue;
+        }
+        let block = bundle
+            .canonicals
+            .iter()
+            .find(|b| b.block_number == *target)
+            .ok_or(BpsecError::MissingBlock(*target))?;
+        // BIBs must not target security blocks (RFC 9172 3.7)
+        if block.block_type == INTEGRITY_BLOCK || block.block_type == CONFIDENTIALITY_BLOCK {
+            return Err(BpsecError::InvalidTarget(
+                *target,
+                "BIBs must not target security blocks".to_string(),
+            ));
+        }
+    }
+    let scope_flags = parameters
+        .integrity_scope_flags
+        .map_or(DEFAULT_INTEGRITY_SCOPE_FLAGS, |f| f.1);
+
+    // the CRCs of the targets are removed (RFC 9173 3.8.1), the primary block may be part
+    // of the IPPT with its final CRC
+    bundle.primary.update_crc();
+    for target in targets {
+        if *target == 0 {
+            bundle.primary.set_crc_type(CRC_NO);
+        } else if let Some(block) = bundle
+            .canonicals
+            .iter_mut()
+            .find(|b| b.block_number == *target)
+        {
+            block.set_crc_type(CRC_NO);
+        }
+    }
+
+    let bib_block_number = bundle.next_canonical_block_number();
+    let bib_flags = BlockControlFlags::empty();
+    let ippts = ippt_list(
+        bundle,
+        targets,
+        scope_flags,
+        (INTEGRITY_BLOCK, bib_block_number, bib_flags.bits()),
+    )?;
+    let mut bib = SecurityBlockBuilder::default()
+        .security_targets(targets.to_vec())
+        .security_context_id(BIB_HMAC_SHA2_ID)
+        .security_source(security_source)
+        .security_context_parameters(parameters)
+        .build()?;
+    let ippt_refs: Vec<(u64, &ByteBuffer)> = ippts.iter().map(|(t, i)| (*t, i)).collect();
+    compute_hmac(&mut bib, key, &ippt_refs)?;
+
+    insert_security_block(
+        bundle,
+        new_integrity_block(bib_block_number, bib_flags, bib.to_cbor()),
+    );
+    Ok(bib_block_number)
+}
+
+/// Verify the security targets of a BIB-HMAC-SHA2 BIB of a bundle (RFC 9173 3.8.2).
+///
+/// If the BIB has a wrapped key, `key` is the key encryption key to unwrap the HMAC key,
+/// otherwise the HMAC key itself.
+pub fn verify(bundle: &Bundle, bib_block_number: u64, key: &[u8]) -> Result<bool, BpsecError> {
+    let bib_block = bundle
+        .canonicals
+        .iter()
+        .find(|b| b.block_number == bib_block_number && b.block_type == INTEGRITY_BLOCK)
+        .ok_or(BpsecError::MissingBlock(bib_block_number))?;
+    let bib = match bib_block.data() {
+        CanonicalData::Unknown(data) => IntegrityBlock::from_cbor(data)?,
+        _ => return Err(BpsecError::MissingBlock(bib_block_number)),
+    };
+    if bib.security_context_id != BIB_HMAC_SHA2_ID {
+        return Err(BpsecError::Unsupported(format!(
+            "security context {}",
+            bib.security_context_id
+        )));
+    }
+    let scope_flags = bib
+        .parameters::<BibSecurityContextParameter>()?
+        .and_then(|p| p.integrity_scope_flags)
+        .map_or(DEFAULT_INTEGRITY_SCOPE_FLAGS, |f| f.1);
+    let ippts = ippt_list(
+        bundle,
+        &bib.security_targets,
+        scope_flags,
+        (
+            bib_block.block_type,
+            bib_block.block_number,
+            bib_block.block_control_flags,
+        ),
+    )?;
+    let ippt_refs: Vec<(u64, &ByteBuffer)> = ippts.iter().map(|(t, i)| (*t, i)).collect();
+    verify_hmac(&bib, key, &ippt_refs)
 }

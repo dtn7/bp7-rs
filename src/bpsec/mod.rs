@@ -42,3 +42,14 @@ pub const SEC_CONTEXT_ABSENT: SecurityContextFlag = 0; // Security context param
 pub const SEC_CONTEXT_PRESENT: SecurityContextFlag = 1; // Security context parameters are defined
 
 pub type SecurityBlockHeader = (CanonicalBlockType, u64, flags::BlockControlFlagsType);
+
+/// Insert a new security block after the primary block and the security blocks added
+/// before, as in the examples of RFC 9173, keeping the payload block last
+pub(crate) fn insert_security_block(bundle: &mut Bundle, block: CanonicalBlock) {
+    let position = bundle
+        .canonicals
+        .iter()
+        .take_while(|b| b.block_type == INTEGRITY_BLOCK || b.block_type == CONFIDENTIALITY_BLOCK)
+        .count();
+    bundle.canonicals.insert(position, block);
+}
