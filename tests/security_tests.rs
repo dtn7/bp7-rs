@@ -1526,3 +1526,84 @@ fn bcb_encrypt_with_tag_in_ciphertext() {
     decrypt(&mut received, bcb_number, &key, CRC_NO).unwrap();
     assert_eq!(received.payload(), original.payload());
 }
+
+#[test]
+fn remove_block_removes_security_operations() {
+    use bp7::bpsec::rfc9173::bcb::{decrypt, encrypt};
+    use bp7::bpsec::rfc9173::bib::{sign, verify};
+    let key = [0x1a; 16];
+    let content_key = [0x42; 32];
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    b.set_crc(crc::CRC_32);
+    b.add_canonical_block(new_canonical_block(
+        200,
+        2,
+        0,
+        CanonicalData::Unknown(vec![1]),
+    ));
+    b.add_canonical_block(new_canonical_block(
+        201,
+        3,
+        0,
+        CanonicalData::Unknown(vec![2]),
+    ));
+    b.add_canonical_block(new_canonical_block(
+        202,
+        4,
+        0,
+        CanonicalData::Unknown(vec![3]),
+    ));
+    let source = || EndpointID::with_ipn(2, 1).unwrap();
+    let bib_shared = sign(&mut b, &[0, 1, 2], &key, source(), Default::default()).unwrap();
+    let bib_single = sign(&mut b, &[3], &key, source(), Default::default()).unwrap();
+    let bcb = encrypt(
+        &mut b,
+        4,
+        &content_key,
+        &[0x24; 12],
+        source(),
+        Default::default(),
+    )
+    .unwrap();
+
+    // the primary block, BCBs and missing blocks can't be removed
+    assert!(matches!(
+        remove_block(&mut b, 0),
+        Err(BpsecError::InvalidTarget(0, _))
+    ));
+    assert!(matches!(
+        remove_block(&mut b, bcb),
+        Err(BpsecError::InvalidTarget(..))
+    ));
+    assert!(matches!(
+        remove_block(&mut b, 42),
+        Err(BpsecError::MissingBlock(42))
+    ));
+
+    // the operation of the removed target is removed, the others stay valid
+    remove_block(&mut b, 2).unwrap();
+    let bibs = b.decode_bibs();
+    assert_eq!(bibs[0].security_targets, vec![0, 1]);
+    assert_eq!(bibs[0].security_results.len(), 2);
+    assert!(verify(&b, bib_shared, &key).unwrap());
+
+    // security blocks without operations are removed
+    remove_block(&mut b, 3).unwrap();
+    assert!(b.canonicals.iter().all(|c| c.block_number != bib_single));
+    remove_block(&mut b, 4).unwrap();
+    assert!(b.canonicals.iter().all(|c| c.block_number != bcb));
+    assert!(b.decode_bcbs().is_empty());
+
+    let mut received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    assert!(received.validate().is_ok(), "{:?}", received.validate());
+    assert!(verify(&received, bib_shared, &key).unwrap());
+    // a removed BIB leaves its targets
+    remove_block(&mut received, bib_shared).unwrap();
+    assert!(received.decode_bibs().is_empty());
+    assert_eq!(received.payload().unwrap(), &b"ABC".to_vec());
+    assert!(decrypt(&mut received, bcb, &content_key, CRC_NO).is_err());
+}

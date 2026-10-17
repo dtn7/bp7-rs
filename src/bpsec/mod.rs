@@ -55,6 +55,55 @@ pub(crate) fn insert_security_block(bundle: &mut Bundle, block: CanonicalBlock) 
     bundle.canonicals.insert(position, block);
 }
 
+/// Remove a block from a bundle together with the security operations targeting it. Security
+/// blocks without remaining security operations are removed as well (RFC 9172 5.1.1, 5.1.2).
+///
+/// The other security operations stay valid, as security targets are not part of the
+/// IPPT or AAD of BIB-HMAC-SHA2 and BCB-AES-GCM. The primary block and BCBs can't be
+/// removed, a BCB is removed when it is decrypted or all its targets are removed.
+pub fn remove_block(bundle: &mut Bundle, block_number: u64) -> Result<(), BpsecError> {
+    if block_number == 0 {
+        return Err(BpsecError::InvalidTarget(
+            0,
+            "the primary block can't be removed".to_string(),
+        ));
+    }
+    let block = bundle
+        .canonicals
+        .iter()
+        .find(|b| b.block_number == block_number)
+        .ok_or(BpsecError::MissingBlock(block_number))?;
+    if block.block_type == CONFIDENTIALITY_BLOCK {
+        return Err(BpsecError::InvalidTarget(
+            block_number,
+            "BCBs can't be removed without decrypting their targets".to_string(),
+        ));
+    }
+    let mut removed = vec![block_number];
+    while let Some(number) = removed.pop() {
+        bundle.canonicals.retain(|b| b.block_number != number);
+        for block_type in [INTEGRITY_BLOCK, CONFIDENTIALITY_BLOCK] {
+            for (security_block_number, mut asb) in bundle.security_blocks(block_type) {
+                let Some(index) = asb.security_targets.iter().position(|t| *t == number) else {
+                    continue;
+                };
+                asb.security_targets.remove(index);
+                asb.security_results.remove(index);
+                if asb.security_targets.is_empty() {
+                    removed.push(security_block_number);
+                } else if let Some(security_block) = bundle
+                    .canonicals
+                    .iter_mut()
+                    .find(|b| b.block_number == security_block_number)
+                {
+                    security_block.set_data(CanonicalData::Unknown(asb.to_cbor()));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Check that `crc_type` is a known CRC type before a bundle is changed
 pub(crate) fn check_crc_type(crc_type: CrcRawType) -> Result<(), BpsecError> {
     use crate::crc::{CRC_16, CRC_32, CRC_NO};
