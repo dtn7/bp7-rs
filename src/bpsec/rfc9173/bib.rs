@@ -372,12 +372,18 @@ fn new_mac<M: Mac + hmac::digest::KeyInit>(key: &[u8], ippt: &[u8]) -> M {
     mac
 }
 
-/// SHA variant of a BIB, HMAC-SHA-384 if none is given (RFC 9173 3.3.1)
-fn sha_variant(bib: &IntegrityBlock) -> Result<ShaVariantType, BpsecError> {
-    let params: Option<BibSecurityContextParameter> = bib.parameters()?;
-    Ok(params
-        .and_then(|p| p.sha_variant)
-        .map_or(HMAC_SHA_384, |v| v.1))
+/// SHA variant of a BIB, HMAC-SHA-384 if none is given (RFC 9173 3.3.1), and the HMAC key,
+/// unwrapped with the given key if the BIB has a wrapped key
+fn sha_variant_and_key(
+    bib: &IntegrityBlock,
+    key: &[u8],
+) -> Result<(ShaVariantType, ByteBuffer), BpsecError> {
+    let params: BibSecurityContextParameter = bib
+        .parameters()?
+        .unwrap_or(BibSecurityContextParameter::new(None, None, None));
+    let variant = params.sha_variant.map_or(HMAC_SHA_384, |v| v.1);
+    let key = super::operation_key(key, params.wrapped_key.as_ref().map(|(_, k)| k.as_slice()))?;
+    Ok((variant, key))
 }
 
 fn compute_expected_hmac(
@@ -423,13 +429,14 @@ fn verify_expected_hmac(
 /// target, given as pairs of target block number and IPPT, and set them as results.
 ///
 /// The BIB-HMAC-SHA2 context has a single result per target, the expected HMAC with
-/// result id 1 (RFC 9173 3.4).
+/// result id 1 (RFC 9173 3.4). If the BIB has a wrapped key, `key` is the key encryption
+/// key to unwrap the HMAC key.
 pub fn compute_hmac(
     bib: &mut IntegrityBlock,
     key: &[u8],
     ippt_list: &[(u64, &ByteBuffer)],
 ) -> Result<(), BpsecError> {
-    let variant = sha_variant(bib)?;
+    let (variant, key) = sha_variant_and_key(bib, key)?;
     if let Some((target, _)) = ippt_list
         .iter()
         .find(|(target, _)| !bib.security_targets.contains(target))
@@ -443,7 +450,7 @@ pub fn compute_hmac(
             .iter()
             .find(|(t, _)| t == target)
             .ok_or(BpsecError::MissingTargetInput(*target))?;
-        let expected = compute_expected_hmac(variant, key, ippt)?;
+        let expected = compute_expected_hmac(variant, &key, ippt)?;
         results.push(vec![(EXPECTED_HMAC_RESULT, Value::Bytes(expected))]);
     }
     bib.security_results = results;
@@ -451,13 +458,14 @@ pub fn compute_hmac(
 }
 
 /// Verify the expected HMAC of every security target of a BIB, given the IPPT of each
-/// target as pairs of target block number and IPPT.
+/// target as pairs of target block number and IPPT. If the BIB has a wrapped key, `key`
+/// is the key encryption key to unwrap the HMAC key.
 pub fn verify_hmac(
     bib: &IntegrityBlock,
     key: &[u8],
     ippt_list: &[(u64, &ByteBuffer)],
 ) -> Result<bool, BpsecError> {
-    let variant = sha_variant(bib)?;
+    let (variant, key) = sha_variant_and_key(bib, key)?;
     for target in &bib.security_targets {
         let (_, ippt) = ippt_list
             .iter()
@@ -466,7 +474,7 @@ pub fn verify_hmac(
         let Some(Value::Bytes(received)) = bib.result(*target, EXPECTED_HMAC_RESULT) else {
             return Ok(false);
         };
-        if !verify_expected_hmac(variant, key, ippt, received)? {
+        if !verify_expected_hmac(variant, &key, ippt, received)? {
             return Ok(false);
         }
     }

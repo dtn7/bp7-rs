@@ -572,14 +572,23 @@ fn bcb_context_parameter_tests() {
     ));
 }
 
-/// RFC 9173 Example 2 - Simple Confidentiality with Key Wrap, using the content encryption key
+/// RFC 9173 Example 2 - Simple Confidentiality with Key Wrap
 #[test]
 fn rfc9173_example_2_confidentiality_test() {
     let original_bundle = "9f88070000820282010282028202018202820201820018281a000f424085010100005823526561647920746f2067656e657261746520612033322d62797465207061796c6f6164ff";
     let final_bundle = "9f88070000820282010282028202018202820201820018281a000f4240850c02010058508101020182028202018482014c5477656c76653132313231328202018203581869c411276fecddc4780df42c8a2af89296fabf34d7fae7008204008181820150efa4b5ac0108e3816c5606479801bc04850101000058233a09c1e63fe23a7f66a59c7303837241e070b02619fc59c5214a22f08cd70795e73e9aff";
     let content_key = unhexify("71776572747975696f70617364666768").unwrap();
+    let kek = unhexify("6162636465666768696a6b6c6d6e6f70").unwrap();
     let iv = unhexify("5477656c7665313231323132").unwrap();
     let wrapped_key = unhexify("69c411276fecddc4780df42c8a2af89296fabf34d7fae700").unwrap();
+
+    // AES key wrap of the content encryption key
+    assert_eq!(wrap_key(&kek, &content_key).unwrap(), wrapped_key);
+    assert_eq!(unwrap_key(&kek, &wrapped_key).unwrap(), content_key);
+    assert!(matches!(
+        unwrap_key(&content_key, &wrapped_key),
+        Err(BpsecError::OperationFailed(_))
+    ));
 
     let mut b = Bundle::try_from(unhexify(original_bundle).unwrap().as_slice()).unwrap();
     let params = BcbSecurityContextParameter {
@@ -588,10 +597,11 @@ fn rfc9173_example_2_confidentiality_test() {
         wrapped_key: Some(wrapped_key),
         aad_scope_flags: Some(0),
     };
+    // with a wrapped key, the key encryption key is given
     let bcb_number = bp7::bpsec::rfc9173::bcb::encrypt(
         &mut b,
         1,
-        &content_key,
+        &kek,
         &iv,
         EndpointID::with_ipn(2, 1).unwrap(),
         params,
@@ -600,9 +610,11 @@ fn rfc9173_example_2_confidentiality_test() {
     assert_eq!(bcb_number, 2);
     assert_eq!(hexify(&b.to_cbor()), final_bundle);
 
-    // decrypting the RFC bundle restores the original bundle
+    // decrypting the RFC bundle restores the original bundle, the content encryption key
+    // must be derived from the wrapped key
     let mut b = Bundle::try_from(unhexify(final_bundle).unwrap().as_slice()).unwrap();
-    bp7::bpsec::rfc9173::bcb::decrypt(&mut b, 2, &content_key).unwrap();
+    assert!(bp7::bpsec::rfc9173::bcb::decrypt(&mut b, 2, &content_key).is_err());
+    bp7::bpsec::rfc9173::bcb::decrypt(&mut b, 2, &kek).unwrap();
     assert!(b.decode_bcbs().is_empty());
     assert_eq!(hexify(&b.to_cbor()), original_bundle);
 }
@@ -747,4 +759,49 @@ fn bcb_aes_gcm_error_tests() {
             .block_number;
         assert!(decrypt(&mut b, number, &key).is_err());
     }
+}
+
+#[test]
+fn bib_wrapped_key_tests() {
+    let kek = [0x6b; 32];
+    let hmac_key = [0x1a; 16];
+    let ippt = vec![1u8, 2, 3];
+
+    let params = BibSecurityContextParameter::new(
+        Some((1, HMAC_SHA_256)),
+        Some((2, wrap_key(&kek, &hmac_key).unwrap())),
+        None,
+    );
+    let mut ib = IntegrityBlockBuilder::default()
+        .security_targets(vec![1])
+        .security_context_parameters(params)
+        .build()
+        .unwrap();
+    // with a wrapped key, the key encryption key is given
+    ib.compute_hmac(kek, vec![(1, &ippt)]).unwrap();
+    assert!(verify_hmac(&ib, &kek, &[(1, &ippt)]).unwrap());
+    assert!(verify_hmac(&ib, &hmac_key, &[(1, &ippt)]).is_err());
+
+    // the HMAC is calculated with the unwrapped key
+    let mut plain = IntegrityBlockBuilder::default()
+        .security_targets(vec![1])
+        .security_context_parameters(BibSecurityContextParameter::new(
+            Some((1, HMAC_SHA_256)),
+            None,
+            None,
+        ))
+        .build()
+        .unwrap();
+    plain.compute_hmac(hmac_key, vec![(1, &ippt)]).unwrap();
+    assert_eq!(hmac_of(&plain, 1), hmac_of(&ib, 1));
+
+    // invalid key encryption keys and keys to wrap
+    assert!(matches!(
+        wrap_key(&[0; 10], &hmac_key),
+        Err(BpsecError::InvalidKey(_))
+    ));
+    assert!(matches!(
+        wrap_key(&kek, &[0; 12]),
+        Err(BpsecError::InvalidKey(_))
+    ));
 }

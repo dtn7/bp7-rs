@@ -20,6 +20,7 @@ pub use bcb::*;
 pub use bib::*;
 pub use rfc9173::bcb::*;
 pub use rfc9173::bib::*;
+pub use rfc9173::{unwrap_key, wrap_key};
 
 use crate::*;
 

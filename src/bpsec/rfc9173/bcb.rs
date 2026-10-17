@@ -2,8 +2,8 @@
 //!
 //! [`encrypt`] encrypts a block of a bundle in place and adds a BCB for the
 //! security operation, [`decrypt`] decrypts the targets of a BCB and removes it.
-//! AES key wrap of the content encryption key is not supported yet, a wrapped
-//! key parameter is passed on unchanged.
+//! If the BCB has a wrapped key, the key given to both is the key encryption key
+//! to unwrap the content encryption key, see [`super::wrap_key`].
 //!
 //! Based on the BCB implementation of Lucien Loiseau (dtn7/bp7-rs#19).
 
@@ -243,6 +243,9 @@ fn check_iv(iv: &[u8]) -> Result<(), BpsecError> {
 /// (RFC 9173 4.6). As the IV is a parameter shared by all targets of a BCB, every
 /// encrypted block gets its own BCB.
 ///
+/// If `parameters` contain a wrapped key, `key` is the key encryption key to unwrap the
+/// content encryption key, otherwise the content encryption key itself.
+///
 /// The CRC of the target block is removed and the CRC of the primary block calculated,
 /// as it may be part of the additional authenticated data.
 pub fn encrypt(
@@ -253,7 +256,8 @@ pub fn encrypt(
     security_source: EndpointID,
     mut parameters: BcbSecurityContextParameter,
 ) -> Result<u64, BpsecError> {
-    let cipher = AesGcmCipher::new(parameters.aes_variant.unwrap_or(AES_256_GCM), key)?;
+    let key = super::operation_key(key, parameters.wrapped_key.as_deref())?;
+    let cipher = AesGcmCipher::new(parameters.aes_variant.unwrap_or(AES_256_GCM), &key)?;
     check_iv(iv)?;
     let aad_scope_flags = parameters
         .aad_scope_flags
@@ -326,7 +330,9 @@ pub fn encrypt(
 /// Decrypt the security targets of a BCB-AES-GCM BCB in place (RFC 9173 4.8.2) and remove
 /// the BCB from the bundle.
 ///
-/// The bundle is only changed if all targets are decrypted and authenticated successfully.
+/// If the BCB has a wrapped key, `key` is the key encryption key to unwrap the content
+/// encryption key, otherwise the content encryption key itself. The bundle is only changed
+/// if all targets are decrypted and authenticated successfully.
 pub fn decrypt(bundle: &mut Bundle, bcb_block_number: u64, key: &[u8]) -> Result<(), BpsecError> {
     let bcb_block = bundle
         .canonicals
@@ -348,7 +354,8 @@ pub fn decrypt(bundle: &mut Bundle, bcb_block_number: u64, key: &[u8]) -> Result
         .iv
         .ok_or(BpsecError::MissingParameter(IV_PARAMETER))?;
     check_iv(&iv)?;
-    let cipher = AesGcmCipher::new(parameters.aes_variant.unwrap_or(AES_256_GCM), key)?;
+    let key = super::operation_key(key, parameters.wrapped_key.as_deref())?;
+    let cipher = AesGcmCipher::new(parameters.aes_variant.unwrap_or(AES_256_GCM), &key)?;
     let aad_scope_flags = parameters
         .aad_scope_flags
         .unwrap_or(DEFAULT_AAD_SCOPE_FLAGS);
