@@ -1637,3 +1637,62 @@ fn remove_block_removes_security_operations() {
     assert_eq!(received.payload().unwrap(), &b"ABC".to_vec());
     assert!(decrypt(&mut received, bcb, &content_key, CRC_NO).is_err());
 }
+
+#[test]
+fn bib_split_tests() {
+    use bp7::bpsec::rfc9173::bib::{sign, split, verify};
+    let key = [0x1a; 16];
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    b.set_crc(crc::CRC_32);
+    let source = || EndpointID::with_ipn(2, 1).unwrap();
+    // without the security header in the IPPT
+    let params = BibSecurityContextParameter::new(None, None, Some((3, 3)));
+    let bib = sign(&mut b, &[0, 1], &key, source(), params).unwrap();
+
+    assert!(matches!(
+        split(&mut b, bib, &[]),
+        Err(BpsecError::MissingSecurityTargets)
+    ));
+    assert!(matches!(
+        split(&mut b, bib, &[2]),
+        Err(BpsecError::UnknownTarget(2))
+    ));
+    assert!(matches!(
+        split(&mut b, bib, &[1, 1]),
+        Err(BpsecError::InvalidTarget(1, _))
+    ));
+    assert!(matches!(
+        split(&mut b, bib, &[1, 0]),
+        Err(BpsecError::InvalidTarget(..))
+    ));
+    assert!(matches!(
+        split(&mut b, 9, &[1]),
+        Err(BpsecError::MissingBlock(9))
+    ));
+
+    let new_bib = split(&mut b, bib, &[1]).unwrap();
+    let received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    assert!(received.validate().is_ok(), "{:?}", received.validate());
+    let bibs = received.decode_bibs();
+    assert_eq!(bibs.len(), 2);
+    assert!(bibs.iter().any(|b| b.security_targets == vec![0]));
+    assert!(bibs.iter().any(|b| b.security_targets == vec![1]));
+    assert!(verify(&received, bib, &key).unwrap());
+    assert!(verify(&received, new_bib, &key).unwrap());
+
+    // the HMACs of BIBs including their security header can't be moved
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    let bib = sign(&mut b, &[0, 1], &key, source(), Default::default()).unwrap();
+    assert!(matches!(
+        split(&mut b, bib, &[1]),
+        Err(BpsecError::Unsupported(_))
+    ));
+}

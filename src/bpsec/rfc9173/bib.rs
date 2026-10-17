@@ -761,3 +761,89 @@ pub fn accept(
     restore_target_crcs(bundle, &targets, crc_type);
     Ok(true)
 }
+
+/// Move the security operations of `targets` from a BIB-HMAC-SHA2 BIB to a new BIB and
+/// return the block number of the new BIB.
+///
+/// This is required before a BCB is added for some, but not all, targets of a BIB, so that
+/// the new BIB can be encrypted with them (RFC 9172 3.9). The security results are moved
+/// unchanged, which is only possible if the IPPT of the BIB doesn't include its security
+/// header, i.e., its block number (RFC 9173 3.3.3).
+pub fn split(
+    bundle: &mut Bundle,
+    bib_block_number: u64,
+    targets: &[u64],
+) -> Result<u64, BpsecError> {
+    let (_, mut bib) = bundle
+        .security_blocks(INTEGRITY_BLOCK)
+        .into_iter()
+        .find(|(number, _)| *number == bib_block_number)
+        .ok_or(BpsecError::MissingBlock(bib_block_number))?;
+    if targets.is_empty() {
+        return Err(BpsecError::MissingSecurityTargets);
+    }
+    for (index, target) in targets.iter().enumerate() {
+        if !bib.security_targets.contains(target) {
+            return Err(BpsecError::UnknownTarget(*target));
+        }
+        if targets[..index].contains(target) {
+            return Err(BpsecError::InvalidTarget(
+                *target,
+                "duplicate security target".to_string(),
+            ));
+        }
+    }
+    if targets.len() == bib.security_targets.len() {
+        return Err(BpsecError::InvalidTarget(
+            targets[0],
+            "a BIB can't be split off all its security targets".to_string(),
+        ));
+    }
+    if bib.security_context_id != BIB_HMAC_SHA2_ID {
+        return Err(BpsecError::Unsupported(format!(
+            "security context {}",
+            bib.security_context_id
+        )));
+    }
+    let scope_flags = bib
+        .parameters::<BibSecurityContextParameter>()?
+        .and_then(|p| p.integrity_scope_flags)
+        .map_or(DEFAULT_INTEGRITY_SCOPE_FLAGS, |f| f.1);
+    if scope_flags.contains(IntegrityScopeFlags::INTEGRITY_SECURITY_HEADER) {
+        return Err(BpsecError::Unsupported(
+            "splitting a BIB whose IPPT includes its security header".to_string(),
+        ));
+    }
+
+    let mut new_bib = bib.clone();
+    new_bib.security_targets.clear();
+    new_bib.security_results.clear();
+    let operations: Vec<(u64, Vec<SecurityResult>)> = bib
+        .security_targets
+        .drain(..)
+        .zip(bib.security_results.drain(..))
+        .collect();
+    for (target, results) in operations {
+        if targets.contains(&target) {
+            new_bib.security_targets.push(target);
+            new_bib.security_results.push(results);
+        } else {
+            bib.security_targets.push(target);
+            bib.security_results.push(results);
+        }
+    }
+
+    let bib_block = bundle
+        .canonicals
+        .iter_mut()
+        .find(|b| b.block_number == bib_block_number)
+        .expect("BIB was found before");
+    bib_block.set_data(CanonicalData::Unknown(bib.to_cbor()));
+    let flags = BlockControlFlags::from_bits_truncate(bib_block.block_control_flags);
+    let new_bib_block_number = bundle.next_canonical_block_number();
+    insert_security_block(
+        bundle,
+        new_integrity_block(new_bib_block_number, flags, new_bib.to_cbor()),
+    );
+    Ok(new_bib_block_number)
+}
