@@ -187,17 +187,8 @@ impl Bundle {
                 ));
             }
         }
-        // the primary block must not be the target of a BCB (RFC 9172 3.8)
         #[cfg(feature = "bpsec")]
-        if self
-            .decode_bcbs()
-            .iter()
-            .any(|bcb| bcb.security_targets.contains(&0))
-        {
-            errors.push(Error::BundleError(
-                "Primary Block must not be the target of a BCB".to_string(),
-            ));
-        }
+        self.validate_bcbs(&mut errors);
         for blck in &self.canonicals {
             if let Err(mut err) = blck.validate() {
                 errors.append(&mut err);
@@ -350,6 +341,39 @@ impl Bundle {
     #[cfg(feature = "bpsec")]
     pub fn decode_bibs(&self) -> Vec<IntegrityBlock> {
         self.decode_security_blocks(crate::bpsec::INTEGRITY_BLOCK)
+    }
+
+    /// Check the constraints of BCBs (RFC 9172 3.8)
+    #[cfg(feature = "bpsec")]
+    fn validate_bcbs(&self, errors: &mut ErrorList) {
+        let bcb_blocks: Vec<&CanonicalBlock> = self
+            .canonicals
+            .iter()
+            .filter(|b| b.block_type == crate::bpsec::CONFIDENTIALITY_BLOCK)
+            .collect();
+        if bcb_blocks.iter().any(|b| {
+            b.block_control_flags
+                .contains(BlockControlFlags::BLOCK_REMOVE)
+        }) {
+            errors.push(Error::BundleError(
+                "BCBs must not be removed if they can't be processed".to_string(),
+            ));
+        }
+        for bcb in self.decode_bcbs() {
+            if bcb.security_targets.contains(&0) {
+                errors.push(Error::BundleError(
+                    "Primary Block must not be the target of a BCB".to_string(),
+                ));
+            }
+            if bcb_blocks
+                .iter()
+                .any(|b| bcb.security_targets.contains(&b.block_number))
+            {
+                errors.push(Error::BundleError(
+                    "BCBs must not target other BCBs".to_string(),
+                ));
+            }
+        }
     }
 
     /// Return decoded BCBs if block confidentiality blocks exists.

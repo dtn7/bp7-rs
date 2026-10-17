@@ -15,8 +15,9 @@ pub type ConfidentialityBlock = AbstractSecurityBlock;
 
 /// Create a BCB canonical block carrying the given encoded abstract security block.
 ///
-/// As BCBs must be replicated in every fragment (RFC 9172 3.8), the block
-/// processing control flags of the block include `BLOCK_REPLICATE`.
+/// As BCBs must be replicated in every fragment and must not be removed if they
+/// can't be processed (RFC 9172 3.8), `BLOCK_REPLICATE` is always set and
+/// `BLOCK_REMOVE` never.
 pub fn new_confidentiality_block(
     block_number: u64,
     bcf: BlockControlFlags,
@@ -25,7 +26,9 @@ pub fn new_confidentiality_block(
     CanonicalBlockBuilder::default()
         .block_type(CONFIDENTIALITY_BLOCK)
         .block_number(block_number)
-        .block_control_flags((bcf | BlockControlFlags::BLOCK_REPLICATE).bits())
+        .block_control_flags(
+            ((bcf | BlockControlFlags::BLOCK_REPLICATE) - BlockControlFlags::BLOCK_REMOVE).bits(),
+        )
         .data(CanonicalData::Unknown(security_block))
         .build()
         .unwrap()

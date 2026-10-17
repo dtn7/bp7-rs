@@ -508,24 +508,42 @@ fn confidentiality_block_tests() {
     );
     b.set_crc(crc::CRC_32);
     b.add_canonical_block(block);
-    let mut decoded = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    let decoded = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
     assert!(decoded.validate().is_ok());
     assert!(decoded.decode_bibs().is_empty());
     let bcbs = decoded.decode_bcbs();
-    assert_eq!(bcbs, vec![bcb]);
+    assert_eq!(bcbs, vec![bcb.clone()]);
     assert_eq!(bcbs[0].parameters().unwrap(), Some(params.clone()));
     assert_eq!(
         bcbs[0].result(1, AUTHENTICATION_TAG_RESULT),
         Some(&Value::Bytes(vec![0x42; 16]))
     );
 
-    // the primary block must not be the target of a BCB
-    decoded.add_canonical_block(new_confidentiality_block(
-        0,
-        BlockControlFlags::empty(),
-        bcb_for(0).to_cbor(),
-    ));
-    assert!(decoded.validate().is_err());
+    // BCBs can't be created with the remove block flag, but may be received with it
+    let block = new_confidentiality_block(3, BlockControlFlags::BLOCK_REMOVE, bcb.to_cbor());
+    assert!(
+        !block
+            .block_control_flags
+            .contains(BlockControlFlags::BLOCK_REMOVE)
+    );
+    let mut removable = decoded.clone();
+    for c in removable.canonicals.iter_mut() {
+        if c.block_type == CONFIDENTIALITY_BLOCK {
+            c.block_control_flags |= BlockControlFlags::BLOCK_REMOVE.bits();
+        }
+    }
+    assert!(removable.validate().is_err());
+
+    // the primary block and other BCBs must not be the target of a BCB
+    for target in [0, 3] {
+        let mut b = decoded.clone();
+        b.add_canonical_block(new_confidentiality_block(
+            0,
+            BlockControlFlags::empty(),
+            bcb_for(target).to_cbor(),
+        ));
+        assert!(b.validate().is_err(), "BCB target {}", target);
+    }
 }
 
 #[test]
