@@ -124,49 +124,53 @@ pub trait CrcBlock: Block + Clone {
 /// Feeds the encoding of a block into a crc digest, replacing the trailing crc value
 /// of `n` bytes by zeros. This is the crc input without cloning the block or buffering
 /// its encoding, as the crc value is always the last element of a block and of fixed size.
+///
+/// Small writes are collected in a buffer to reduce the number of digest updates.
 struct CrcWriter<F: FnMut(&[u8])> {
     update: F,
     n: usize,
-    tail: [u8; 4],
-    tail_len: usize,
+    pending: [u8; CRC_WRITER_BUFFER],
+    pending_len: usize,
 }
+
+const CRC_WRITER_BUFFER: usize = 256;
 
 impl<F: FnMut(&[u8])> CrcWriter<F> {
     fn new(n: usize, update: F) -> Self {
         CrcWriter {
             update,
             n,
-            tail: [0; 4],
-            tail_len: 0,
+            pending: [0; CRC_WRITER_BUFFER],
+            pending_len: 0,
         }
     }
-    /// Feed zeros in place of the held back crc value
+    /// Feed the remaining data and zeros in place of the held back crc value
     fn finish(mut self) {
+        let data_len = self.pending_len.saturating_sub(self.n);
+        (self.update)(&self.pending[..data_len]);
         (self.update)(&[0; 4][..self.n]);
     }
 }
 
 impl<F: FnMut(&[u8])> std::io::Write for CrcWriter<F> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let total = self.tail_len + buf.len();
-        if total <= self.n {
-            self.tail[self.tail_len..total].copy_from_slice(buf);
-            self.tail_len = total;
+        let total = self.pending_len + buf.len();
+        if total <= CRC_WRITER_BUFFER {
+            self.pending[self.pending_len..total].copy_from_slice(buf);
+            self.pending_len = total;
             return Ok(buf.len());
         }
         // pass on everything but the last n bytes
         let emit = total - self.n;
-        let from_tail = emit.min(self.tail_len);
-        let from_buf = emit - from_tail;
-        (self.update)(&self.tail[..from_tail]);
+        let from_pending = emit.min(self.pending_len);
+        let from_buf = emit - from_pending;
+        (self.update)(&self.pending[..from_pending]);
         (self.update)(&buf[..from_buf]);
 
-        let mut tail = [0; 4];
-        let kept = self.tail_len - from_tail;
-        tail[..kept].copy_from_slice(&self.tail[from_tail..self.tail_len]);
-        tail[kept..self.n].copy_from_slice(&buf[from_buf..]);
-        self.tail = tail;
-        self.tail_len = self.n;
+        let kept = self.pending_len - from_pending;
+        self.pending.copy_within(from_pending..self.pending_len, 0);
+        self.pending[kept..self.n].copy_from_slice(&buf[from_buf..]);
+        self.pending_len = self.n;
         Ok(buf.len())
     }
     fn flush(&mut self) -> std::io::Result<()> {
@@ -245,7 +249,7 @@ mod tests {
             let expected = CASTAGNOLI.checksum(&expected);
 
             // all chunk sizes, including writes shorter than the held back tail
-            for chunk in [1, 2, 3, 4, 5, 7, 64, 999, 1000] {
+            for chunk in [1, 2, 3, 4, 5, 7, 64, 255, 256, 257, 999, 1000] {
                 let mut digest = CASTAGNOLI.digest();
                 let mut writer = CrcWriter::new(n, |d| digest.update(d));
                 for part in data.chunks(chunk) {
