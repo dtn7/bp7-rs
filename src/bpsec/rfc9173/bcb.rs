@@ -2,6 +2,8 @@
 //!
 //! [`encrypt`] encrypts a block of a bundle in place and adds a BCB for the
 //! security operation, [`decrypt`] decrypts the targets of a BCB and removes it.
+//! [`encrypt_targets`] encrypts several blocks with a single BCB, which shares the
+//! IV between them.
 //! If the BCB has a wrapped key, the key given to both is the key encryption key
 //! to unwrap the content encryption key, see [`super::wrap_key`].
 //!
@@ -295,14 +297,16 @@ fn check_iv(iv: &[u8]) -> Result<(), BpsecError> {
 ///
 /// **An IV must never be used more than once with the same key**, as this breaks the
 /// confidentiality and integrity of all bundles encrypted with this key and IV
-/// (RFC 9173 4.6). As the IV is a parameter shared by all targets of a BCB, every
-/// encrypted block gets its own BCB.
+/// (RFC 9173 4.6).
 ///
 /// If `parameters` contain a wrapped key, `key` is the key encryption key to unwrap the
 /// content encryption key, otherwise the content encryption key itself.
 ///
 /// The CRC of the target block is removed and the CRC of the primary block calculated,
 /// as it may be part of the additional authenticated data.
+///
+/// A BIB of the target has to be encrypted first, by its own BCB with another IV, and split
+/// with [`super::bib::split`] before if it has further targets (RFC 9172 3.9).
 ///
 /// The authentication tag is added as security result, see [`encrypt_with_tag`] to append
 /// it to the ciphertext.
@@ -314,9 +318,9 @@ pub fn encrypt(
     security_source: EndpointID,
     parameters: BcbSecurityContextParameter,
 ) -> Result<u64, BpsecError> {
-    encrypt_with_tag(
+    encrypt_targets(
         bundle,
-        target,
+        &[target],
         key,
         iv,
         security_source,
@@ -333,6 +337,31 @@ pub fn encrypt_with_tag(
     key: &[u8],
     iv: &[u8],
     security_source: EndpointID,
+    parameters: BcbSecurityContextParameter,
+    tag: AuthenticationTag,
+) -> Result<u64, BpsecError> {
+    encrypt_targets(bundle, &[target], key, iv, security_source, parameters, tag)
+}
+
+/// Encrypt several blocks of a bundle in place with a single BCB-AES-GCM BCB, as in
+/// RFC 9173 Example 4, otherwise like [`encrypt_with_tag`].
+///
+/// **All targets are encrypted with the same key and IV**, as both are parameters shared
+/// by the targets of a BCB. This reuses the IV with the same key for each further target,
+/// which RFC 9173 4.6 forbids: the keystream is the same for all targets, so the XOR of
+/// two ciphertexts is the XOR of their plaintexts, and the authentication key can be
+/// recovered to forge ciphertexts. A target whose plaintext is known, e.g., a BIB seen
+/// before it was encrypted, discloses the beginning of the plaintext of every other target.
+/// Prefer [`encrypt`] with a unique IV for each target, use this only if a peer requires
+/// a single BCB.
+///
+/// BIBs can be targets, together with all their targets in the bundle (RFC 9172 3.9).
+pub fn encrypt_targets(
+    bundle: &mut Bundle,
+    targets: &[u64],
+    key: &[u8],
+    iv: &[u8],
+    security_source: EndpointID,
     mut parameters: BcbSecurityContextParameter,
     tag: AuthenticationTag,
 ) -> Result<u64, BpsecError> {
@@ -346,91 +375,62 @@ pub fn encrypt_with_tag(
     if AadScopeFlags::from_bits(aad_scope_flags).is_none() {
         return Err(BpsecError::InvalidParameter(AAD_SCOPE_FLAGS_PARAMETER));
     }
-
-    let target_block = bundle
-        .canonicals
-        .iter()
-        .find(|b| b.block_number == target)
-        .ok_or(BpsecError::MissingBlock(target))?;
-    // allowed targets of BCBs (RFC 9172 3.8)
-    let invalid_target = |reason: &str| Err(BpsecError::InvalidTarget(target, reason.to_string()));
-    match target_block.block_type {
-        CONFIDENTIALITY_BLOCK => return invalid_target("BCBs must not be encrypted"),
-        INTEGRITY_BLOCK => {
-            return invalid_target("BIBs must be encrypted by a BCB with their targets");
-        }
-        // their encrypted content could not be decoded anymore
-        HOP_COUNT_BLOCK | BUNDLE_AGE_BLOCK | PREVIOUS_NODE_BLOCK => {
-            return Err(BpsecError::Unsupported(format!(
-                "encryption of blocks of type {}",
-                target_block.block_type
-            )));
-        }
-        _ => {}
-    }
-
-    // a target must not be encrypted by more than one BCB (RFC 9172 3.2)
-    if bundle
-        .decode_bcbs()
-        .iter()
-        .any(|bcb| bcb.security_targets.contains(&target))
-    {
-        return Err(BpsecError::InvalidTarget(
-            target,
-            "already a security target of a BCB".to_string(),
-        ));
-    }
-    // a BIB of the target would have to be encrypted by the same BCB (RFC 9172 3.9),
-    // which would require multiple targets sharing the IV of this BCB
-    if bundle
-        .decode_bibs()
-        .iter()
-        .any(|bib| bib.security_targets.contains(&target))
-    {
-        return Err(BpsecError::Unsupported(format!(
-            "encryption of block {}, which is a security target of a BIB",
-            target
-        )));
-    }
+    check_encryption_targets(bundle, targets)?;
 
     let bcb_block_number = bundle.next_canonical_block_number();
     let bcb_flags = BlockControlFlags::BLOCK_REPLICATE.bits();
+    let security_header = (CONFIDENTIALITY_BLOCK, bcb_block_number, bcb_flags);
     // the primary block is part of the AAD with its final CRC
     bundle.primary.update_crc();
 
-    let primary = &bundle.primary;
-    let target_block = bundle
-        .canonicals
-        .iter_mut()
-        .find(|b| b.block_number == target)
-        .expect("target block was found before");
-    target_block.set_crc_type(CRC_NO);
-    let aad = additional_authenticated_data(
-        aad_scope_flags,
-        primary,
-        target_block,
-        (CONFIDENTIALITY_BLOCK, bcb_block_number, bcb_flags),
-    );
-    let (mut ciphertext, tag_bytes) =
-        cipher.encrypt(iv, &block_type_specific_data(target_block), &aad)?;
-    let results = match tag {
-        AuthenticationTag::SecurityResult => {
-            vec![(AUTHENTICATION_TAG_RESULT, Value::Bytes(tag_bytes))]
+    // encrypt all targets before the bundle is changed
+    let mut ciphertexts = Vec::with_capacity(targets.len());
+    let mut results = Vec::with_capacity(targets.len());
+    for target in targets {
+        let mut target_block = bundle
+            .canonicals
+            .iter()
+            .find(|b| b.block_number == *target)
+            .expect("targets were checked")
+            .clone();
+        target_block.set_crc_type(CRC_NO);
+        let aad = additional_authenticated_data(
+            aad_scope_flags,
+            &bundle.primary,
+            &target_block,
+            security_header,
+        );
+        let (mut ciphertext, tag_bytes) =
+            cipher.encrypt(iv, &block_type_specific_data(&target_block), &aad)?;
+        results.push(match tag {
+            AuthenticationTag::SecurityResult => {
+                vec![(AUTHENTICATION_TAG_RESULT, Value::Bytes(tag_bytes))]
+            }
+            AuthenticationTag::Ciphertext => {
+                ciphertext.extend(tag_bytes);
+                vec![]
+            }
+        });
+        set_block_type_specific_data(&mut target_block, ciphertext);
+        ciphertexts.push(target_block);
+    }
+    for encrypted in ciphertexts {
+        if let Some(block) = bundle
+            .canonicals
+            .iter_mut()
+            .find(|b| b.block_number == encrypted.block_number)
+        {
+            *block = encrypted;
         }
-        AuthenticationTag::Ciphertext => {
-            ciphertext.extend(tag_bytes);
-            vec![]
-        }
-    };
-    set_block_type_specific_data(target_block, ciphertext);
+    }
 
     parameters.iv = Some(iv.to_vec());
     let bcb = SecurityBlockBuilder::default()
-        .security_targets(vec![target])
+        .security_targets(targets.to_vec())
         .security_context_id(BCB_AES_GCM_ID)
         .security_source(security_source)
         .security_context_parameters(parameters)
-        .security_results(vec![results])
+        .security_results(results)
         .build()?;
     insert_security_block(
         bundle,
@@ -441,6 +441,72 @@ pub fn encrypt_with_tag(
         ),
     );
     Ok(bcb_block_number)
+}
+
+/// Check the targets of a new BCB (RFC 9172 3.2, 3.8, 3.9)
+fn check_encryption_targets(bundle: &Bundle, targets: &[u64]) -> Result<(), BpsecError> {
+    if targets.is_empty() {
+        return Err(BpsecError::MissingSecurityTargets);
+    }
+    let invalid_target =
+        |target: u64, reason: &str| Err(BpsecError::InvalidTarget(target, reason.to_string()));
+    let encrypted: Vec<u64> = bundle
+        .decode_bcbs()
+        .into_iter()
+        .flat_map(|bcb| bcb.security_targets)
+        .collect();
+    for (index, target) in targets.iter().copied().enumerate() {
+        if target == 0 {
+            return invalid_target(target, "the primary block must not be encrypted");
+        }
+        if targets[..index].contains(&target) {
+            return invalid_target(target, "duplicate security target");
+        }
+        let target_block = bundle
+            .canonicals
+            .iter()
+            .find(|b| b.block_number == target)
+            .ok_or(BpsecError::MissingBlock(target))?;
+        match target_block.block_type {
+            CONFIDENTIALITY_BLOCK => return invalid_target(target, "BCBs must not be encrypted"),
+            // their encrypted content could not be decoded anymore
+            HOP_COUNT_BLOCK | BUNDLE_AGE_BLOCK | PREVIOUS_NODE_BLOCK => {
+                return Err(BpsecError::Unsupported(format!(
+                    "encryption of blocks of type {}",
+                    target_block.block_type
+                )));
+            }
+            _ => {}
+        }
+        // a target must not be encrypted by more than one BCB
+        if encrypted.contains(&target) {
+            return invalid_target(target, "already a security target of a BCB");
+        }
+    }
+    // BIBs of targets must be encrypted as well, before or with them (RFC 9172 3.9)
+    for (bib_number, bib) in bundle.security_blocks(INTEGRITY_BLOCK) {
+        let Some(target) = bib
+            .security_targets
+            .iter()
+            .find(|t| targets.contains(t))
+            .copied()
+        else {
+            continue;
+        };
+        if !targets.contains(&bib_number) {
+            return invalid_target(
+                target,
+                &format!("BIB {bib_number} of the target must be encrypted before or with it"),
+            );
+        }
+        if !bib.security_targets.iter().all(|t| targets.contains(t)) {
+            return invalid_target(
+                target,
+                &format!("BIB {bib_number} has further targets, it must be split before"),
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Decrypt the security targets of a BCB-AES-GCM BCB in place (RFC 9173 4.8.2) and remove

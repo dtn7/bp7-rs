@@ -1342,12 +1342,12 @@ fn bib_bcb_interaction_tests() {
     // other targets may be signed
     bib::sign(&mut b, &[0], &key, source(), Default::default()).unwrap();
 
-    // a BIB of the target would have to be encrypted with it
+    // a BIB of the target has to be encrypted before or with it
     let mut b = new_bundle();
     let bib_number = bib::sign(&mut b, &[1], &key, source(), Default::default()).unwrap();
     assert!(matches!(
         bcb::encrypt(&mut b, 1, &key, &[0x24; 12], source(), Default::default()),
-        Err(BpsecError::Unsupported(_))
+        Err(BpsecError::InvalidTarget(1, _))
     ));
 
     // received bundles with an unencrypted BIB of an encrypted target are invalid, and
@@ -1695,4 +1695,140 @@ fn bib_split_tests() {
         split(&mut b, bib, &[1]),
         Err(BpsecError::Unsupported(_))
     ));
+}
+
+#[test]
+fn bcb_encrypts_bibs_with_their_targets() {
+    use bp7::bpsec::rfc9173::{bcb, bib};
+    let hmac_key = [0x1a; 16];
+    let key = [0x42; 32];
+    let source = || EndpointID::with_ipn(2, 1).unwrap();
+    let mut original = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"secret payload".to_vec(),
+    );
+    original.set_crc(crc::CRC_32);
+    let no_security_header = || BibSecurityContextParameter::new(None, None, Some((3, 3)));
+    let bib_number = bib::sign(
+        &mut original,
+        &[0, 1],
+        &hmac_key,
+        source(),
+        no_security_header(),
+    )
+    .unwrap();
+
+    // a BIB with further targets has to be split first
+    let mut b = original.clone();
+    assert!(matches!(
+        bcb::encrypt_targets(
+            &mut b,
+            &[1, bib_number],
+            &key,
+            &[0x24; 12],
+            source(),
+            Default::default(),
+            AuthenticationTag::SecurityResult,
+        ),
+        Err(BpsecError::InvalidTarget(1, _))
+    ));
+    assert_eq!(b.to_cbor(), original.clone().to_cbor());
+    let payload_bib = bib::split(&mut b, bib_number, &[1]).unwrap();
+    let split = b.clone();
+
+    // one BCB per target, each with its own IV
+    bcb::encrypt(
+        &mut b,
+        payload_bib,
+        &key,
+        &[0x24; 12],
+        source(),
+        Default::default(),
+    )
+    .unwrap();
+    bcb::encrypt(&mut b, 1, &key, &[0x25; 12], source(), Default::default()).unwrap();
+    // or a single BCB for both, sharing the IV
+    let mut shared = split.clone();
+    bcb::encrypt_targets(
+        &mut shared,
+        &[1, payload_bib],
+        &key,
+        &[0x24; 12],
+        source(),
+        Default::default(),
+        AuthenticationTag::Ciphertext,
+    )
+    .unwrap();
+    assert_eq!(
+        shared.decode_bcbs()[0].security_results,
+        vec![vec![], vec![]]
+    );
+
+    for encrypted in [b, shared] {
+        let mut received = Bundle::try_from(encrypted.clone().to_cbor().as_slice()).unwrap();
+        assert!(received.validate().is_ok(), "{:?}", received.validate());
+        // the primary block can still be verified, the encrypted BIB is hidden
+        assert_eq!(received.decode_bibs().len(), 1);
+        assert!(bib::verify(&received, bib_number, &hmac_key).unwrap());
+        assert!(bib::verify(&received, payload_bib, &hmac_key).is_err());
+        assert_ne!(received.payload(), original.payload());
+
+        let bcbs: Vec<u64> = received
+            .canonicals
+            .iter()
+            .filter(|c| c.block_type == CONFIDENTIALITY_BLOCK)
+            .map(|c| c.block_number)
+            .collect();
+        for bcb in bcbs {
+            bcb::decrypt(&mut received, bcb, &key, CRC_NO).unwrap();
+        }
+        assert_eq!(received.payload(), original.payload());
+        assert!(bib::verify(&received, payload_bib, &hmac_key).unwrap());
+        assert!(bib::verify(&received, bib_number, &hmac_key).unwrap());
+    }
+}
+
+#[test]
+fn bcb_encrypt_targets_error_tests() {
+    use bp7::bpsec::rfc9173::bcb::encrypt_targets;
+    let key = [0x42; 32];
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    b.add_canonical_block(new_canonical_block(
+        200,
+        2,
+        0,
+        CanonicalData::Unknown(vec![1]),
+    ));
+    let before = b.to_cbor();
+    for (targets, expected_target) in [
+        (vec![], None),
+        (vec![0], Some(0)),
+        (vec![1, 1], Some(1)),
+        (vec![1, 9], Some(9)),
+    ] {
+        let result = encrypt_targets(
+            &mut b,
+            &targets,
+            &key,
+            &[0x24; 12],
+            EndpointID::none(),
+            Default::default(),
+            AuthenticationTag::SecurityResult,
+        );
+        match expected_target {
+            None => assert!(matches!(result, Err(BpsecError::MissingSecurityTargets))),
+            Some(9) => assert!(matches!(result, Err(BpsecError::MissingBlock(9)))),
+            Some(t) => assert!(
+                matches!(result, Err(BpsecError::InvalidTarget(n, _)) if n == t),
+                "{:?}",
+                result
+            ),
+        }
+        assert_eq!(b.to_cbor(), before);
+    }
 }
