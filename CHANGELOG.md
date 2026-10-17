@@ -1,6 +1,60 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2026-10-17
+
+### Bug Fixes
+
+- Unknown crc types no longer panic during crc calculation
+- Eid decoder now rejects malformed dtn addresses
+- Integrity block decoder no longer panics on malformed input
+- Hop count increase no longer overflows at u8::MAX
+- Lifetime check no longer overflows for huge lifetimes
+- Status reports for fragments no longer panic
+- Bundles with more than 22 canonical blocks are encoded correctly
+- Ffi functions return null instead of panicking on invalid input
+- Ffi free functions release all memory
+- Integrity blocks are decoded from their RFC 9172 encoding
+- Bib protection of the primary block checks block number 0
+- Reserved control flag bits are detected
+- Creation timestamps stay unique across threads and 32 bit targets
+- Bundle age is compared to the lifetime in milliseconds
+- Primary block fragment fields are decoded based on the fragment flag
+- Optional status report fields are decoded for indefinite-length arrays
+- Unhexify reports invalid input instead of panicking
+- Bundle age update saturates instead of panicking
+- Eid decoder rejects dtn:none encoded as negative integer
+- Canonical blocks with block number zero are invalid
+- Bib context parameters are decoded by their id
+- Integrity block builder only requires parameters if flagged
+- Bib hmac computation and encoding no longer panic
+- Bib hmac results use result id 1
+- Ippt creation no longer prints to stdout
+
+### Fix
+
+- Zero timestamp w/ bundle age block validation (#7)
+- Corrected wrong payload block number err msg (#9)
+
+### Performance
+
+- Use slice-by-16 lookup tables for crc calculation
+- Calculate and check crcs without cloning or buffering blocks
+- Encode bundles in a single pass
+- Collect small writes before updating the crc digest
+- Decode dtn endpoint ids without intermediate cbor value
+- Create bundle ids and endpoint strings with fewer allocations
+- Validate bundles without hash sets
+
+### Styling
+
+- Resolve clippy warnings
+
+### Testing
+
+- Benchmark encoding and decoding of large payloads
+- Compile security tests only with the bpsec feature
+
 ## [0.10.7] - 2025-06-01
 
 ### Bug Fixes
