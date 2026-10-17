@@ -5,16 +5,18 @@
 //!
 //! * [`asb`]: the abstract security block, the structure shared by all security
 //!   blocks, with generic security context parameters and results
-//! * [`bib`]: the block integrity block
+//! * [`bib`] and [`bcb`]: the block integrity and block confidentiality blocks
 //! * [`rfc9173`]: the default security contexts BIB-HMAC-SHA2 and BCB-AES-GCM,
 //!   which define the types of their parameters and results and the security
 //!   operations
 
 pub mod asb;
+pub mod bcb;
 pub mod bib;
 pub mod rfc9173;
 
 pub use asb::*;
+pub use bcb::*;
 pub use bib::*;
 pub use rfc9173::bcb::*;
 pub use rfc9173::bib::*;

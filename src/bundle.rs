@@ -187,6 +187,17 @@ impl Bundle {
                 ));
             }
         }
+        // the primary block must not be the target of a BCB (RFC 9172 3.8)
+        #[cfg(feature = "bpsec")]
+        if self
+            .decode_bcbs()
+            .iter()
+            .any(|bcb| bcb.security_targets.contains(&0))
+        {
+            errors.push(Error::BundleError(
+                "Primary Block must not be the target of a BCB".to_string(),
+            ));
+        }
         for blck in &self.canonicals {
             if let Err(mut err) = blck.validate() {
                 errors.append(&mut err);
@@ -338,13 +349,29 @@ impl Bundle {
     /// Return decoded BIBs if block integrity blocks exists.
     #[cfg(feature = "bpsec")]
     pub fn decode_bibs(&self) -> Vec<IntegrityBlock> {
+        self.decode_security_blocks(crate::bpsec::INTEGRITY_BLOCK)
+    }
+
+    /// Return decoded BCBs if block confidentiality blocks exists.
+    #[cfg(feature = "bpsec")]
+    pub fn decode_bcbs(&self) -> Vec<crate::bpsec::ConfidentialityBlock> {
+        self.decode_security_blocks(crate::bpsec::CONFIDENTIALITY_BLOCK)
+    }
+
+    /// Decode the abstract security blocks of all valid security blocks of a block type,
+    /// omitting undecodable ones
+    #[cfg(feature = "bpsec")]
+    fn decode_security_blocks(
+        &self,
+        block_type: CanonicalBlockType,
+    ) -> Vec<crate::bpsec::AbstractSecurityBlock> {
         self.canonicals
             .iter()
-            .filter(|b| {
-                b.block_type == crate::bpsec::INTEGRITY_BLOCK && b.extension_validation().is_ok()
-            })
+            .filter(|b| b.block_type == block_type && b.extension_validation().is_ok())
             .filter_map(|b| match b.data() {
-                CanonicalData::Unknown(bytes) => IntegrityBlock::from_cbor(bytes).ok(),
+                CanonicalData::Unknown(bytes) => {
+                    crate::bpsec::AbstractSecurityBlock::from_cbor(bytes).ok()
+                }
                 _ => None,
             })
             .collect()

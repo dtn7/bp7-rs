@@ -468,3 +468,88 @@ fn compute_hmac_tests() {
     // encoding with missing results does not panic
     let _ = ib.to_cbor();
 }
+
+#[test]
+fn confidentiality_block_tests() {
+    let params = BcbSecurityContextParameter {
+        iv: Some(vec![0x5a; 12]),
+        aes_variant: Some(AES_256_GCM),
+        wrapped_key: None,
+        aad_scope_flags: Some(0),
+    };
+    let bcb_for = |target: u64| {
+        SecurityBlockBuilder::default()
+            .security_targets(vec![target])
+            .security_context_id(BCB_AES_GCM_ID)
+            .security_source(EndpointID::with_ipn(2, 1).unwrap())
+            .security_context_parameters(params.clone())
+            .security_results(vec![vec![(
+                AUTHENTICATION_TAG_RESULT,
+                Value::Bytes(vec![0x42; 16]),
+            )]])
+            .build()
+            .unwrap()
+    };
+
+    // encoded BCBs are found in a decoded bundle
+    let bcb = bcb_for(1);
+    let block = new_confidentiality_block(3, BlockControlFlags::empty(), bcb.to_cbor());
+    assert_eq!(block.block_type, CONFIDENTIALITY_BLOCK);
+    // BCBs are replicated in every fragment (RFC 9172 3.8)
+    assert!(
+        block
+            .block_control_flags
+            .contains(BlockControlFlags::BLOCK_REPLICATE)
+    );
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    b.set_crc(crc::CRC_32);
+    b.add_canonical_block(block);
+    let mut decoded = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    assert!(decoded.validate().is_ok());
+    assert!(decoded.decode_bibs().is_empty());
+    let bcbs = decoded.decode_bcbs();
+    assert_eq!(bcbs, vec![bcb]);
+    assert_eq!(bcbs[0].parameters().unwrap(), Some(params.clone()));
+    assert_eq!(
+        bcbs[0].result(1, AUTHENTICATION_TAG_RESULT),
+        Some(&Value::Bytes(vec![0x42; 16]))
+    );
+
+    // the primary block must not be the target of a BCB
+    decoded.add_canonical_block(new_confidentiality_block(
+        0,
+        BlockControlFlags::empty(),
+        bcb_for(0).to_cbor(),
+    ));
+    assert!(decoded.validate().is_err());
+}
+
+#[test]
+fn bcb_context_parameter_tests() {
+    let all = BcbSecurityContextParameter {
+        iv: Some(vec![1; 12]),
+        aes_variant: Some(AES_128_GCM),
+        wrapped_key: Some(vec![2; 24]),
+        aad_scope_flags: Some(7),
+    };
+    assert_eq!(
+        BcbSecurityContextParameter::from_parameters(&all.to_parameters()).unwrap(),
+        all
+    );
+    assert_eq!(
+        BcbSecurityContextParameter::from_parameters(&[]).unwrap(),
+        BcbSecurityContextParameter::default()
+    );
+    assert!(matches!(
+        BcbSecurityContextParameter::from_parameters(&[(IV_PARAMETER, Value::Integer(1))]),
+        Err(BpsecError::InvalidParameter(IV_PARAMETER))
+    ));
+    assert!(matches!(
+        BcbSecurityContextParameter::from_parameters(&[(9, Value::Integer(1))]),
+        Err(BpsecError::UnknownParameter(9))
+    ));
+}
