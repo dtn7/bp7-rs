@@ -8,10 +8,11 @@ use super::bundle::*;
 
 pub type CrcRawType = u8;
 
-use crc::{CRC_16_IBM_SDLC, CRC_32_ISCSI, Crc};
+use crc::{CRC_16_IBM_SDLC, CRC_32_ISCSI, Crc, Table};
 
-pub const X25: Crc<u16> = Crc::<u16>::new(&CRC_16_IBM_SDLC);
-pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
+// slice-by-16 lookup tables are several times faster than the default byte-wise table
+pub const X25: Crc<u16, Table<16>> = Crc::<u16, Table<16>>::new(&CRC_16_IBM_SDLC);
+pub const CASTAGNOLI: Crc<u32, Table<16>> = Crc::<u32, Table<16>>::new(&CRC_32_ISCSI);
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum CrcValue {
