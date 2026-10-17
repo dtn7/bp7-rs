@@ -369,14 +369,15 @@ impl Bundle {
 
     /// Serialize bundle as CBOR encoded byte buffer.
     pub fn to_cbor(&mut self) -> ByteBuffer {
-        self.calculate_crc();
+        // reserve space for the payload and the comparably small block headers
+        let payload_len = self.payload().map_or(0, |p| p.len());
+        let mut bytebuf = Vec::with_capacity(payload_len + 256);
         // bundles are encoded as indefinite-length arrays (RFC 9171 4.1)
-        let mut bytebuf = vec![0x9f];
-        serde_cbor::to_writer(&mut bytebuf, &self.primary)
-            .expect("Error serializing primary block as cbor.");
-        for c in &self.canonicals {
-            serde_cbor::to_writer(&mut bytebuf, c)
-                .expect("Error serializing canonical block as cbor.");
+        bytebuf.push(0x9f);
+        // crcs are calculated while encoding, so each block is encoded only once
+        crate::crc::write_with_crc(&mut bytebuf, &mut self.primary);
+        for c in &mut self.canonicals {
+            crate::crc::write_with_crc(&mut bytebuf, c);
         }
         bytebuf.push(0xff); // break mark
         bytebuf

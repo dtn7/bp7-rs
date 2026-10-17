@@ -1,3 +1,4 @@
+use bp7::bundle::Block;
 use bp7::crc::CrcBlock;
 use bp7::*;
 #[test]
@@ -82,5 +83,35 @@ fn crc_streaming_matches_encoding_tests() {
         }
         assert!(b.primary.check_crc());
         assert!(b.validate().is_ok());
+    }
+}
+
+#[test]
+fn crc_single_pass_encoding_tests() {
+    for crc_type in [crc::CRC_NO, crc::CRC_16, crc::CRC_32] {
+        let mut b = helpers::rnd_bundle(dtntime::CreationTimestamp::now());
+        b.set_payload(vec![0x42; 10_000]);
+        b.set_crc(crc_type);
+        // stale crc values must be replaced
+        if crc_type == crc::CRC_32 {
+            b.primary.set_crc(crc::CrcValue::Crc32([1, 2, 3, 4]));
+        }
+        let cbor = b.to_cbor();
+
+        // same encoding as calculating the crcs first and encoding afterwards
+        let mut expected = b.clone();
+        expected.calculate_crc();
+        let mut expected_cbor = vec![0x9f];
+        expected_cbor.extend(expected.primary.to_cbor());
+        for c in &expected.canonicals {
+            expected_cbor.extend(c.to_cbor());
+        }
+        expected_cbor.push(0xff);
+        assert_eq!(cbor, expected_cbor);
+        // crc values are updated in the bundle
+        assert_eq!(b, expected);
+
+        let mut decoded = Bundle::try_from(cbor.as_slice()).unwrap();
+        assert!(decoded.crc_valid());
     }
 }

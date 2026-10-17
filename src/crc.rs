@@ -199,6 +199,28 @@ pub fn calculate_crc<T: CrcBlock + Block>(blck: &T) -> CrcValue {
         }
     }
 }
+/// Append the encoding of a block to `buf`, calculating its crc from the encoded bytes
+/// and patching it into the encoding, so that the block is encoded only once.
+/// The crc value of the block is updated accordingly.
+pub(crate) fn write_with_crc<T: CrcBlock + Block>(buf: &mut Vec<u8>, blck: &mut T) {
+    let start = buf.len();
+    blck.write_cbor(buf).expect("Error encoding block as cbor");
+    let tail = match blck.crc_type() {
+        CRC_16 => buf.len() - 2,
+        CRC_32 => buf.len() - 4,
+        // no crc or unknown crc types which cannot be calculated
+        _ => return,
+    };
+    buf[tail..].fill(0);
+    let crc = if blck.crc_type() == CRC_16 {
+        CrcValue::Crc16(X25.checksum(&buf[start..]).to_be_bytes())
+    } else {
+        CrcValue::Crc32(CASTAGNOLI.checksum(&buf[start..]).to_be_bytes())
+    };
+    buf[tail..].copy_from_slice(crc.bytes().unwrap());
+    blck.set_crc(crc);
+}
+
 pub fn check_crc<T: CrcBlock + Block>(blck: &T) -> bool {
     match blck.crc_value() {
         CrcValue::CrcNo => true,
