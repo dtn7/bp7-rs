@@ -1,11 +1,27 @@
 //! BCB-AES-GCM security context ([RFC 9173 4](https://www.rfc-editor.org/rfc/rfc9173.html#name-security-context-bcb-aes-gc))
 //!
-//! Only the security context parameters and results are defined so far, the
-//! encryption and decryption are not implemented yet.
+//! [`encrypt`] encrypts a block of a bundle in place and adds a BCB for the
+//! security operation, [`decrypt`] decrypts the targets of a BCB and removes it.
+//! AES key wrap of the content encryption key is not supported yet, a wrapped
+//! key parameter is passed on unchanged.
+//!
+//! Based on the BCB implementation of Lucien Loiseau (dtn7/bp7-rs#19).
 
+use aes_gcm::aead::{Aead, KeyInit, Payload};
+use aes_gcm::{Aes128Gcm, Aes256Gcm, Nonce};
+use bitflags::bitflags;
 use serde_cbor::Value;
 
 use crate::bpsec::*;
+use crate::bundle::{Bundle, ByteBuffer};
+use crate::canonical::{
+    BUNDLE_AGE_BLOCK, CanonicalBlock, CanonicalData, HOP_COUNT_BLOCK, PAYLOAD_BLOCK,
+    PREVIOUS_NODE_BLOCK,
+};
+use crate::crc::{CRC_NO, CrcBlock};
+use crate::eid::EndpointID;
+use crate::flags::BlockControlFlags;
+use crate::primary::PrimaryBlock;
 
 // AES Variant
 // https://www.rfc-editor.org/rfc/rfc9173.html#name-aes-gcm
@@ -16,6 +32,27 @@ pub const AES_256_GCM: AesVariantType = 3; // default
 // AAD Scope Flags
 // https://www.rfc-editor.org/rfc/rfc9173.html#name-aad-scope-flags
 pub type AadScopeFlagsType = u16;
+
+bitflags! {
+    pub struct AadScopeFlags: AadScopeFlagsType {
+        // Include primary block flag
+        const AAD_PRIMARY_BLOCK = 0x0001;
+        // Include target header flag
+        const AAD_TARGET_HEADER = 0x0002;
+        // Include security header flag
+        const AAD_SECURITY_HEADER = 0x0004;
+    }
+}
+
+/// AAD scope flags assumed if not given, all assigned flags (RFC 9173 4.3.4)
+pub const DEFAULT_AAD_SCOPE_FLAGS: AadScopeFlagsType = 0x0007;
+
+/// Length of the initialization vector, the supported length of 12 bytes
+/// recommended by RFC 9173 4.3.1
+pub const IV_LEN: usize = 12;
+
+/// Length of the authentication tag, always 128 bits (RFC 9173 4.3.2)
+pub const AUTHENTICATION_TAG_LEN: usize = 16;
 
 // Security context parameter ids (RFC 9173 4.3)
 pub const IV_PARAMETER: u64 = 1;
@@ -75,4 +112,284 @@ impl SecurityContextParameters for BcbSecurityContextParameter {
         }
         Ok(result)
     }
+}
+
+/// Additional authenticated data of a security target (RFC 9173 4.7.2)
+pub fn additional_authenticated_data(
+    scope_flags: AadScopeFlagsType,
+    primary_block: &PrimaryBlock,
+    target_block: &CanonicalBlock,
+    security_header: SecurityBlockHeader,
+) -> ByteBuffer {
+    let encode_error = "Error encoding additional authenticated data";
+    let flags = AadScopeFlags::from_bits_truncate(scope_flags);
+    // the scope flags are always included, with reserved and unassigned bits set to 0
+    let mut aad = serde_cbor::to_vec(&flags.bits()).expect(encode_error);
+    if flags.contains(AadScopeFlags::AAD_PRIMARY_BLOCK) {
+        serde_cbor::to_writer(&mut aad, primary_block).expect(encode_error);
+    }
+    if flags.contains(AadScopeFlags::AAD_TARGET_HEADER) {
+        serde_cbor::to_writer(&mut aad, &target_block.block_type).expect(encode_error);
+        serde_cbor::to_writer(&mut aad, &target_block.block_number).expect(encode_error);
+        serde_cbor::to_writer(&mut aad, &target_block.block_control_flags).expect(encode_error);
+    }
+    if flags.contains(AadScopeFlags::AAD_SECURITY_HEADER) {
+        serde_cbor::to_writer(&mut aad, &security_header.0).expect(encode_error);
+        serde_cbor::to_writer(&mut aad, &security_header.1).expect(encode_error);
+        serde_cbor::to_writer(&mut aad, &security_header.2).expect(encode_error);
+    }
+    aad
+}
+
+/// Content of the block-type-specific data of a block, i.e., its plaintext or
+/// ciphertext (RFC 9173 4.7.1)
+fn block_type_specific_data(block: &CanonicalBlock) -> ByteBuffer {
+    match block.data() {
+        CanonicalData::Data(data) | CanonicalData::Unknown(data) => data.clone(),
+        other => other.to_cbor(),
+    }
+}
+
+/// Replace the block-type-specific data of a block
+fn set_block_type_specific_data(block: &mut CanonicalBlock, data: ByteBuffer) {
+    if block.block_type == PAYLOAD_BLOCK {
+        block.set_data(CanonicalData::Data(data));
+    } else {
+        block.set_data(CanonicalData::Unknown(data));
+    }
+}
+
+enum AesGcmCipher {
+    A128(Box<Aes128Gcm>),
+    A256(Box<Aes256Gcm>),
+}
+
+impl AesGcmCipher {
+    fn new(variant: AesVariantType, key: &[u8]) -> Result<Self, BpsecError> {
+        let invalid_key = |len| BpsecError::InvalidKey(format!("expected {} bytes", len));
+        match variant {
+            AES_128_GCM => Aes128Gcm::new_from_slice(key)
+                .map(|c| AesGcmCipher::A128(Box::new(c)))
+                .map_err(|_| invalid_key(16)),
+            AES_256_GCM => Aes256Gcm::new_from_slice(key)
+                .map(|c| AesGcmCipher::A256(Box::new(c)))
+                .map_err(|_| invalid_key(32)),
+            _ => Err(BpsecError::Unsupported(format!("AES variant {}", variant))),
+        }
+    }
+
+    /// Encrypt a plaintext, returning ciphertext and authentication tag
+    fn encrypt(
+        &self,
+        iv: &[u8],
+        plaintext: &[u8],
+        aad: &[u8],
+    ) -> Result<(ByteBuffer, ByteBuffer), BpsecError> {
+        let nonce = Nonce::from_slice(iv);
+        let payload = Payload {
+            msg: plaintext,
+            aad,
+        };
+        let mut ciphertext = match self {
+            AesGcmCipher::A128(c) => c.encrypt(nonce, payload),
+            AesGcmCipher::A256(c) => c.encrypt(nonce, payload),
+        }
+        .map_err(|_| BpsecError::OperationFailed("encryption failed".to_string()))?;
+        // AES-GCM produces the ciphertext followed by the authentication tag
+        let tag = ciphertext.split_off(ciphertext.len() - AUTHENTICATION_TAG_LEN);
+        Ok((ciphertext, tag))
+    }
+
+    /// Decrypt and authenticate a ciphertext
+    fn decrypt(
+        &self,
+        iv: &[u8],
+        ciphertext: &[u8],
+        tag: &[u8],
+        aad: &[u8],
+    ) -> Result<ByteBuffer, BpsecError> {
+        let nonce = Nonce::from_slice(iv);
+        let mut msg = Vec::with_capacity(ciphertext.len() + tag.len());
+        msg.extend_from_slice(ciphertext);
+        msg.extend_from_slice(tag);
+        let payload = Payload { msg: &msg, aad };
+        match self {
+            AesGcmCipher::A128(c) => c.decrypt(nonce, payload),
+            AesGcmCipher::A256(c) => c.decrypt(nonce, payload),
+        }
+        .map_err(|_| BpsecError::OperationFailed("decryption or authentication failed".to_string()))
+    }
+}
+
+fn check_iv(iv: &[u8]) -> Result<(), BpsecError> {
+    if iv.len() != IV_LEN {
+        return Err(BpsecError::Unsupported(format!(
+            "IV of {} bytes, only {} bytes are supported",
+            iv.len(),
+            IV_LEN
+        )));
+    }
+    Ok(())
+}
+
+/// Encrypt a block of a bundle in place with BCB-AES-GCM (RFC 9173 4.8.1) and add a BCB
+/// for this security operation to the bundle. Returns the block number of the new BCB.
+///
+/// The AES variant, AAD scope flags and wrapped key are taken from `parameters`, AES-256-GCM
+/// and all AAD scope flags are used if not given. The IV is set as parameter of the BCB.
+///
+/// **An IV must never be used more than once with the same key**, as this breaks the
+/// confidentiality and integrity of all bundles encrypted with this key and IV
+/// (RFC 9173 4.6). As the IV is a parameter shared by all targets of a BCB, every
+/// encrypted block gets its own BCB.
+///
+/// The CRC of the target block is removed and the CRC of the primary block calculated,
+/// as it may be part of the additional authenticated data.
+pub fn encrypt(
+    bundle: &mut Bundle,
+    target: u64,
+    key: &[u8],
+    iv: &[u8],
+    security_source: EndpointID,
+    mut parameters: BcbSecurityContextParameter,
+) -> Result<u64, BpsecError> {
+    let cipher = AesGcmCipher::new(parameters.aes_variant.unwrap_or(AES_256_GCM), key)?;
+    check_iv(iv)?;
+    let aad_scope_flags = parameters
+        .aad_scope_flags
+        .unwrap_or(DEFAULT_AAD_SCOPE_FLAGS);
+    // reserved and unassigned bits must be 0 (RFC 9173 4.3.4)
+    if AadScopeFlags::from_bits(aad_scope_flags).is_none() {
+        return Err(BpsecError::InvalidParameter(AAD_SCOPE_FLAGS_PARAMETER));
+    }
+
+    let target_block = bundle
+        .canonicals
+        .iter()
+        .find(|b| b.block_number == target)
+        .ok_or(BpsecError::MissingBlock(target))?;
+    // allowed targets of BCBs (RFC 9172 3.8)
+    let invalid_target = |reason: &str| Err(BpsecError::InvalidTarget(target, reason.to_string()));
+    match target_block.block_type {
+        CONFIDENTIALITY_BLOCK => return invalid_target("BCBs must not be encrypted"),
+        INTEGRITY_BLOCK => {
+            return invalid_target("BIBs must be encrypted by a BCB with their targets");
+        }
+        // their encrypted content could not be decoded anymore
+        HOP_COUNT_BLOCK | BUNDLE_AGE_BLOCK | PREVIOUS_NODE_BLOCK => {
+            return Err(BpsecError::Unsupported(format!(
+                "encryption of blocks of type {}",
+                target_block.block_type
+            )));
+        }
+        _ => {}
+    }
+
+    let bcb_block_number = bundle.next_canonical_block_number();
+    let bcb_flags = BlockControlFlags::BLOCK_REPLICATE.bits();
+    // the primary block is part of the AAD with its final CRC
+    bundle.primary.update_crc();
+
+    let primary = &bundle.primary;
+    let target_block = bundle
+        .canonicals
+        .iter_mut()
+        .find(|b| b.block_number == target)
+        .expect("target block was found before");
+    target_block.set_crc_type(CRC_NO);
+    let aad = additional_authenticated_data(
+        aad_scope_flags,
+        primary,
+        target_block,
+        (CONFIDENTIALITY_BLOCK, bcb_block_number, bcb_flags),
+    );
+    let (ciphertext, tag) = cipher.encrypt(iv, &block_type_specific_data(target_block), &aad)?;
+    set_block_type_specific_data(target_block, ciphertext);
+
+    parameters.iv = Some(iv.to_vec());
+    let bcb = SecurityBlockBuilder::default()
+        .security_targets(vec![target])
+        .security_context_id(BCB_AES_GCM_ID)
+        .security_source(security_source)
+        .security_context_parameters(parameters)
+        .security_results(vec![vec![(AUTHENTICATION_TAG_RESULT, Value::Bytes(tag))]])
+        .build()?;
+    bundle.canonicals.push(new_confidentiality_block(
+        bcb_block_number,
+        BlockControlFlags::from_bits_truncate(bcb_flags),
+        bcb.to_cbor(),
+    ));
+    bundle.sort_canonicals();
+    Ok(bcb_block_number)
+}
+
+/// Decrypt the security targets of a BCB-AES-GCM BCB in place (RFC 9173 4.8.2) and remove
+/// the BCB from the bundle.
+///
+/// The bundle is only changed if all targets are decrypted and authenticated successfully.
+pub fn decrypt(bundle: &mut Bundle, bcb_block_number: u64, key: &[u8]) -> Result<(), BpsecError> {
+    let bcb_block = bundle
+        .canonicals
+        .iter()
+        .find(|b| b.block_number == bcb_block_number && b.block_type == CONFIDENTIALITY_BLOCK)
+        .ok_or(BpsecError::MissingBlock(bcb_block_number))?;
+    let bcb = match bcb_block.data() {
+        CanonicalData::Unknown(data) => ConfidentialityBlock::from_cbor(data)?,
+        _ => return Err(BpsecError::MissingBlock(bcb_block_number)),
+    };
+    if bcb.security_context_id != BCB_AES_GCM_ID {
+        return Err(BpsecError::Unsupported(format!(
+            "security context {}",
+            bcb.security_context_id
+        )));
+    }
+    let parameters: BcbSecurityContextParameter = bcb.parameters()?.unwrap_or_default();
+    let iv = parameters
+        .iv
+        .ok_or(BpsecError::MissingParameter(IV_PARAMETER))?;
+    check_iv(&iv)?;
+    let cipher = AesGcmCipher::new(parameters.aes_variant.unwrap_or(AES_256_GCM), key)?;
+    let aad_scope_flags = parameters
+        .aad_scope_flags
+        .unwrap_or(DEFAULT_AAD_SCOPE_FLAGS);
+    let security_header = (
+        bcb_block.block_type,
+        bcb_block.block_number,
+        bcb_block.block_control_flags,
+    );
+
+    let mut plaintexts = Vec::with_capacity(bcb.security_targets.len());
+    for target in &bcb.security_targets {
+        let target_block = bundle
+            .canonicals
+            .iter()
+            .find(|b| b.block_number == *target)
+            .ok_or(BpsecError::MissingBlock(*target))?;
+        let tag = match bcb.result(*target, AUTHENTICATION_TAG_RESULT) {
+            Some(Value::Bytes(tag)) if tag.len() == AUTHENTICATION_TAG_LEN => tag,
+            _ => return Err(BpsecError::MissingResult(*target)),
+        };
+        let aad = additional_authenticated_data(
+            aad_scope_flags,
+            &bundle.primary,
+            target_block,
+            security_header,
+        );
+        let plaintext = cipher.decrypt(&iv, &block_type_specific_data(target_block), tag, &aad)?;
+        plaintexts.push((*target, plaintext));
+    }
+
+    for (target, plaintext) in plaintexts {
+        if let Some(block) = bundle
+            .canonicals
+            .iter_mut()
+            .find(|b| b.block_number == target)
+        {
+            set_block_type_specific_data(block, plaintext);
+        }
+    }
+    bundle
+        .canonicals
+        .retain(|b| b.block_number != bcb_block_number);
+    Ok(())
 }

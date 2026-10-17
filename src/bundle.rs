@@ -251,7 +251,7 @@ impl Bundle {
         self.canonicals
             .sort_by_key(|b| cmp::Reverse(b.block_number));
     }
-    fn next_canonical_block_number(&self) -> u64 {
+    pub(crate) fn next_canonical_block_number(&self) -> u64 {
         let mut highest_block_number = 1;
         for c in self.canonicals.iter() {
             highest_block_number = cmp::max(highest_block_number, c.block_number);

@@ -19,6 +19,7 @@ pub type SecurityParameter = (u64, Value);
 pub type SecurityResult = (u64, Value);
 
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum BpsecError {
     #[error("security blocks must have at least one security target")]
     MissingSecurityTargets,
@@ -34,6 +35,18 @@ pub enum BpsecError {
     MissingTargetInput(u64),
     #[error("block {0} is not a security target")]
     UnknownTarget(u64),
+    #[error("block {0} does not exist")]
+    MissingBlock(u64),
+    #[error("block {0} can not be a security target: {1}")]
+    InvalidTarget(u64, String),
+    #[error("missing security context parameter {0}")]
+    MissingParameter(u64),
+    #[error("missing security result for security target {0}")]
+    MissingResult(u64),
+    #[error("invalid key: {0}")]
+    InvalidKey(String),
+    #[error("security operation failed: {0}")]
+    OperationFailed(String),
     #[error("unsupported security context feature: {0}")]
     Unsupported(String),
     #[error("cbor error: {0}")]

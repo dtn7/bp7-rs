@@ -571,3 +571,180 @@ fn bcb_context_parameter_tests() {
         Err(BpsecError::UnknownParameter(9))
     ));
 }
+
+/// RFC 9173 Example 2 - Simple Confidentiality with Key Wrap, using the content encryption key
+#[test]
+fn rfc9173_example_2_confidentiality_test() {
+    let original_bundle = "9f88070000820282010282028202018202820201820018281a000f424085010100005823526561647920746f2067656e657261746520612033322d62797465207061796c6f6164ff";
+    let final_bundle = "9f88070000820282010282028202018202820201820018281a000f4240850c02010058508101020182028202018482014c5477656c76653132313231328202018203581869c411276fecddc4780df42c8a2af89296fabf34d7fae7008204008181820150efa4b5ac0108e3816c5606479801bc04850101000058233a09c1e63fe23a7f66a59c7303837241e070b02619fc59c5214a22f08cd70795e73e9aff";
+    let content_key = unhexify("71776572747975696f70617364666768").unwrap();
+    let iv = unhexify("5477656c7665313231323132").unwrap();
+    let wrapped_key = unhexify("69c411276fecddc4780df42c8a2af89296fabf34d7fae700").unwrap();
+
+    let mut b = Bundle::try_from(unhexify(original_bundle).unwrap().as_slice()).unwrap();
+    let params = BcbSecurityContextParameter {
+        iv: None,
+        aes_variant: Some(AES_128_GCM),
+        wrapped_key: Some(wrapped_key),
+        aad_scope_flags: Some(0),
+    };
+    let bcb_number = bp7::bpsec::rfc9173::bcb::encrypt(
+        &mut b,
+        1,
+        &content_key,
+        &iv,
+        EndpointID::with_ipn(2, 1).unwrap(),
+        params,
+    )
+    .unwrap();
+    assert_eq!(bcb_number, 2);
+    assert_eq!(hexify(&b.to_cbor()), final_bundle);
+
+    // decrypting the RFC bundle restores the original bundle
+    let mut b = Bundle::try_from(unhexify(final_bundle).unwrap().as_slice()).unwrap();
+    bp7::bpsec::rfc9173::bcb::decrypt(&mut b, 2, &content_key).unwrap();
+    assert!(b.decode_bcbs().is_empty());
+    assert_eq!(hexify(&b.to_cbor()), original_bundle);
+}
+
+#[test]
+fn bcb_aes_gcm_roundtrip_tests() {
+    use bp7::bpsec::rfc9173::bcb::{decrypt, encrypt};
+    let key = [0x42; 32];
+    let iv = [0x24; 12];
+    let source = || EndpointID::with_ipn(2, 1).unwrap();
+    let new_bundle = || {
+        let mut b = bundle::new_std_payload_bundle(
+            "dtn://node1/".try_into().unwrap(),
+            "dtn://node2/inbox".try_into().unwrap(),
+            b"secret payload".to_vec(),
+        );
+        b.add_canonical_block(new_canonical_block(
+            200,
+            0,
+            0,
+            CanonicalData::Unknown(b"secret extension".to_vec()),
+        ));
+        b.set_crc(crc::CRC_32);
+        b
+    };
+
+    // AES-256-GCM with all AAD scope flags by default, for the payload and an extension block
+    let mut b = new_bundle();
+    let original = b.clone();
+    let bcb_payload = encrypt(&mut b, 1, &key, &iv, source(), Default::default()).unwrap();
+    let other_iv = [0x25; 12];
+    let bcb_ext = encrypt(&mut b, 3, &key, &other_iv, source(), Default::default()).unwrap();
+    assert_ne!(b.payload().unwrap(), original.payload().unwrap());
+    let payload_block = b.extension_block_by_type(PAYLOAD_BLOCK).unwrap();
+    assert_eq!(payload_block.crc, crc::CrcValue::CrcNo);
+
+    let mut received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    assert!(received.validate().is_ok());
+    assert_eq!(received.decode_bcbs().len(), 2);
+
+    // failed decryption leaves the bundle unchanged
+    let before = received.clone();
+    assert!(matches!(
+        decrypt(&mut received, bcb_payload, &[0x43; 32]),
+        Err(BpsecError::OperationFailed(_))
+    ));
+    assert_eq!(received, before);
+    // the primary block is authenticated
+    let mut tampered = received.clone();
+    tampered.primary.lifetime += Duration::from_secs(1);
+    assert!(decrypt(&mut tampered, bcb_payload, &key).is_err());
+
+    decrypt(&mut received, bcb_payload, &key).unwrap();
+    decrypt(&mut received, bcb_ext, &key).unwrap();
+    assert!(received.decode_bcbs().is_empty());
+    assert_eq!(received.payload(), original.payload());
+    assert_eq!(
+        received.extension_block_by_type(200).unwrap().data(),
+        &CanonicalData::Unknown(b"secret extension".to_vec())
+    );
+}
+
+#[test]
+fn bcb_aes_gcm_error_tests() {
+    use bp7::bpsec::rfc9173::bcb::{decrypt, encrypt};
+    let key = [0x42; 32];
+    let iv = [0x24; 12];
+    let source = || EndpointID::with_ipn(2, 1).unwrap();
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    let params_128 = BcbSecurityContextParameter {
+        aes_variant: Some(AES_128_GCM),
+        ..Default::default()
+    };
+
+    assert!(matches!(
+        encrypt(&mut b, 1, &key, &iv, source(), params_128),
+        Err(BpsecError::InvalidKey(_))
+    ));
+    assert!(matches!(
+        encrypt(&mut b, 1, &key, &[0; 8], source(), Default::default()),
+        Err(BpsecError::Unsupported(_))
+    ));
+    let reserved_flags = BcbSecurityContextParameter {
+        aad_scope_flags: Some(0x0008),
+        ..Default::default()
+    };
+    assert!(matches!(
+        encrypt(&mut b, 1, &key, &iv, source(), reserved_flags),
+        Err(BpsecError::InvalidParameter(AAD_SCOPE_FLAGS_PARAMETER))
+    ));
+    assert!(matches!(
+        encrypt(&mut b, 9, &key, &iv, source(), Default::default()),
+        Err(BpsecError::MissingBlock(9))
+    ));
+    // the hop count block could not be decoded anymore
+    assert!(matches!(
+        encrypt(&mut b, 2, &key, &iv, source(), Default::default()),
+        Err(BpsecError::Unsupported(_))
+    ));
+    let unchanged = b.clone();
+
+    // BCBs must not be encrypted
+    let bcb = encrypt(&mut b, 1, &key, &iv, source(), Default::default()).unwrap();
+    assert!(matches!(
+        encrypt(&mut b, bcb, &key, &[0x25; 12], source(), Default::default()),
+        Err(BpsecError::InvalidTarget(..))
+    ));
+    assert_ne!(b, unchanged);
+
+    assert!(matches!(
+        decrypt(&mut b, 9, &key),
+        Err(BpsecError::MissingBlock(9))
+    ));
+    // BCBs of other security contexts or without IV are not decrypted
+    for asb in [
+        SecurityBlockBuilder::default()
+            .security_targets(vec![1])
+            .security_context_id(7)
+            .security_results(vec![vec![(1, Value::Bytes(vec![0; 16]))]])
+            .build()
+            .unwrap(),
+        SecurityBlockBuilder::default()
+            .security_targets(vec![1])
+            .security_context_id(BCB_AES_GCM_ID)
+            .security_results(vec![vec![(1, Value::Bytes(vec![0; 16]))]])
+            .build()
+            .unwrap(),
+    ] {
+        let mut b = unchanged.clone();
+        b.add_canonical_block(new_confidentiality_block(
+            0,
+            BlockControlFlags::empty(),
+            asb.to_cbor(),
+        ));
+        let number = b
+            .extension_block_by_type(CONFIDENTIALITY_BLOCK)
+            .unwrap()
+            .block_number;
+        assert!(decrypt(&mut b, number, &key).is_err());
+    }
+}
