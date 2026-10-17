@@ -365,12 +365,11 @@ impl EndpointID {
 
 impl fmt::Display for EndpointID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let addr = match self {
-            EndpointID::Ipn(_, ssp) => ssp.to_string(),
-            EndpointID::Dtn(_, ssp) => ssp.to_string(),
-            _ => "none".to_string(),
-        };
-        write!(f, "{}:{}", self.scheme(), addr)
+        match self {
+            EndpointID::Ipn(_, ssp) => write!(f, "ipn:{}", ssp),
+            EndpointID::Dtn(_, ssp) => write!(f, "dtn:{}", ssp),
+            EndpointID::DtnNone(_, _) => f.write_str("dtn:none"),
+        }
     }
 }
 

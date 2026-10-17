@@ -393,18 +393,19 @@ impl Bundle {
     /// the souce node and creation timestamp. If this bundle is a fragment, the
     /// offset is also present.
     pub fn id(&self) -> String {
-        let src = self.primary.source.to_string();
-        let mut id = format!(
+        use std::fmt::Write;
+        // written into a single buffer, as ids are created frequently
+        let mut id = String::with_capacity(64);
+        // should IDs contain trailing '/' in the source?
+        let _ = write!(
+            id,
             "{}-{}-{}",
-            // should IDs contain trailing '/' in the source?
-            // src.strip_suffix('/').unwrap_or(&src),
-            src,
+            self.primary.source,
             self.primary.creation_timestamp.dtntime(),
             self.primary.creation_timestamp.seqno(),
-            //self.primary.destination
         );
         if self.primary.has_fragmentation() {
-            id = format!("{}-{}", id, self.primary.fragmentation_offset);
+            let _ = write!(id, "-{}", self.primary.fragmentation_offset);
         }
         id
     }
