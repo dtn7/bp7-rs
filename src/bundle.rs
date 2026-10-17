@@ -15,7 +15,7 @@ use crate::error::{Error, ErrorList};
 use thiserror::Error;
 
 #[cfg(feature = "bpsec")]
-pub use crate::security::IntegrityBlock;
+pub use crate::bpsec::IntegrityBlock;
 
 /// Version for upcoming bundle protocol standard is 7.
 pub const DTN_VERSION: u32 = 7;
@@ -341,7 +341,7 @@ impl Bundle {
         self.canonicals
             .iter()
             .filter(|b| {
-                b.block_type == crate::security::INTEGRITY_BLOCK && b.extension_validation().is_ok()
+                b.block_type == crate::bpsec::INTEGRITY_BLOCK && b.extension_validation().is_ok()
             })
             .filter_map(|b| match b.data() {
                 CanonicalData::Unknown(bytes) => IntegrityBlock::from_cbor(bytes).ok(),

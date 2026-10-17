@@ -49,8 +49,13 @@ pub mod ffi;
 pub mod flags;
 pub mod helpers;
 pub mod primary;
+
 #[cfg(feature = "bpsec")]
-pub mod security;
+pub mod bpsec;
+/// Former name of the [`bpsec`] module
+#[cfg(feature = "bpsec")]
+#[doc(hidden)]
+pub use bpsec as security;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
