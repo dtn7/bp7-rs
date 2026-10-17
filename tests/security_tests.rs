@@ -5,9 +5,18 @@ use bp7::bpsec::*;
 use bp7::flags::*;
 use bp7::*;
 use helpers::*;
+use serde_cbor::Value;
 use std::convert::TryInto;
 use std::time::Duration;
 //use bp7::bpsec::AES_128_GCM;
+
+/// Expected HMAC of a security target, as byte string
+fn hmac_of(ib: &IntegrityBlock, target: u64) -> &[u8] {
+    match ib.result(target, EXPECTED_HMAC_RESULT) {
+        Some(Value::Bytes(hmac)) => hmac,
+        other => panic!("no expected HMAC for target {}: {:?}", target, other),
+    }
+}
 
 #[test]
 fn security_data_tests() {
@@ -148,22 +157,23 @@ fn simple_integrity_test() {
         bp7::bpsec::BibSecurityContextParameter::new(Some((1, 7)), None, Some((3, 0x0000)));
     let mut sec_block_payload = bp7::bpsec::IntegrityBlockBuilder::default()
         .security_targets(vec![1]) // Payload block
-        .security_context_flags(1) // Parameters Present
         .security_source(EndpointID::with_ipn(2, 1).unwrap()) // ipn:2.1
         .security_context_parameters(sec_ctx_para) // 2 Parameters: HMAC 512/512 and No Additional Scope
         .build()
         .unwrap();
     let key = unhexify("1a2b1a2b1a2b1a2b1a2b1a2b1a2b1a2b").unwrap();
     let key_array: [u8; 16] = key.try_into().expect("slice with incorrect length");
-    sec_block_payload.compute_hmac(key_array, ippt_list);
+    sec_block_payload
+        .compute_hmac(key_array, ippt_list.clone())
+        .unwrap();
+    assert!(verify_hmac(&sec_block_payload, &key_array, &ippt_list).unwrap());
 
     // TODO: key mgmt
     // used key: 1a2b1a2b1a2b1a2b1a2b1a2b1a2b1a2b
     // The Signature
-    let signature = hexify(&sec_block_payload.security_results[0][0].1);
+    let signature = hexify(hmac_of(&sec_block_payload, 1));
     let example_signature = "3bdc69b3a34a2b5d3a8554368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550fdfb1cc636b904e2f1a73e303dcd4b6ccece003e95e8164dcc89a156e1";
     assert_eq!(signature, example_signature);
-    //println!("{:?}", hexify(&sec_block_payload.security_results[0][0].1));
 
     // The CBOR encoding of the BIB block-type-specific data field (the abstract security block):
     let canonical_payload = sec_block_payload.to_cbor();
@@ -206,23 +216,31 @@ fn no_crc_or_bib_primary_block() {
 
 #[test]
 fn malformed_integrity_block_tests() {
-    // [[0], 1, 0, dtn:none, [[1, 6], [3, 7]], [[[1, h'010203']]]]
-    let valid = "8681000100820100828201068203078181820143010203";
-    assert!(serde_cbor::from_slice::<IntegrityBlock>(&unhexify(valid).unwrap()).is_ok());
+    // [0], 1, 0, dtn:none, [[[1, h'010203']]]
+    let valid = "8100 01 00 820100 81818201430102 03";
+    assert!(IntegrityBlock::from_cbor(&unhexify(&valid.replace(' ', "")).unwrap()).is_ok());
 
     for hex in [
         // only security targets
-        "818100",
+        "8100",
         // missing security results
-        "8581000100820100828201068203 07",
+        "8100 01 00 820100",
         // no results for security target
-        "8681000100820100828201068203 0780",
+        "8100 01 00 820100 80",
         // empty result set for security target
-        "8681000100820100828201068203 078180",
+        "8100 01 00 820100 8180",
+        // no security targets
+        "80 01 00 820100 80",
+        // reserved security context flag
+        "8100 01 02 820100 81818201430102 03",
+        // parameters flagged, but missing
+        "8100 01 01 820100 81818201430102 03",
+        // encoded as array instead of CBOR sequence
+        "86 8100 01 00 820100 80 81818201430102 03",
     ] {
         let bytes = unhexify(&hex.replace(' ', "")).unwrap();
         assert!(
-            serde_cbor::from_slice::<IntegrityBlock>(&bytes).is_err(),
+            IntegrityBlock::from_cbor(&bytes).is_err(),
             "decoding {} should fail",
             hex
         );
@@ -246,27 +264,33 @@ fn integrity_block_sequence_decoding_tests() {
     let ib = IntegrityBlock::from_cbor(&rfc_bib).expect("decoding RFC example BIB");
     assert_eq!(ib.security_targets, vec![1]);
     assert_eq!(ib.security_context_id, BIB_HMAC_SHA2_ID);
-    assert_eq!(ib.security_context_flags, SEC_CONTEXT_PRESENT);
+    assert_eq!(ib.security_context_flags(), SEC_CONTEXT_PRESENT);
     assert_eq!(ib.security_source, EndpointID::with_ipn(2, 1).unwrap());
-    assert_eq!(
-        ib.security_context_parameters.as_ref().unwrap().sha_variant,
-        Some((1, HMAC_SHA_512))
-    );
-    assert_eq!(ib.security_results[0][0].0, 1);
-    assert_eq!(ib.security_results[0][0].1.len(), 64);
+    let params: BibSecurityContextParameter = ib.parameters().unwrap().unwrap();
+    assert_eq!(params.sha_variant, Some((1, HMAC_SHA_512)));
+    assert_eq!(hmac_of(&ib, 1).len(), 64);
     assert_eq!(ib.to_cbor(), rfc_bib);
 
-    // without parameters the field is omitted
+    // parameters are encoded if present and omitted otherwise
+    let results = vec![
+        vec![(1, Value::Bytes(vec![1, 2]))],
+        vec![(1, Value::Bytes(vec![3, 4]))],
+    ];
     let ib = IntegrityBlockBuilder::default()
         .security_targets(vec![0, 1])
         .security_context_parameters(BibSecurityContextParameter::default())
-        .security_results(vec![vec![(1, vec![1, 2])], vec![(1, vec![3, 4])]])
+        .security_results(results.clone())
         .build()
         .unwrap();
-    let decoded = IntegrityBlock::from_cbor(&ib.to_cbor()).expect("decoding BIB");
+    assert_eq!(IntegrityBlock::from_cbor(&ib.to_cbor()).unwrap(), ib);
+    let ib = IntegrityBlockBuilder::default()
+        .security_targets(vec![0, 1])
+        .security_results(results)
+        .build()
+        .unwrap();
+    let decoded = IntegrityBlock::from_cbor(&ib.to_cbor()).unwrap();
     assert_eq!(decoded.security_context_parameters, None);
-    assert_eq!(decoded.security_targets, ib.security_targets);
-    assert_eq!(decoded.security_results, ib.security_results);
+    assert_eq!(decoded, ib);
 
     // trailing data is rejected
     let mut trailing = rfc_bib.clone();
@@ -287,7 +311,10 @@ fn bib_protected_primary_block_tests() {
             "dtn://node2/inbox".try_into().unwrap(),
             b"ABC".to_vec(),
         );
-        let results = targets.iter().map(|_| vec![(1, vec![0; 48])]).collect();
+        let results = targets
+            .iter()
+            .map(|_| vec![(1, Value::Bytes(vec![0; 48]))])
+            .collect();
         let ib = IntegrityBlockBuilder::default()
             .security_targets(targets)
             .security_context_parameters(BibSecurityContextParameter::default())
@@ -352,73 +379,92 @@ fn bib_context_parameter_decoding_tests() {
 
 #[test]
 fn integrity_block_builder_tests() {
-    // parameters are optional without the parameters present flag
-    assert!(
-        IntegrityBlockBuilder::default()
-            .security_targets(vec![1])
-            .build()
-            .is_ok()
+    // the parameters present flag follows the presence of parameters
+    let ib = IntegrityBlockBuilder::default()
+        .security_targets(vec![1])
+        .build()
+        .unwrap();
+    assert_eq!(ib.security_context_flags(), SEC_CONTEXT_ABSENT);
+    let ib = IntegrityBlockBuilder::default()
+        .security_targets(vec![1])
+        .security_context_parameters(BibSecurityContextParameter::default())
+        .build()
+        .unwrap();
+    assert_eq!(ib.security_context_flags(), SEC_CONTEXT_PRESENT);
+    assert_eq!(
+        ib.parameters::<BibSecurityContextParameter>().unwrap(),
+        Some(BibSecurityContextParameter::default())
     );
-    assert!(matches!(
-        IntegrityBlockBuilder::default()
-            .security_targets(vec![1])
-            .security_context_flags(SEC_CONTEXT_PRESENT)
-            .build(),
-        Err(IntegrityBlockBuilderError::FlagSetButNoParameter)
-    ));
-    assert!(
-        IntegrityBlockBuilder::default()
-            .security_targets(vec![1])
-            .security_context_flags(SEC_CONTEXT_PRESENT)
-            .security_context_parameters(BibSecurityContextParameter::default())
-            .build()
-            .is_ok()
-    );
+
+    // other security contexts can be used, e.g., for BCBs
+    let asb = SecurityBlockBuilder::default()
+        .security_targets(vec![1])
+        .security_context_id(BCB_AES_GCM_ID)
+        .parameters(vec![(4, Value::Integer(3))])
+        .build()
+        .unwrap();
+    assert_eq!(asb.security_context_id, BCB_AES_GCM_ID);
+
     assert!(matches!(
         IntegrityBlockBuilder::default().build(),
-        Err(IntegrityBlockBuilderError::MissingSecurityTargets)
+        Err(BpsecError::MissingSecurityTargets)
     ));
 }
 
 #[test]
-fn compute_hmac_without_panic_tests() {
-    let ippt = vec![1u8, 2, 3];
+fn compute_hmac_tests() {
+    let ippt_0 = vec![1u8, 2, 3];
+    let ippt_2 = vec![4u8, 5, 6];
     let key = [0x1a; 16];
 
     // sha variant defaults to HMAC-SHA-384 without parameters
     let mut ib = IntegrityBlockBuilder::default()
-        .security_targets(vec![1])
+        .security_targets(vec![0, 2])
         .build()
         .unwrap();
-    ib.compute_hmac(key, vec![(1, &ippt)]);
-    assert_eq!(ib.security_results.len(), 1);
-    assert_eq!(ib.security_results[0][0].1.len(), 48);
+    // results follow the order of the security targets
+    ib.compute_hmac(key, vec![(2, &ippt_2), (0, &ippt_0)])
+        .unwrap();
+    assert_eq!(ib.security_results.len(), 2);
+    assert_eq!(hmac_of(&ib, 0).len(), 48);
+    assert_ne!(hmac_of(&ib, 0), hmac_of(&ib, 2));
+    // the result id of the expected HMAC is always 1 (RFC 9173 3.4)
+    assert!(
+        ib.security_results
+            .iter()
+            .all(|r| r.len() == 1 && r[0].0 == EXPECTED_HMAC_RESULT)
+    );
 
-    // unknown sha variants produce no results
+    // verification
+    assert!(verify_hmac(&ib, &key, &[(0, &ippt_0), (2, &ippt_2)]).unwrap());
+    assert!(!verify_hmac(&ib, &key, &[(0, &ippt_2), (2, &ippt_2)]).unwrap());
+    assert!(!verify_hmac(&ib, &[0x2b; 16], &[(0, &ippt_0), (2, &ippt_2)]).unwrap());
+    assert!(matches!(
+        verify_hmac(&ib, &key, &[(0, &ippt_0)]),
+        Err(BpsecError::MissingTargetInput(2))
+    ));
+
+    // missing or unknown targets
+    assert!(matches!(
+        ib.compute_hmac(key, vec![(0, &ippt_0)]),
+        Err(BpsecError::MissingTargetInput(2))
+    ));
+    assert!(matches!(
+        ib.compute_hmac(key, vec![(0, &ippt_0), (2, &ippt_2), (5, &ippt_2)]),
+        Err(BpsecError::UnknownTarget(5))
+    ));
+
+    // unknown sha variants are reported
     let mut ib = IntegrityBlockBuilder::default()
         .security_targets(vec![1])
         .security_context_parameters(BibSecurityContextParameter::new(Some((1, 99)), None, None))
         .build()
         .unwrap();
-    ib.compute_hmac(key, vec![(1, &ippt)]);
+    assert!(matches!(
+        ib.compute_hmac(key, vec![(1, &ippt_0)]),
+        Err(BpsecError::Unsupported(_))
+    ));
     assert!(ib.security_results.is_empty());
     // encoding with missing results does not panic
     let _ = ib.to_cbor();
-}
-
-#[test]
-fn compute_hmac_result_id_tests() {
-    let ippt = vec![1u8, 2, 3];
-    let mut ib = IntegrityBlockBuilder::default()
-        .security_targets(vec![0, 2])
-        .build()
-        .unwrap();
-    ib.compute_hmac([0x1a; 16], vec![(0, &ippt), (2, &ippt)]);
-    // the result id of the expected HMAC is always 1 (RFC 9173 3.4)
-    assert_eq!(ib.security_results.len(), 2);
-    assert!(
-        ib.security_results
-            .iter()
-            .all(|r| r.len() == 1 && r[0].0 == 1)
-    );
 }

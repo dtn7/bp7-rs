@@ -1,12 +1,20 @@
 //! Bundle Protocol Security (BPSec, [RFC 9172](https://www.rfc-editor.org/rfc/rfc9172.html))
 //!
-//! Definitions shared by all security blocks and contexts are found here, the
-//! block integrity block in [`bib`] and the security contexts of
-//! [RFC 9173](https://www.rfc-editor.org/rfc/rfc9173.html) in [`rfc9173`].
+//! The code is structured in layers, so that further security blocks and
+//! security contexts, e.g., COSE, can be added without changing the core:
+//!
+//! * [`asb`]: the abstract security block, the structure shared by all security
+//!   blocks, with generic security context parameters and results
+//! * [`bib`]: the block integrity block
+//! * [`rfc9173`]: the default security contexts BIB-HMAC-SHA2 and BCB-AES-GCM,
+//!   which define the types of their parameters and results and the security
+//!   operations
 
+pub mod asb;
 pub mod bib;
 pub mod rfc9173;
 
+pub use asb::*;
 pub use bib::*;
 pub use rfc9173::bcb::*;
 pub use rfc9173::bib::*;
