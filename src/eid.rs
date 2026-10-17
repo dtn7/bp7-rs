@@ -598,7 +598,7 @@ mod tests {
     #[test_case("dtn://node1/incoming".try_into().unwrap() ; "when using dtn address")]
     fn serialize_deserialize_tests(eid: EndpointID) {
         let encoded_eid = serde_cbor::to_vec(&eid).expect("Error serializing packet as cbor.");
-        println!("{:02x?}", &encoded_eid);
+        println!("{:02x?}", encoded_eid);
         assert_eq!(
             eid,
             serde_cbor::from_slice(&encoded_eid).expect("Decoding packet failed")

@@ -116,7 +116,7 @@ fn buf_to_bundle(buf: Vec<u8>, payload_only: bool) {
                 .unwrap();
         }
     } else {
-        println!("{:#?}", &bndl);
+        println!("{:#?}", bndl);
     }
     if let Err(errs) = bndl.validate() {
         eprintln!("Error validating bundle: {:?}", errs);
