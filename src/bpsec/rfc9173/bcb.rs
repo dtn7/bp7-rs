@@ -334,6 +334,18 @@ pub fn encrypt(
         _ => {}
     }
 
+    // a target must not be encrypted by more than one BCB (RFC 9172 3.2)
+    if bundle
+        .decode_bcbs()
+        .iter()
+        .any(|bcb| bcb.security_targets.contains(&target))
+    {
+        return Err(BpsecError::InvalidTarget(
+            target,
+            "already a security target of a BCB".to_string(),
+        ));
+    }
+
     let bcb_block_number = bundle.next_canonical_block_number();
     let bcb_flags = BlockControlFlags::BLOCK_REPLICATE.bits();
     // the primary block is part of the AAD with its final CRC

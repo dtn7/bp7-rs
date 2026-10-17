@@ -1222,3 +1222,61 @@ fn bib_target_validation_tests() {
             .contains("BIBs must not target security blocks")
     }));
 }
+
+#[test]
+fn security_operation_uniqueness_tests() {
+    use bp7::bpsec::rfc9173::{bcb, bib};
+    let key = [0x1a; 32];
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    for _ in 0..2 {
+        b.add_canonical_block(new_canonical_block(
+            200,
+            0,
+            0,
+            CanonicalData::Unknown(vec![1]),
+        ));
+    }
+    b.set_crc(crc::CRC_32);
+    let source = || EndpointID::none();
+
+    // each service may be applied to different targets
+    bib::sign(&mut b, &[1], &key, source(), Default::default()).unwrap();
+    bib::sign(&mut b, &[3], &key, source(), Default::default()).unwrap();
+    bcb::encrypt(&mut b, 4, &key, &[0x24; 12], source(), Default::default()).unwrap();
+    let valid = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    assert!(valid.validate().is_ok(), "{:?}", valid.validate());
+
+    // the same service on the same target is not
+    assert!(matches!(
+        bib::sign(&mut b, &[0, 3], &key, source(), Default::default()),
+        Err(BpsecError::InvalidTarget(3, _))
+    ));
+    assert!(matches!(
+        bcb::encrypt(&mut b, 4, &key, &[0x25; 12], source(), Default::default()),
+        Err(BpsecError::InvalidTarget(4, _))
+    ));
+
+    // received bundles with such security blocks are invalid
+    for block_type in [INTEGRITY_BLOCK, CONFIDENTIALITY_BLOCK] {
+        let mut invalid = valid.clone();
+        let duplicate = invalid
+            .canonicals
+            .iter()
+            .find(|c| c.block_type == block_type)
+            .unwrap()
+            .clone();
+        invalid.add_canonical_block(duplicate);
+        let errors = invalid.validate().unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.to_string().contains("must not share security targets")),
+            "{:?}",
+            errors
+        );
+    }
+}

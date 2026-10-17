@@ -600,6 +600,18 @@ pub fn sign(
             ));
         }
     }
+    // a target must not be integrity protected by more than one BIB (RFC 9172 3.2)
+    if let Some(target) = bundle
+        .decode_bibs()
+        .iter()
+        .flat_map(|bib| bib.security_targets.iter())
+        .find(|t| targets.contains(t))
+    {
+        return Err(BpsecError::InvalidTarget(
+            *target,
+            "already a security target of a BIB".to_string(),
+        ));
+    }
     let scope_flags = parameters
         .integrity_scope_flags
         .map_or(DEFAULT_INTEGRITY_SCOPE_FLAGS, |f| f.1);

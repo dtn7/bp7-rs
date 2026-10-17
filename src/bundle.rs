@@ -360,7 +360,23 @@ impl Bundle {
             })
             .map(|b| b.block_number)
             .collect();
-        if self.decode_bibs().iter().any(|bib| {
+        let bibs = self.decode_bibs();
+        let bcbs = self.decode_bcbs();
+        // the same security service must not be applied to a target more than once (RFC 9172 3.2)
+        for (name, blocks) in [("BIBs", &bibs), ("BCBs", &bcbs)] {
+            let mut targets: Vec<u64> = blocks
+                .iter()
+                .flat_map(|b| b.security_targets.iter().copied())
+                .collect();
+            targets.sort_unstable();
+            if targets.windows(2).any(|w| w[0] == w[1]) {
+                errors.push(Error::BundleError(format!(
+                    "{} must not share security targets",
+                    name
+                )));
+            }
+        }
+        if bibs.iter().any(|bib| {
             bib.security_targets
                 .iter()
                 .any(|t| security_blocks.contains(t))
@@ -377,7 +393,7 @@ impl Bundle {
                 "BCBs must not be removed if they can't be processed".to_string(),
             ));
         }
-        for bcb in self.decode_bcbs() {
+        for bcb in &bcbs {
             if bcb.security_targets.contains(&0) {
                 errors.push(Error::BundleError(
                     "Primary Block must not be the target of a BCB".to_string(),
