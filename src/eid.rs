@@ -153,34 +153,22 @@ impl<'de> Deserialize<'de> for EndpointID {
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
                 if eid_type == ENDPOINT_URI_SCHEME_DTN {
-                    // TODO: rewrite to check following type, currently if not string return dtn:none
-                    //let peek_next_str = seq.next_element::<String>();
-                    let peek_next = seq.next_element::<serde_cbor::Value>()?;
-                    if peek_next.is_none() {
-                        return Err(de::Error::invalid_length(1, &self));
-                    }
-                    let peek_next = peek_next.unwrap();
-                    if let serde_cbor::Value::Text(name) = peek_next {
-                        // This is a dtn address
-                        let eid = EndpointID::Dtn(eid_type, DtnAddress(name));
-                        eid.validate().map_err(de::Error::custom)?;
-                        Ok(eid)
-                    } else if let serde_cbor::Value::Integer(code) = peek_next {
-                        // This is the dtn:none endpoint
-                        // check before any conversion, as e.g. -2^64 would truncate to 0
-                        if code != 0 {
-                            return Err(de::Error::invalid_value(
-                                de::Unexpected::Other(&format!("integer `{}`", code)),
-                                &"value for dtn:none must be 0",
-                            ));
+                    match seq
+                        .next_element::<DtnSsp>()?
+                        .ok_or_else(|| de::Error::invalid_length(1, &self))?
+                    {
+                        DtnSsp::Name(name) => {
+                            // This is a dtn address
+                            let eid = EndpointID::Dtn(eid_type, DtnAddress(name));
+                            eid.validate().map_err(de::Error::custom)?;
+                            Ok(eid)
                         }
-                        let code = 0;
-                        Ok(EndpointID::DtnNone(eid_type, code))
-                    } else {
-                        Err(de::Error::invalid_value(
-                            de::Unexpected::StructVariant,
-                            &self,
-                        ))
+                        // This is the dtn:none endpoint
+                        DtnSsp::None(0) => Ok(EndpointID::DtnNone(eid_type, 0)),
+                        DtnSsp::None(code) => Err(de::Error::invalid_value(
+                            de::Unexpected::Unsigned(code),
+                            &"value for dtn:none must be 0",
+                        )),
                     }
                 } else if eid_type == ENDPOINT_URI_SCHEME_IPN {
                     let mut ipnaddr: IpnAddress = seq
@@ -210,6 +198,41 @@ impl<'de> Deserialize<'de> for EndpointID {
         }
 
         deserializer.deserialize_any(EndpointIDVisitor)
+    }
+}
+
+/// Scheme specific part of a dtn endpoint, decoded without an intermediate cbor value
+enum DtnSsp {
+    Name(String),
+    None(u64),
+}
+
+impl<'de> Deserialize<'de> for DtnSsp {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct DtnSspVisitor;
+
+        impl Visitor<'_> for DtnSspVisitor {
+            type Value = DtnSsp;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("dtn address or 0 for dtn:none")
+            }
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                Ok(DtnSsp::Name(v.to_owned()))
+            }
+            fn visit_string<E: de::Error>(self, v: String) -> Result<Self::Value, E> {
+                Ok(DtnSsp::Name(v))
+            }
+            // negative integers are rejected by the default implementations
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                Ok(DtnSsp::None(v))
+            }
+        }
+
+        deserializer.deserialize_any(DtnSspVisitor)
     }
 }
 
@@ -581,6 +604,14 @@ mod tests {
             eid,
             serde_cbor::from_slice(&encoded_eid).expect("Decoding packet failed")
         );
+    }
+
+    #[test_case("dtn:none".try_into().unwrap() ; "when using none endpoint")]
+    #[test_case("ipn:23.42".try_into().unwrap() ; "when using ipn address")]
+    #[test_case("dtn://node1/incoming".try_into().unwrap() ; "when using dtn address")]
+    fn json_serialize_deserialize_tests(eid: EndpointID) {
+        let encoded_eid = serde_json::to_string(&eid).unwrap();
+        assert_eq!(eid, serde_json::from_str(&encoded_eid).unwrap());
     }
 
     #[test_case(&[130, 1, 108, 47, 47, 110, 111, 100, 101, 49, 47, 116, 101, 115, 116] => "dtn://node1/test"; "when decoding full dtn address")]

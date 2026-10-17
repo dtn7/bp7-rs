@@ -302,3 +302,11 @@ fn bundle_many_cblocks_roundtrip() {
     let decoded = Bundle::try_from(cbor.as_slice()).expect("decoding failed");
     assert_eq!(decoded, b);
 }
+
+#[test]
+fn bundle_json_roundtrip() {
+    let mut b = new_complete_bundle(crc::CRC_32);
+    let json = b.to_json();
+    let decoded = Bundle::try_from(json).expect("decoding json failed");
+    assert_eq!(decoded, b);
+}
