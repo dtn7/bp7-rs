@@ -367,6 +367,16 @@ impl Bundle {
             .collect();
         let bibs = self.decode_bibs();
         let bcbs = self.decode_bcbs();
+        // security targets must exist in the bundle (RFC 9172 3.6)
+        if bibs.iter().chain(bcbs.iter()).any(|asb| {
+            asb.security_targets
+                .iter()
+                .any(|t| *t != 0 && self.canonicals.iter().all(|b| b.block_number != *t))
+        }) {
+            errors.push(Error::BundleError(
+                "security targets must exist in the bundle".to_string(),
+            ));
+        }
         // the same security service must not be applied to a target more than once (RFC 9172 3.2)
         for (name, blocks) in [("BIBs", &bibs), ("BCBs", &bcbs)] {
             let mut targets: Vec<u64> = blocks

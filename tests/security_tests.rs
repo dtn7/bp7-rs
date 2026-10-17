@@ -1230,6 +1230,36 @@ fn bib_target_validation_tests() {
 }
 
 #[test]
+fn security_targets_must_exist() {
+    let key = [0x1a; 16];
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    b.set_crc(crc::CRC_32);
+    let mut bib = IntegrityBlockBuilder::default()
+        .security_targets(vec![7])
+        .build()
+        .unwrap();
+    bib.compute_hmac(key, vec![(7, &vec![1, 2, 3])]).unwrap();
+    b.add_canonical_block(new_integrity_block(
+        0,
+        BlockControlFlags::empty(),
+        bib.to_cbor(),
+    ));
+    let received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    let errors = received.validate().unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.to_string().contains("security targets must exist")),
+        "{:?}",
+        errors
+    );
+}
+
+#[test]
 fn security_operation_uniqueness_tests() {
     use bp7::bpsec::rfc9173::{bcb, bib};
     let key = [0x1a; 32];
