@@ -163,13 +163,10 @@ impl Bundle {
     /// Validate bundle and optionally return list of errors.
     pub fn validate(&self) -> Result<(), ErrorList> {
         let mut errors: ErrorList = Vec::new();
-        //let mut block_numbers: Vec<CanonicalBlockNumberType> = Vec::new();
-        //let mut block_types: Vec<CanonicalBlockType> = Vec::new();
 
-        let mut b_num: std::collections::HashSet<u64> =
-            std::collections::HashSet::with_capacity(15);
-        let mut b_types: std::collections::HashSet<u64> =
-            std::collections::HashSet::with_capacity(15);
+        // sorted afterwards to find duplicates, cheaper than a hash set for few blocks
+        let mut b_num: Vec<CanonicalBlockNumberType> = Vec::with_capacity(self.canonicals.len());
+        let (mut bundle_age_blocks, mut hop_count_blocks, mut previous_node_blocks) = (0, 0, 0);
 
         if let Err(mut err) = self.primary.validate() {
             errors.append(&mut err);
@@ -208,23 +205,28 @@ impl Bundle {
                     "Bundle Processing Control Flags indicate that this bundle's payload is an administrative record or the source node is omitted, but the \"Transmit status report if block cannot be processed\" Block Processing Control Flag was set in a Canonical Block".to_string()
                 ));
             }
-            if !b_num.insert(blck.block_number) {
-                errors.push(Error::BundleError(
-                    "Block numbers occurred multiple times".to_string(),
-                ));
-            }
-            if !b_types.insert(blck.block_type)
-                && (blck.block_type == BUNDLE_AGE_BLOCK
-                    || blck.block_type == HOP_COUNT_BLOCK
-                    || blck.block_type == PREVIOUS_NODE_BLOCK)
-            {
+            b_num.push(blck.block_number);
+            let count = match blck.block_type {
+                BUNDLE_AGE_BLOCK => &mut bundle_age_blocks,
+                HOP_COUNT_BLOCK => &mut hop_count_blocks,
+                PREVIOUS_NODE_BLOCK => &mut previous_node_blocks,
+                _ => continue,
+            };
+            *count += 1;
+            if *count > 1 {
                 errors.push(Error::BundleError(
                     "PreviousNode, BundleAge and HopCound blocks must not occure multiple times"
                         .to_string(),
                 ));
             }
         }
-        if self.primary.creation_timestamp.dtntime() == 0 && !b_types.contains(&BUNDLE_AGE_BLOCK) {
+        b_num.sort_unstable();
+        for _ in b_num.windows(2).filter(|w| w[0] == w[1]) {
+            errors.push(Error::BundleError(
+                "Block numbers occurred multiple times".to_string(),
+            ));
+        }
+        if self.primary.creation_timestamp.dtntime() == 0 && bundle_age_blocks == 0 {
             errors.push(Error::BundleError(
                 "Creation Timestamp is zero, but no Bundle Age block is present".to_string(),
             ));

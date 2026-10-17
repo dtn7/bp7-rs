@@ -310,3 +310,45 @@ fn bundle_json_roundtrip() {
     let decoded = Bundle::try_from(json).expect("decoding json failed");
     assert_eq!(decoded, b);
 }
+
+#[test]
+fn bundle_duplicate_blocks_tests() {
+    let count_errors = |b: &Bundle, msg: &str| {
+        b.validate()
+            .err()
+            .unwrap_or_default()
+            .iter()
+            .filter(|e| e.to_string().contains(msg))
+            .count()
+    };
+
+    // two more hop count blocks with distinct block numbers
+    let mut b = new_complete_bundle(crc::CRC_NO);
+    b.canonicals.insert(
+        0,
+        canonical::new_hop_count_block(10, BlockControlFlags::empty(), 8),
+    );
+    b.canonicals.insert(
+        0,
+        canonical::new_hop_count_block(11, BlockControlFlags::empty(), 8),
+    );
+    assert_eq!(count_errors(&b, "must not occure multiple times"), 2);
+    assert_eq!(count_errors(&b, "Block numbers occurred multiple times"), 0);
+
+    // two duplicates of block number 2
+    let mut b = new_complete_bundle(crc::CRC_NO);
+    for _ in 0..2 {
+        b.canonicals.insert(
+            0,
+            canonical::new_canonical_block(200, 2, 0, CanonicalData::Unknown(vec![])),
+        );
+    }
+    assert_eq!(count_errors(&b, "Block numbers occurred multiple times"), 2);
+
+    // clockless bundles need a bundle age block
+    let mut b = new_complete_bundle(crc::CRC_NO);
+    b.primary.creation_timestamp = dtntime::CreationTimestamp::with_time_and_seq(0, 0);
+    assert_eq!(count_errors(&b, "no Bundle Age block"), 0);
+    b.canonicals.retain(|c| c.block_type != BUNDLE_AGE_BLOCK);
+    assert_eq!(count_errors(&b, "no Bundle Age block"), 1);
+}
