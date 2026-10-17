@@ -69,8 +69,11 @@ impl CreationTimestamp {
     /// let time1 = CreationTimestamp::now();
     /// let time2 = CreationTimestamp::now();
     ///
-    /// assert_eq!(time1.dtntime(), time2.dtntime());
-    /// assert_ne!(time1.seqno(), time2.seqno());
+    /// // timestamps are unique, within the same millisecond the sequence number is counted up
+    /// assert_ne!(time1, time2);
+    /// if time1.dtntime() == time2.dtntime() {
+    ///     assert_eq!(time2.seqno(), time1.seqno() + 1);
+    /// }
     ///
     /// thread::sleep(time::Duration::from_secs(1));
     /// let time3 = CreationTimestamp::now();
