@@ -22,6 +22,7 @@ pub use rfc9173::bcb::*;
 pub use rfc9173::bib::*;
 pub use rfc9173::{unwrap_key, wrap_key};
 
+use crate::crc::{CrcBlock, CrcRawType};
 use crate::*;
 
 // https://www.rfc-editor.org/rfc/rfc9172.html#BlockType
@@ -52,4 +53,40 @@ pub(crate) fn insert_security_block(bundle: &mut Bundle, block: CanonicalBlock) 
         .take_while(|b| b.block_type == INTEGRITY_BLOCK || b.block_type == CONFIDENTIALITY_BLOCK)
         .count();
     bundle.canonicals.insert(position, block);
+}
+
+/// Check that `crc_type` is a known CRC type before a bundle is changed
+pub(crate) fn check_crc_type(crc_type: CrcRawType) -> Result<(), BpsecError> {
+    use crate::crc::{CRC_16, CRC_32, CRC_NO};
+    if [CRC_NO, CRC_16, CRC_32].contains(&crc_type) {
+        Ok(())
+    } else {
+        Err(BpsecError::Unsupported(format!("CRC type {}", crc_type)))
+    }
+}
+
+/// Add a CRC of `crc_type` to the targets of a security operation removed by its security
+/// acceptor, that are not the security target of another security block (RFC 9173 3.8.2,
+/// 4.8.2). A security acceptor that is the bundle destination may pass `CRC_NO`.
+pub(crate) fn restore_target_crcs(bundle: &mut Bundle, targets: &[u64], crc_type: CrcRawType) {
+    if crc_type == crate::crc::CRC_NO {
+        return;
+    }
+    let protected: Vec<u64> = bundle
+        .decode_bibs()
+        .iter()
+        .chain(bundle.decode_bcbs().iter())
+        .flat_map(|b| b.security_targets.iter().copied())
+        .collect();
+    for target in targets.iter().filter(|t| !protected.contains(t)) {
+        if *target == 0 {
+            bundle.primary.set_crc_type(crc_type);
+        } else if let Some(block) = bundle
+            .canonicals
+            .iter_mut()
+            .find(|b| b.block_number == *target)
+        {
+            block.set_crc_type(crc_type);
+        }
+    }
 }

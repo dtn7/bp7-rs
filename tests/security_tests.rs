@@ -2,6 +2,7 @@
 #![cfg(feature = "bpsec")]
 
 use bp7::bpsec::*;
+use bp7::crc::{CRC_NO, CrcBlock};
 use bp7::flags::*;
 use bp7::*;
 use helpers::*;
@@ -617,8 +618,8 @@ fn rfc9173_example_2_confidentiality_test() {
     // decrypting the RFC bundle restores the original bundle, the content encryption key
     // must be derived from the wrapped key
     let mut b = Bundle::try_from(unhexify(final_bundle).unwrap().as_slice()).unwrap();
-    assert!(bp7::bpsec::rfc9173::bcb::decrypt(&mut b, 2, &content_key).is_err());
-    bp7::bpsec::rfc9173::bcb::decrypt(&mut b, 2, &kek).unwrap();
+    assert!(bp7::bpsec::rfc9173::bcb::decrypt(&mut b, 2, &content_key, CRC_NO).is_err());
+    bp7::bpsec::rfc9173::bcb::decrypt(&mut b, 2, &kek, CRC_NO).unwrap();
     assert!(b.decode_bcbs().is_empty());
     assert_eq!(hexify(&b.to_cbor()), original_bundle);
 }
@@ -662,17 +663,17 @@ fn bcb_aes_gcm_roundtrip_tests() {
     // failed decryption leaves the bundle unchanged
     let before = received.clone();
     assert!(matches!(
-        decrypt(&mut received, bcb_payload, &[0x43; 32]),
+        decrypt(&mut received, bcb_payload, &[0x43; 32], CRC_NO),
         Err(BpsecError::OperationFailed(_))
     ));
     assert_eq!(received, before);
     // the primary block is authenticated
     let mut tampered = received.clone();
     tampered.primary.lifetime += Duration::from_secs(1);
-    assert!(decrypt(&mut tampered, bcb_payload, &key).is_err());
+    assert!(decrypt(&mut tampered, bcb_payload, &key, CRC_NO).is_err());
 
-    decrypt(&mut received, bcb_payload, &key).unwrap();
-    decrypt(&mut received, bcb_ext, &key).unwrap();
+    decrypt(&mut received, bcb_payload, &key, CRC_NO).unwrap();
+    decrypt(&mut received, bcb_ext, &key, CRC_NO).unwrap();
     assert!(received.decode_bcbs().is_empty());
     assert_eq!(received.payload(), original.payload());
     assert_eq!(
@@ -743,7 +744,7 @@ fn bcb_aes_gcm_error_tests() {
     assert_ne!(b, unchanged);
 
     assert!(matches!(
-        decrypt(&mut b, 9, &key),
+        decrypt(&mut b, 9, &key, CRC_NO),
         Err(BpsecError::MissingBlock(9))
     ));
     // BCBs of other security contexts or without IV are not decrypted
@@ -771,7 +772,7 @@ fn bcb_aes_gcm_error_tests() {
             .extension_block_by_type(CONFIDENTIALITY_BLOCK)
             .unwrap()
             .block_number;
-        assert!(decrypt(&mut b, number, &key).is_err());
+        assert!(decrypt(&mut b, number, &key, CRC_NO).is_err());
     }
 }
 
@@ -863,7 +864,7 @@ fn bcb_aes_gcm_tag_in_ciphertext_test() {
 
     let mut received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
     let mut tampered = received.clone();
-    decrypt(&mut received, bcb_number, &key).unwrap();
+    decrypt(&mut received, bcb_number, &key, CRC_NO).unwrap();
     assert_eq!(received.payload(), original.payload());
 
     // the appended tag is authenticated
@@ -875,7 +876,7 @@ fn bcb_aes_gcm_tag_in_ciphertext_test() {
     let mut data = payload.payload_data().unwrap().clone();
     *data.last_mut().unwrap() ^= 1;
     payload.set_data(CanonicalData::Data(data));
-    assert!(decrypt(&mut tampered, bcb_number, &key).is_err());
+    assert!(decrypt(&mut tampered, bcb_number, &key, CRC_NO).is_err());
 }
 
 #[test]
@@ -1026,7 +1027,7 @@ fn rfc9173_example_3_test() {
     // and back
     let mut b = Bundle::try_from(unhexify(final_bundle).unwrap().as_slice()).unwrap();
     assert!(bib::verify(&b, 3, &hmac_key).unwrap());
-    bcb::decrypt(&mut b, 4, &content_key).unwrap();
+    bcb::decrypt(&mut b, 4, &content_key, CRC_NO).unwrap();
     assert!(bib::verify(&b, 3, &hmac_key).unwrap());
     assert_eq!(
         b.payload().unwrap(),
@@ -1049,7 +1050,7 @@ fn rfc9173_example_4_test() {
     let mut b = Bundle::try_from(unhexify(final_bundle).unwrap().as_slice()).unwrap();
     // the BIB is encrypted and can't be verified before decryption
     assert!(bib::verify(&b, 3, &hmac_key).is_err());
-    bcb::decrypt(&mut b, 2, &content_key).unwrap();
+    bcb::decrypt(&mut b, 2, &content_key, CRC_NO).unwrap();
     assert!(bib::verify(&b, 3, &hmac_key).unwrap());
     assert_eq!(
         hexify(&b.to_cbor()),
@@ -1119,7 +1120,7 @@ fn bcb_aes_gcm_iv_length_tests() {
             ciphertexts.push(b.payload().unwrap().clone());
 
             let mut received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
-            decrypt(&mut received, bcb, &key).unwrap();
+            decrypt(&mut received, bcb, &key, CRC_NO).unwrap();
             assert_eq!(
                 received.payload(),
                 original.payload(),
@@ -1359,4 +1360,115 @@ fn bpsec_errors_map_to_security_reason_codes() {
     );
     assert_eq!(MISSING_SECURITY_OPERATION, 12);
     assert_eq!(CONFLICTING_SECURITY_OPERATION, 16);
+}
+
+#[test]
+fn bib_accept_tests() {
+    use bp7::bpsec::rfc9173::bib::{accept, sign};
+    let key = [0x1a; 16];
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    b.set_crc(crc::CRC_32);
+    let bib = sign(
+        &mut b,
+        &[0, 1],
+        &key,
+        EndpointID::with_ipn(2, 1).unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    let mut received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+
+    // a failed verification leaves the bundle unchanged
+    let mut failed = received.clone();
+    assert!(!accept(&mut failed, bib, &[0x1b; 16], crc::CRC_32).unwrap());
+    assert_eq!(failed.to_cbor(), received.to_cbor());
+    assert!(matches!(
+        accept(&mut failed, 9, &key, crc::CRC_32),
+        Err(BpsecError::MissingBlock(9))
+    ));
+
+    // a security acceptor that forwards the bundle adds CRCs to the targets
+    let mut forwarded = received.clone();
+    assert!(accept(&mut forwarded, bib, &key, crc::CRC_32).unwrap());
+    assert!(forwarded.decode_bibs().is_empty());
+    let forwarded = Bundle::try_from(forwarded.to_cbor().as_slice()).unwrap();
+    assert!(forwarded.validate().is_ok(), "{:?}", forwarded.validate());
+    assert_eq!(forwarded.primary.crc_type(), crc::CRC_32);
+    assert_eq!(
+        forwarded
+            .extension_block_by_type(canonical::PAYLOAD_BLOCK)
+            .unwrap()
+            .crc_type(),
+        crc::CRC_32
+    );
+    assert_eq!(forwarded.payload(), received.payload());
+
+    // the bundle destination does not need CRCs
+    let mut delivered = received.clone();
+    assert!(accept(&mut delivered, bib, &key, crc::CRC_NO).unwrap());
+    assert!(delivered.decode_bibs().is_empty());
+    assert_eq!(delivered.primary.crc_type(), crc::CRC_NO);
+}
+
+#[test]
+fn bcb_decrypt_restores_target_crc() {
+    use bp7::bpsec::rfc9173::bcb::{decrypt, encrypt};
+    let key = [0x42; 32];
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"secret payload".to_vec(),
+    );
+    b.set_crc(crc::CRC_32);
+    let original = b.clone();
+    let bcb = encrypt(
+        &mut b,
+        1,
+        &key,
+        &[0x24; 12],
+        EndpointID::none(),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        b.extension_block_by_type(canonical::PAYLOAD_BLOCK)
+            .unwrap()
+            .crc_type(),
+        crc::CRC_NO
+    );
+
+    let mut received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    decrypt(&mut received, bcb, &key, crc::CRC_16).unwrap();
+    let forwarded = Bundle::try_from(received.to_cbor().as_slice()).unwrap();
+    assert!(forwarded.validate().is_ok(), "{:?}", forwarded.validate());
+    assert_eq!(
+        forwarded
+            .extension_block_by_type(canonical::PAYLOAD_BLOCK)
+            .unwrap()
+            .crc_type(),
+        crc::CRC_16
+    );
+    assert_eq!(forwarded.payload(), original.payload());
+}
+
+#[test]
+fn acceptor_rejects_unknown_crc_type() {
+    use bp7::bpsec::rfc9173::bib::{accept, sign};
+    let key = [0x1a; 16];
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"ABC".to_vec(),
+    );
+    let bib = sign(&mut b, &[1], &key, EndpointID::none(), Default::default()).unwrap();
+    let before = b.to_cbor();
+    assert!(matches!(
+        accept(&mut b, bib, &key, 7),
+        Err(BpsecError::Unsupported(_))
+    ));
+    assert_eq!(b.to_cbor(), before);
 }

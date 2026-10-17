@@ -13,7 +13,7 @@ use sha2::{Sha256, Sha384, Sha512};
 use crate::bpsec::*;
 use crate::bundle::{Bundle, ByteBuffer};
 use crate::canonical::{CanonicalBlock, CanonicalData};
-use crate::crc::{CRC_NO, CrcBlock};
+use crate::crc::{CRC_NO, CrcBlock, CrcRawType};
 use crate::eid::EndpointID;
 use crate::flags::BlockControlFlags;
 use crate::primary::PrimaryBlock;
@@ -717,4 +717,36 @@ pub fn verify(bundle: &Bundle, bib_block_number: u64, key: &[u8]) -> Result<bool
     )?;
     let ippt_refs: Vec<(u64, &ByteBuffer)> = ippts.iter().map(|(t, i)| (*t, i)).collect();
     verify_hmac(&bib, key, &ippt_refs)
+}
+
+/// Verify a BIB-HMAC-SHA2 BIB as its security acceptor (RFC 9172 5.1.2) and remove it from
+/// the bundle if all targets are verified successfully.
+///
+/// If the security acceptor is not the bundle destination, the targets get a CRC of
+/// `crc_type` (RFC 9173 3.8.2), the bundle destination may pass `CRC_NO`. If the
+/// verification fails, `Ok(false)` is returned and the bundle is unchanged.
+pub fn accept(
+    bundle: &mut Bundle,
+    bib_block_number: u64,
+    key: &[u8],
+    crc_type: CrcRawType,
+) -> Result<bool, BpsecError> {
+    check_crc_type(crc_type)?;
+    if !verify(bundle, bib_block_number, key)? {
+        return Ok(false);
+    }
+    let targets = match bundle
+        .canonicals
+        .iter()
+        .find(|b| b.block_number == bib_block_number)
+        .map(|b| b.data())
+    {
+        Some(CanonicalData::Unknown(data)) => IntegrityBlock::from_cbor(data)?.security_targets,
+        _ => return Err(BpsecError::MissingBlock(bib_block_number)),
+    };
+    bundle
+        .canonicals
+        .retain(|b| b.block_number != bib_block_number);
+    restore_target_crcs(bundle, &targets, crc_type);
+    Ok(true)
 }

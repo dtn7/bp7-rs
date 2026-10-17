@@ -20,7 +20,7 @@ use crate::canonical::{
     BUNDLE_AGE_BLOCK, CanonicalBlock, CanonicalData, HOP_COUNT_BLOCK, PAYLOAD_BLOCK,
     PREVIOUS_NODE_BLOCK,
 };
-use crate::crc::{CRC_NO, CrcBlock};
+use crate::crc::{CRC_NO, CrcBlock, CrcRawType};
 use crate::eid::EndpointID;
 use crate::flags::BlockControlFlags;
 use crate::primary::PrimaryBlock;
@@ -404,7 +404,17 @@ pub fn encrypt(
 /// If the BCB has a wrapped key, `key` is the key encryption key to unwrap the content
 /// encryption key, otherwise the content encryption key itself. The bundle is only changed
 /// if all targets are decrypted and authenticated successfully.
-pub fn decrypt(bundle: &mut Bundle, bcb_block_number: u64, key: &[u8]) -> Result<(), BpsecError> {
+///
+/// If the security acceptor is not the bundle destination, targets without other security
+/// operations get a CRC of `crc_type` (RFC 9173 4.8.2), the bundle destination may pass
+/// `CRC_NO`.
+pub fn decrypt(
+    bundle: &mut Bundle,
+    bcb_block_number: u64,
+    key: &[u8],
+    crc_type: CrcRawType,
+) -> Result<(), BpsecError> {
+    check_crc_type(crc_type)?;
     let bcb_block = bundle
         .canonicals
         .iter()
@@ -477,5 +487,6 @@ pub fn decrypt(bundle: &mut Bundle, bcb_block_number: u64, key: &[u8]) -> Result
     bundle
         .canonicals
         .retain(|b| b.block_number != bcb_block_number);
+    restore_target_crcs(bundle, &bcb.security_targets, crc_type);
     Ok(())
 }
