@@ -1,6 +1,43 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2026-10-17
+
+### Bug Fixes
+
+- Bcbs follow the block constraints of RFC 9172
+- Reject reserved integrity scope flags at the security source
+- Bibs must not target security blocks
+- Security operations are unique per target
+- Interactions of bibs and bcbs follow RFC 9172
+- Encrypted bibs are not decoded
+- Security targets must exist in the bundle
+
+### Features
+
+- Block confidentiality blocks and BCB-AES-GCM parameters
+- BCB-AES-GCM encryption and decryption
+- AES key wrap for the keys of RFC 9173 security contexts
+- Decrypt BCBs with the authentication tag in the ciphertext
+- IPPT for the primary block as security target
+- Sign and verify bundles with BIB-HMAC-SHA2
+- Support IVs of 8 to 16 bytes for BCB-AES-GCM
+- Add bpsec status report reason codes
+- Security acceptors restore target crcs
+- Optionally append the bcb authentication tag to the ciphertext
+- Remove security operations of removed blocks
+- Split security operations off a bib
+- Encrypt bibs and multiple targets with bcbs
+
+### Refactor
+
+- Split up bpsec and default security context definitions
+- Generic abstract security block for all security contexts
+
+### Testing
+
+- Creation timestamp doctest is not flaky at millisecond boundaries
+
 ## [0.11.0] - 2026-10-17
 
 ### Bug Fixes
