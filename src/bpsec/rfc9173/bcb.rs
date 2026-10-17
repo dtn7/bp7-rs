@@ -269,6 +269,16 @@ impl AesGcmCipher {
     }
 }
 
+/// Where the security source puts the authentication tag of an encrypted target (RFC 9173 4.4)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AuthenticationTag {
+    /// As authentication tag result of the BCB
+    #[default]
+    SecurityResult,
+    /// Appended to the ciphertext in the target block, the BCB has an empty result set
+    Ciphertext,
+}
+
 /// IVs must have 8 to 16 bytes (RFC 9173 4.3.1)
 fn check_iv(iv: &[u8]) -> Result<(), BpsecError> {
     if !(8..=16).contains(&iv.len()) {
@@ -293,13 +303,38 @@ fn check_iv(iv: &[u8]) -> Result<(), BpsecError> {
 ///
 /// The CRC of the target block is removed and the CRC of the primary block calculated,
 /// as it may be part of the additional authenticated data.
+///
+/// The authentication tag is added as security result, see [`encrypt_with_tag`] to append
+/// it to the ciphertext.
 pub fn encrypt(
     bundle: &mut Bundle,
     target: u64,
     key: &[u8],
     iv: &[u8],
     security_source: EndpointID,
+    parameters: BcbSecurityContextParameter,
+) -> Result<u64, BpsecError> {
+    encrypt_with_tag(
+        bundle,
+        target,
+        key,
+        iv,
+        security_source,
+        parameters,
+        AuthenticationTag::SecurityResult,
+    )
+}
+
+/// Encrypt a block of a bundle in place like [`encrypt`], with the authentication tag
+/// placed as given by `tag` (RFC 9173 4.4).
+pub fn encrypt_with_tag(
+    bundle: &mut Bundle,
+    target: u64,
+    key: &[u8],
+    iv: &[u8],
+    security_source: EndpointID,
     mut parameters: BcbSecurityContextParameter,
+    tag: AuthenticationTag,
 ) -> Result<u64, BpsecError> {
     let key = super::operation_key(key, parameters.wrapped_key.as_deref())?;
     let cipher = AesGcmCipher::new(parameters.aes_variant.unwrap_or(AES_256_GCM), &key)?;
@@ -376,7 +411,17 @@ pub fn encrypt(
         target_block,
         (CONFIDENTIALITY_BLOCK, bcb_block_number, bcb_flags),
     );
-    let (ciphertext, tag) = cipher.encrypt(iv, &block_type_specific_data(target_block), &aad)?;
+    let (mut ciphertext, tag_bytes) =
+        cipher.encrypt(iv, &block_type_specific_data(target_block), &aad)?;
+    let results = match tag {
+        AuthenticationTag::SecurityResult => {
+            vec![(AUTHENTICATION_TAG_RESULT, Value::Bytes(tag_bytes))]
+        }
+        AuthenticationTag::Ciphertext => {
+            ciphertext.extend(tag_bytes);
+            vec![]
+        }
+    };
     set_block_type_specific_data(target_block, ciphertext);
 
     parameters.iv = Some(iv.to_vec());
@@ -385,7 +430,7 @@ pub fn encrypt(
         .security_context_id(BCB_AES_GCM_ID)
         .security_source(security_source)
         .security_context_parameters(parameters)
-        .security_results(vec![vec![(AUTHENTICATION_TAG_RESULT, Value::Bytes(tag))]])
+        .security_results(vec![results])
         .build()?;
     insert_security_block(
         bundle,

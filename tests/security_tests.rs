@@ -1472,3 +1472,52 @@ fn acceptor_rejects_unknown_crc_type() {
     ));
     assert_eq!(b.to_cbor(), before);
 }
+
+#[test]
+fn bcb_encrypt_with_tag_in_ciphertext() {
+    use bp7::bpsec::rfc9173::bcb::{decrypt, encrypt, encrypt_with_tag};
+    let key = [0x42; 32];
+    let iv = [0x24; 12];
+    let mut original = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"secret payload".to_vec(),
+    );
+    original.set_crc(crc::CRC_32);
+    let mut with_result = original.clone();
+    let mut b = original.clone();
+    let bcb_number = encrypt_with_tag(
+        &mut b,
+        1,
+        &key,
+        &iv,
+        EndpointID::none(),
+        Default::default(),
+        AuthenticationTag::Ciphertext,
+    )
+    .unwrap();
+    encrypt(
+        &mut with_result,
+        1,
+        &key,
+        &iv,
+        EndpointID::none(),
+        Default::default(),
+    )
+    .unwrap();
+
+    // the result set is empty and the tag follows the ciphertext
+    let bcb = b.decode_bcbs().pop().unwrap();
+    assert_eq!(bcb.security_results, vec![vec![]]);
+    let mut expected = with_result.payload().unwrap().clone();
+    match with_result.decode_bcbs()[0].result(1, AUTHENTICATION_TAG_RESULT) {
+        Some(Value::Bytes(tag)) => expected.extend(tag),
+        _ => panic!("no tag"),
+    }
+    assert_eq!(b.payload().unwrap(), &expected);
+
+    let mut received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    assert!(received.validate().is_ok(), "{:?}", received.validate());
+    decrypt(&mut received, bcb_number, &key, CRC_NO).unwrap();
+    assert_eq!(received.payload(), original.payload());
+}
