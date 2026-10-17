@@ -23,7 +23,7 @@ pub type SecurityResult = (u64, Value);
 pub enum BpsecError {
     #[error("security blocks must have at least one security target")]
     MissingSecurityTargets,
-    #[error("expected one non-empty set of security results per security target")]
+    #[error("expected one set of security results per security target")]
     ResultsMismatch,
     #[error("reserved security context flags are set: {0:#x}")]
     ReservedFlags(SecurityContextFlag),
@@ -159,10 +159,9 @@ impl AbstractSecurityBlock {
         if security_targets.is_empty() {
             return Err(BpsecError::MissingSecurityTargets);
         }
-        // every security operation has at least one result for its target
-        if security_results.len() != security_targets.len()
-            || security_results.iter().any(Vec::is_empty)
-        {
+        // result sets may be empty, e.g., for BCB-AES-GCM with the authentication tag
+        // in the ciphertext (RFC 9173 4.4.1), contexts check their results themselves
+        if security_results.len() != security_targets.len() {
             return Err(BpsecError::ResultsMismatch);
         }
 

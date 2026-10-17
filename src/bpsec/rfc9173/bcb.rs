@@ -372,9 +372,17 @@ pub fn decrypt(bundle: &mut Bundle, bcb_block_number: u64, key: &[u8]) -> Result
             .iter()
             .find(|b| b.block_number == *target)
             .ok_or(BpsecError::MissingBlock(*target))?;
-        let tag = match bcb.result(*target, AUTHENTICATION_TAG_RESULT) {
-            Some(Value::Bytes(tag)) if tag.len() == AUTHENTICATION_TAG_LEN => tag,
-            _ => return Err(BpsecError::MissingResult(*target)),
+        let data = block_type_specific_data(target_block);
+        let (ciphertext, tag) = match bcb.result(*target, AUTHENTICATION_TAG_RESULT) {
+            Some(Value::Bytes(tag)) if tag.len() == AUTHENTICATION_TAG_LEN => {
+                (data.as_slice(), tag.as_slice())
+            }
+            Some(_) => return Err(BpsecError::MissingResult(*target)),
+            // without result, the tag is appended to the ciphertext (RFC 9173 4.4)
+            None if data.len() >= AUTHENTICATION_TAG_LEN => {
+                data.split_at(data.len() - AUTHENTICATION_TAG_LEN)
+            }
+            None => return Err(BpsecError::MissingResult(*target)),
         };
         let aad = additional_authenticated_data(
             aad_scope_flags,
@@ -382,7 +390,7 @@ pub fn decrypt(bundle: &mut Bundle, bcb_block_number: u64, key: &[u8]) -> Result
             target_block,
             security_header,
         );
-        let plaintext = cipher.decrypt(&iv, &block_type_specific_data(target_block), tag, &aad)?;
+        let plaintext = cipher.decrypt(&iv, ciphertext, tag, &aad)?;
         plaintexts.push((*target, plaintext));
     }
 

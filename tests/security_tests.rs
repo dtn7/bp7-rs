@@ -219,6 +219,12 @@ fn malformed_integrity_block_tests() {
     // [0], 1, 0, dtn:none, [[[1, h'010203']]]
     let valid = "8100 01 00 820100 81818201430102 03";
     assert!(IntegrityBlock::from_cbor(&unhexify(&valid.replace(' ', "")).unwrap()).is_ok());
+    // empty result sets are allowed, e.g., for authentication tags in the ciphertext
+    let empty_results = "8100 01 00 820100 8180";
+    let ib =
+        IntegrityBlock::from_cbor(&unhexify(&empty_results.replace(' ', "")).unwrap()).unwrap();
+    // but a BIB without expected HMAC does not verify
+    assert!(!verify_hmac(&ib, &[0; 16], &[(0, &vec![1])]).unwrap());
 
     for hex in [
         // only security targets
@@ -227,8 +233,6 @@ fn malformed_integrity_block_tests() {
         "8100 01 00 820100",
         // no results for security target
         "8100 01 00 820100 80",
-        // empty result set for security target
-        "8100 01 00 820100 8180",
         // no security targets
         "80 01 00 820100 80",
         // reserved security context flag
@@ -804,4 +808,62 @@ fn bib_wrapped_key_tests() {
         wrap_key(&kek, &[0; 12]),
         Err(BpsecError::InvalidKey(_))
     ));
+}
+
+#[test]
+fn bcb_aes_gcm_tag_in_ciphertext_test() {
+    use bp7::bpsec::rfc9173::bcb::{decrypt, encrypt};
+    let key = [0x42; 16];
+    let params = BcbSecurityContextParameter {
+        aes_variant: Some(AES_128_GCM),
+        ..Default::default()
+    };
+    let mut b = bundle::new_std_payload_bundle(
+        "dtn://node1/".try_into().unwrap(),
+        "dtn://node2/inbox".try_into().unwrap(),
+        b"secret payload".to_vec(),
+    );
+    let original = b.clone();
+    let bcb_number = encrypt(&mut b, 1, &key, &[0x24; 12], EndpointID::none(), params).unwrap();
+
+    // move the authentication tag from the results to the end of the ciphertext
+    let bcb_block = b
+        .canonicals
+        .iter_mut()
+        .find(|c| c.block_number == bcb_number)
+        .unwrap();
+    let mut bcb = match bcb_block.data() {
+        CanonicalData::Unknown(data) => ConfidentialityBlock::from_cbor(data).unwrap(),
+        _ => panic!("no BCB"),
+    };
+    let tag = match bcb.result(1, AUTHENTICATION_TAG_RESULT) {
+        Some(Value::Bytes(tag)) => tag.clone(),
+        _ => panic!("no tag"),
+    };
+    bcb.security_results = vec![vec![]];
+    bcb_block.set_data(CanonicalData::Unknown(bcb.to_cbor()));
+    let payload = b
+        .canonicals
+        .iter_mut()
+        .find(|c| c.block_number == 1)
+        .unwrap();
+    let mut ciphertext = payload.payload_data().unwrap().clone();
+    ciphertext.extend(tag);
+    payload.set_data(CanonicalData::Data(ciphertext));
+
+    let mut received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    let mut tampered = received.clone();
+    decrypt(&mut received, bcb_number, &key).unwrap();
+    assert_eq!(received.payload(), original.payload());
+
+    // the appended tag is authenticated
+    let payload = tampered
+        .canonicals
+        .iter_mut()
+        .find(|c| c.block_number == 1)
+        .unwrap();
+    let mut data = payload.payload_data().unwrap().clone();
+    *data.last_mut().unwrap() ^= 1;
+    payload.set_data(CanonicalData::Data(data));
+    assert!(decrypt(&mut tampered, bcb_number, &key).is_err());
 }
