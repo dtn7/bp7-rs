@@ -701,10 +701,20 @@ fn bcb_aes_gcm_error_tests() {
         encrypt(&mut b, 1, &key, &iv, source(), params_128),
         Err(BpsecError::InvalidKey(_))
     ));
-    assert!(matches!(
-        encrypt(&mut b, 1, &key, &[0; 8], source(), Default::default()),
-        Err(BpsecError::Unsupported(_))
-    ));
+    // IVs must have 8 to 16 bytes
+    for iv_len in [7, 17] {
+        assert!(matches!(
+            encrypt(
+                &mut b,
+                1,
+                &key,
+                &vec![0; iv_len],
+                source(),
+                Default::default()
+            ),
+            Err(BpsecError::InvalidParameter(IV_PARAMETER))
+        ));
+    }
     let reserved_flags = BcbSecurityContextParameter {
         aad_scope_flags: Some(0x0008),
         ..Default::default()
@@ -1086,4 +1096,40 @@ fn bib_sign_error_tests() {
         verify(&b, 1, &key),
         Err(BpsecError::MissingBlock(1))
     ));
+}
+
+#[test]
+fn bcb_aes_gcm_iv_length_tests() {
+    use bp7::bpsec::rfc9173::bcb::{decrypt, encrypt};
+    for (variant, key) in [(AES_128_GCM, vec![0x42; 16]), (AES_256_GCM, vec![0x42; 32])] {
+        let mut ciphertexts = Vec::new();
+        for iv_len in 8..=16 {
+            let mut b = bundle::new_std_payload_bundle(
+                "dtn://node1/".try_into().unwrap(),
+                "dtn://node2/inbox".try_into().unwrap(),
+                b"secret payload".to_vec(),
+            );
+            let original = b.clone();
+            let params = BcbSecurityContextParameter {
+                aes_variant: Some(variant),
+                ..Default::default()
+            };
+            let iv: Vec<u8> = (0..iv_len as u8).collect();
+            let bcb = encrypt(&mut b, 1, &key, &iv, EndpointID::none(), params).unwrap();
+            ciphertexts.push(b.payload().unwrap().clone());
+
+            let mut received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+            decrypt(&mut received, bcb, &key).unwrap();
+            assert_eq!(
+                received.payload(),
+                original.payload(),
+                "IV of {} bytes",
+                iv_len
+            );
+        }
+        // every IV length results in a different ciphertext
+        ciphertexts.sort();
+        ciphertexts.dedup();
+        assert_eq!(ciphertexts.len(), 9);
+    }
 }

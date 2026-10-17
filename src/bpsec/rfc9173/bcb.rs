@@ -7,8 +7,10 @@
 //!
 //! Based on the BCB implementation of Lucien Loiseau (dtn7/bp7-rs#19).
 
+use aes_gcm::AesGcm;
+use aes_gcm::aead::consts::{U8, U9, U10, U11, U12, U13, U14, U15, U16};
 use aes_gcm::aead::{Aead, KeyInit, Payload};
-use aes_gcm::{Aes128Gcm, Aes256Gcm, Nonce};
+use aes_gcm::aes::{Aes128, Aes256};
 use bitflags::bitflags;
 use serde_cbor::Value;
 
@@ -47,8 +49,8 @@ bitflags! {
 /// AAD scope flags assumed if not given, all assigned flags (RFC 9173 4.3.4)
 pub const DEFAULT_AAD_SCOPE_FLAGS: AadScopeFlagsType = 0x0007;
 
-/// Length of the initialization vector, the supported length of 12 bytes
-/// recommended by RFC 9173 4.3.1
+/// Recommended length of the initialization vector, IVs of 8 to 16 bytes are
+/// supported (RFC 9173 4.3.1)
 pub const IV_LEN: usize = 12;
 
 /// Length of the authentication tag, always 128 bits (RFC 9173 4.3.2)
@@ -159,22 +161,83 @@ fn set_block_type_specific_data(block: &mut CanonicalBlock, data: ByteBuffer) {
     }
 }
 
-enum AesGcmCipher {
-    A128(Box<Aes128Gcm>),
-    A256(Box<Aes256Gcm>),
+/// AES-GCM with an AES variant and key, for IVs of 8 to 16 bytes
+struct AesGcmCipher {
+    variant: AesVariantType,
+    key: ByteBuffer,
+}
+
+/// Encrypt or decrypt with an AES-GCM cipher of a key and IV size
+fn run_aes_gcm<C: KeyInit + Aead>(
+    key: &[u8],
+    iv: &[u8],
+    msg: &[u8],
+    aad: &[u8],
+    encrypt: bool,
+) -> Result<ByteBuffer, BpsecError> {
+    let cipher = C::new_from_slice(key)
+        .map_err(|_| BpsecError::InvalidKey("invalid key length".to_string()))?;
+    let nonce = aes_gcm::aead::Nonce::<C>::from_slice(iv);
+    let payload = Payload { msg, aad };
+    if encrypt {
+        cipher
+            .encrypt(nonce, payload)
+            .map_err(|_| BpsecError::OperationFailed("encryption failed".to_string()))
+    } else {
+        cipher.decrypt(nonce, payload).map_err(|_| {
+            BpsecError::OperationFailed("decryption or authentication failed".to_string())
+        })
+    }
+}
+
+/// Select the AES-GCM cipher for the size of the IV
+macro_rules! aes_gcm_for_iv {
+    ($aes:ty, $key:expr, $iv:expr, $msg:expr, $aad:expr, $encrypt:expr) => {
+        match $iv.len() {
+            8 => run_aes_gcm::<AesGcm<$aes, U8>>($key, $iv, $msg, $aad, $encrypt),
+            9 => run_aes_gcm::<AesGcm<$aes, U9>>($key, $iv, $msg, $aad, $encrypt),
+            10 => run_aes_gcm::<AesGcm<$aes, U10>>($key, $iv, $msg, $aad, $encrypt),
+            11 => run_aes_gcm::<AesGcm<$aes, U11>>($key, $iv, $msg, $aad, $encrypt),
+            12 => run_aes_gcm::<AesGcm<$aes, U12>>($key, $iv, $msg, $aad, $encrypt),
+            13 => run_aes_gcm::<AesGcm<$aes, U13>>($key, $iv, $msg, $aad, $encrypt),
+            14 => run_aes_gcm::<AesGcm<$aes, U14>>($key, $iv, $msg, $aad, $encrypt),
+            15 => run_aes_gcm::<AesGcm<$aes, U15>>($key, $iv, $msg, $aad, $encrypt),
+            16 => run_aes_gcm::<AesGcm<$aes, U16>>($key, $iv, $msg, $aad, $encrypt),
+            _ => Err(BpsecError::InvalidParameter(IV_PARAMETER)),
+        }
+    };
 }
 
 impl AesGcmCipher {
     fn new(variant: AesVariantType, key: &[u8]) -> Result<Self, BpsecError> {
-        let invalid_key = |len| BpsecError::InvalidKey(format!("expected {} bytes", len));
-        match variant {
-            AES_128_GCM => Aes128Gcm::new_from_slice(key)
-                .map(|c| AesGcmCipher::A128(Box::new(c)))
-                .map_err(|_| invalid_key(16)),
-            AES_256_GCM => Aes256Gcm::new_from_slice(key)
-                .map(|c| AesGcmCipher::A256(Box::new(c)))
-                .map_err(|_| invalid_key(32)),
-            _ => Err(BpsecError::Unsupported(format!("AES variant {}", variant))),
+        let expected_len = match variant {
+            AES_128_GCM => 16,
+            AES_256_GCM => 32,
+            _ => return Err(BpsecError::Unsupported(format!("AES variant {}", variant))),
+        };
+        if key.len() != expected_len {
+            return Err(BpsecError::InvalidKey(format!(
+                "expected {} bytes",
+                expected_len
+            )));
+        }
+        Ok(AesGcmCipher {
+            variant,
+            key: key.to_vec(),
+        })
+    }
+
+    fn apply(
+        &self,
+        iv: &[u8],
+        msg: &[u8],
+        aad: &[u8],
+        encrypt: bool,
+    ) -> Result<ByteBuffer, BpsecError> {
+        if self.variant == AES_128_GCM {
+            aes_gcm_for_iv!(Aes128, &self.key, iv, msg, aad, encrypt)
+        } else {
+            aes_gcm_for_iv!(Aes256, &self.key, iv, msg, aad, encrypt)
         }
     }
 
@@ -185,16 +248,7 @@ impl AesGcmCipher {
         plaintext: &[u8],
         aad: &[u8],
     ) -> Result<(ByteBuffer, ByteBuffer), BpsecError> {
-        let nonce = Nonce::from_slice(iv);
-        let payload = Payload {
-            msg: plaintext,
-            aad,
-        };
-        let mut ciphertext = match self {
-            AesGcmCipher::A128(c) => c.encrypt(nonce, payload),
-            AesGcmCipher::A256(c) => c.encrypt(nonce, payload),
-        }
-        .map_err(|_| BpsecError::OperationFailed("encryption failed".to_string()))?;
+        let mut ciphertext = self.apply(iv, plaintext, aad, true)?;
         // AES-GCM produces the ciphertext followed by the authentication tag
         let tag = ciphertext.split_off(ciphertext.len() - AUTHENTICATION_TAG_LEN);
         Ok((ciphertext, tag))
@@ -208,26 +262,17 @@ impl AesGcmCipher {
         tag: &[u8],
         aad: &[u8],
     ) -> Result<ByteBuffer, BpsecError> {
-        let nonce = Nonce::from_slice(iv);
         let mut msg = Vec::with_capacity(ciphertext.len() + tag.len());
         msg.extend_from_slice(ciphertext);
         msg.extend_from_slice(tag);
-        let payload = Payload { msg: &msg, aad };
-        match self {
-            AesGcmCipher::A128(c) => c.decrypt(nonce, payload),
-            AesGcmCipher::A256(c) => c.decrypt(nonce, payload),
-        }
-        .map_err(|_| BpsecError::OperationFailed("decryption or authentication failed".to_string()))
+        self.apply(iv, &msg, aad, false)
     }
 }
 
+/// IVs must have 8 to 16 bytes (RFC 9173 4.3.1)
 fn check_iv(iv: &[u8]) -> Result<(), BpsecError> {
-    if iv.len() != IV_LEN {
-        return Err(BpsecError::Unsupported(format!(
-            "IV of {} bytes, only {} bytes are supported",
-            iv.len(),
-            IV_LEN
-        )));
+    if !(8..=16).contains(&iv.len()) {
+        return Err(BpsecError::InvalidParameter(IV_PARAMETER));
     }
     Ok(())
 }
