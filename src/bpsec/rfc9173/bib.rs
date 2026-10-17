@@ -679,6 +679,17 @@ pub fn verify(bundle: &Bundle, bib_block_number: u64, key: &[u8]) -> Result<bool
         .iter()
         .find(|b| b.block_number == bib_block_number && b.block_type == INTEGRITY_BLOCK)
         .ok_or(BpsecError::MissingBlock(bib_block_number))?;
+    // encrypted BIBs must not be checked (RFC 9172 3.9)
+    if bundle
+        .decode_bcbs()
+        .iter()
+        .any(|bcb| bcb.security_targets.contains(&bib_block_number))
+    {
+        return Err(BpsecError::InvalidTarget(
+            bib_block_number,
+            "encrypted by a BCB, it can't be checked".to_string(),
+        ));
+    }
     let bib = match bib_block.data() {
         CanonicalData::Unknown(data) => IntegrityBlock::from_cbor(data)?,
         _ => return Err(BpsecError::MissingBlock(bib_block_number)),

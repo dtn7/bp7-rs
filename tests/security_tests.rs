@@ -1048,9 +1048,14 @@ fn rfc9173_example_4_test() {
         unhexify("71776572747975696f7061736466676871776572747975696f70617364666768").unwrap();
 
     let mut b = Bundle::try_from(unhexify(final_bundle).unwrap().as_slice()).unwrap();
-    // the BIB is encrypted and can't be verified before decryption
-    assert!(bib::verify(&b, 3, &hmac_key).is_err());
+    // the BIB is encrypted and can't be decoded or verified before decryption
+    assert!(b.decode_bibs().is_empty());
+    assert!(matches!(
+        bib::verify(&b, 3, &hmac_key),
+        Err(BpsecError::InvalidTarget(3, _))
+    ));
     bcb::decrypt(&mut b, 2, &content_key, CRC_NO).unwrap();
+    assert_eq!(b.decode_bibs().len(), 1);
     assert!(bib::verify(&b, 3, &hmac_key).unwrap());
     assert_eq!(
         hexify(&b.to_cbor()),

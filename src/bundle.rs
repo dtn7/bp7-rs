@@ -339,8 +339,13 @@ impl Bundle {
 
     /// Return decoded BIBs if block integrity blocks exists.
     #[cfg(feature = "bpsec")]
+    ///
+    /// BIBs encrypted by a BCB are omitted, as their content is ciphertext (RFC 9172 3.9).
     pub fn decode_bibs(&self) -> Vec<IntegrityBlock> {
-        self.decode_security_blocks(crate::bpsec::INTEGRITY_BLOCK)
+        self.security_blocks(crate::bpsec::INTEGRITY_BLOCK)
+            .into_iter()
+            .map(|(_, bib)| bib)
+            .collect()
     }
 
     /// Check the constraints of BIBs and BCBs (RFC 9172 3.7, 3.8)
@@ -427,6 +432,31 @@ impl Bundle {
     #[cfg(feature = "bpsec")]
     pub fn decode_bcbs(&self) -> Vec<crate::bpsec::ConfidentialityBlock> {
         self.decode_security_blocks(crate::bpsec::CONFIDENTIALITY_BLOCK)
+            .into_iter()
+            .map(|(_, bcb)| bcb)
+            .collect()
+    }
+
+    /// Block numbers and decoded abstract security blocks of the security blocks of a block
+    /// type, omitting undecodable and encrypted ones
+    #[cfg(feature = "bpsec")]
+    pub(crate) fn security_blocks(
+        &self,
+        block_type: CanonicalBlockType,
+    ) -> Vec<(u64, crate::bpsec::AbstractSecurityBlock)> {
+        let blocks = self.decode_security_blocks(block_type);
+        if block_type == crate::bpsec::CONFIDENTIALITY_BLOCK {
+            return blocks;
+        }
+        let encrypted: Vec<u64> = self
+            .decode_security_blocks(crate::bpsec::CONFIDENTIALITY_BLOCK)
+            .into_iter()
+            .flat_map(|(_, bcb)| bcb.security_targets)
+            .collect();
+        blocks
+            .into_iter()
+            .filter(|(number, _)| !encrypted.contains(number))
+            .collect()
     }
 
     /// Decode the abstract security blocks of all valid security blocks of a block type,
@@ -435,13 +465,15 @@ impl Bundle {
     fn decode_security_blocks(
         &self,
         block_type: CanonicalBlockType,
-    ) -> Vec<crate::bpsec::AbstractSecurityBlock> {
+    ) -> Vec<(u64, crate::bpsec::AbstractSecurityBlock)> {
         self.canonicals
             .iter()
             .filter(|b| b.block_type == block_type && b.extension_validation().is_ok())
             .filter_map(|b| match b.data() {
                 CanonicalData::Unknown(bytes) => {
-                    crate::bpsec::AbstractSecurityBlock::from_cbor(bytes).ok()
+                    crate::bpsec::AbstractSecurityBlock::from_cbor(bytes)
+                        .ok()
+                        .map(|asb| (b.block_number, asb))
                 }
                 _ => None,
             })
