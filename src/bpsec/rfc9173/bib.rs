@@ -122,89 +122,91 @@ impl IntegrityProtectedPlaintext {
         }
     }
 
-    pub fn create(&mut self, payload_block: &CanonicalBlock) -> ByteBuffer {
-        // If header data is not none and corresponding flag is set, include in MAC
-        let mut optional_ippt_data = Vec::<u8>::new();
-
-        if self
-            .scope_flags
-            .contains(IntegrityScopeFlags::INTEGRITY_PRIMARY_HEADER)
-        {
-            if let Some(pb) = &self.primary_block {
-                optional_ippt_data.append(
-                    serde_cbor::to_vec(pb)
-                        .expect("Error creating canonical form of primary block")
-                        .as_mut(),
-                );
-            } else {
-                eprintln!("Primary header flag set but no primary header given!")
-            }
-        }
-        if self
-            .scope_flags
-            .contains(IntegrityScopeFlags::INTEGRITY_PAYLOAD_HEADER)
-        {
-            optional_ippt_data.append(
-                self.construct_payload_header(payload_block)
-                    .expect("Error constructing payload header")
-                    .as_mut(),
-            );
-        }
-        if self
-            .scope_flags
-            .contains(IntegrityScopeFlags::INTEGRITY_SECURITY_HEADER)
-        {
-            if let Some(sh) = &self.security_header {
-                optional_ippt_data.append(
-                    self.construct_security_header(sh)
-                        .expect("Error constructing security header")
-                        .as_mut(),
-                );
-            } else {
-                eprintln!("Security header flag set but no security header given!")
-            }
-        }
-
-        self.security_target_contents = serde_cbor::to_vec(&payload_block.data()).unwrap();
-
-        // create canonical form of other data
-        if !matches!(payload_block.data(), CanonicalData::Data(_)) {
-            let temp_bytes = serde_bytes::Bytes::new(self.security_target_contents.as_slice());
-            self.security_target_contents = serde_cbor::to_vec(&temp_bytes).unwrap();
-        }
-
-        let mut ippt = Vec::<u8>::new();
-        ippt.append(
-            &mut serde_cbor::to_vec(&self.scope_flags)
-                .expect("Error creating canonical form of scope flags"),
-        );
-        ippt.append(&mut optional_ippt_data);
-        ippt.append(&mut self.security_target_contents);
-        ippt
+    /// Create the IPPT of a security target block, omitting the primary block or the
+    /// security header if indicated by the scope flags but not given
+    pub fn create(&mut self, target_block: &CanonicalBlock) -> ByteBuffer {
+        self.security_target_contents = canonical_target_contents(IpptTarget::Block(target_block));
+        ippt(
+            self.scope_flags,
+            self.primary_block.as_ref(),
+            IpptTarget::Block(target_block),
+            self.security_header,
+        )
     }
+}
 
-    fn construct_payload_header(
-        &self,
-        payload_block: &CanonicalBlock,
-    ) -> Result<ByteBuffer, serde_cbor::Error> {
-        let mut header = Vec::<u8>::new();
-        header.append(&mut serde_cbor::to_vec(&payload_block.block_type)?);
-        header.append(&mut serde_cbor::to_vec(&payload_block.block_number)?);
-        header.append(&mut serde_cbor::to_vec(&payload_block.block_control_flags)?);
-        //header.append(&mut serde_cbor::to_vec(&payload_block.crc.to_code())?); //TODO: check if not needed?
-        Ok(header)
-    }
+/// Security target of a BIB, the primary block or another block of the bundle
+#[derive(Debug, Clone, Copy)]
+pub enum IpptTarget<'a> {
+    PrimaryBlock(&'a PrimaryBlock),
+    Block(&'a CanonicalBlock),
+}
 
-    fn construct_security_header(
-        &self,
-        security_block_parameter: &SecurityBlockHeader,
-    ) -> Result<ByteBuffer, serde_cbor::Error> {
-        let mut header = Vec::<u8>::new();
-        header.append(&mut serde_cbor::to_vec(&security_block_parameter.0)?);
-        header.append(&mut serde_cbor::to_vec(&security_block_parameter.1)?);
-        header.append(&mut serde_cbor::to_vec(&security_block_parameter.2)?);
-        Ok(header)
+/// Integrity protected plaintext of a security target (RFC 9173 3.7)
+///
+/// If the security target is the primary block, the primary block and target header are
+/// not included separately, regardless of the scope flags.
+pub fn integrity_protected_plaintext(
+    scope_flags: IntegrityScopeFlagsType,
+    primary_block: &PrimaryBlock,
+    target: IpptTarget,
+    security_header: SecurityBlockHeader,
+) -> ByteBuffer {
+    ippt(
+        scope_flags,
+        Some(primary_block),
+        target,
+        Some(security_header),
+    )
+}
+
+fn ippt(
+    scope_flags: IntegrityScopeFlagsType,
+    primary_block: Option<&PrimaryBlock>,
+    target: IpptTarget,
+    security_header: Option<SecurityBlockHeader>,
+) -> ByteBuffer {
+    let encode_error = "Error encoding integrity protected plaintext";
+    let flags = IntegrityScopeFlags::from_bits_truncate(scope_flags);
+    // the scope flags are always included, with reserved and unassigned bits set to 0
+    let mut ippt = serde_cbor::to_vec(&flags.bits()).expect(encode_error);
+    if let IpptTarget::Block(block) = target {
+        if flags.contains(IntegrityScopeFlags::INTEGRITY_PRIMARY_HEADER)
+            && let Some(primary_block) = primary_block
+        {
+            serde_cbor::to_writer(&mut ippt, primary_block).expect(encode_error);
+        }
+        if flags.contains(IntegrityScopeFlags::INTEGRITY_PAYLOAD_HEADER) {
+            serde_cbor::to_writer(&mut ippt, &block.block_type).expect(encode_error);
+            serde_cbor::to_writer(&mut ippt, &block.block_number).expect(encode_error);
+            serde_cbor::to_writer(&mut ippt, &block.block_control_flags).expect(encode_error);
+        }
     }
+    if flags.contains(IntegrityScopeFlags::INTEGRITY_SECURITY_HEADER)
+        && let Some((block_type, block_number, block_flags)) = security_header
+    {
+        serde_cbor::to_writer(&mut ippt, &block_type).expect(encode_error);
+        serde_cbor::to_writer(&mut ippt, &block_number).expect(encode_error);
+        serde_cbor::to_writer(&mut ippt, &block_flags).expect(encode_error);
+    }
+    ippt.extend(canonical_target_contents(target));
+    ippt
+}
+
+/// Canonical form of a security target, the primary block or the block-type-specific
+/// data of a block, as CBOR byte string
+fn canonical_target_contents(target: IpptTarget) -> ByteBuffer {
+    let encode_error = "Error encoding security target";
+    let contents = match target {
+        IpptTarget::PrimaryBlock(primary_block) => {
+            serde_cbor::to_vec(primary_block).expect(encode_error)
+        }
+        IpptTarget::Block(block) => match block.data() {
+            CanonicalData::Data(data) | CanonicalData::Unknown(data) => data.clone(),
+            other => other.to_cbor(),
+        },
+    };
+    serde_cbor::to_vec(&serde_bytes::Bytes::new(&contents)).expect(encode_error)
 }
 
 impl Default for IntegrityProtectedPlaintext {

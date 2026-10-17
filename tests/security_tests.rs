@@ -867,3 +867,81 @@ fn bcb_aes_gcm_tag_in_ciphertext_test() {
     payload.set_data(CanonicalData::Data(data));
     assert!(decrypt(&mut tampered, bcb_number, &key).is_err());
 }
+
+#[test]
+fn ippt_tests() {
+    let primary_block = primary::PrimaryBlockBuilder::default()
+        .destination(EndpointID::with_ipn(1, 2).unwrap())
+        .source(EndpointID::with_ipn(2, 1).unwrap())
+        .report_to(EndpointID::with_ipn(2, 1).unwrap())
+        .creation_timestamp(dtntime::CreationTimestamp::with_time_and_seq(0, 40))
+        .lifetime(Duration::from_millis(1000000))
+        .build()
+        .unwrap();
+    let payload_block = bp7::new_payload_block(
+        BlockControlFlags::empty(),
+        b"Ready to generate a 32-byte payload".to_vec(),
+    );
+    let age_block = new_bundle_age_block(2, BlockControlFlags::empty(), 300);
+    let bib_header = (INTEGRITY_BLOCK, 3, 0);
+
+    // RFC 9173 example 3: primary block and bundle age block, no additional scope
+    let ippt = integrity_protected_plaintext(
+        0,
+        &primary_block,
+        IpptTarget::PrimaryBlock(&primary_block),
+        bib_header,
+    );
+    assert_eq!(
+        hexify(&ippt),
+        "00581c88070000820282010282028202018202820201820018281a000f4240"
+    );
+    let ippt =
+        integrity_protected_plaintext(0, &primary_block, IpptTarget::Block(&age_block), bib_header);
+    assert_eq!(hexify(&ippt), "004319012c");
+    // the primary block and target header are not added again for the primary block
+    let ippt = integrity_protected_plaintext(
+        7,
+        &primary_block,
+        IpptTarget::PrimaryBlock(&primary_block),
+        bib_header,
+    );
+    assert_eq!(
+        hexify(&ippt),
+        "070b0300581c88070000820282010282028202018202820201820018281a000f4240"
+    );
+
+    // RFC 9173 example 4: payload block with all scope flags
+    let ippt = integrity_protected_plaintext(
+        7,
+        &primary_block,
+        IpptTarget::Block(&payload_block),
+        bib_header,
+    );
+    assert_eq!(
+        hexify(&ippt),
+        concat!(
+            "0788070000820282010282028202018202820201820018281a000f4240",
+            "010100",
+            "0b0300",
+            "5823526561647920746f2067656e657261746520612033322d62797465207061796c6f6164"
+        )
+    );
+    // the builder creates the same IPPT
+    let mut builder_ippt = IpptBuilder::default()
+        .scope_flags(7)
+        .primary_block(primary_block.clone())
+        .security_header(bib_header)
+        .build();
+    assert_eq!(builder_ippt.create(&payload_block), ippt);
+
+    // the block-type-specific data of other blocks is wrapped once as byte string
+    let unknown_block = new_canonical_block(200, 4, 0, CanonicalData::Unknown(vec![1, 2, 3]));
+    let ippt = integrity_protected_plaintext(
+        0,
+        &primary_block,
+        IpptTarget::Block(&unknown_block),
+        bib_header,
+    );
+    assert_eq!(hexify(&ippt), "0043010203");
+}
