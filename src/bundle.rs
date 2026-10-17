@@ -385,6 +385,19 @@ impl Bundle {
                 "BIBs must not target security blocks".to_string(),
             ));
         }
+        // BIBs sharing a target with a BCB must be encrypted (RFC 9172 3.9), so a decodable,
+        // unencrypted BIB of an encrypted target is invalid
+        if bibs.iter().any(|bib| {
+            bcbs.iter().any(|bcb| {
+                bib.security_targets
+                    .iter()
+                    .any(|t| bcb.security_targets.contains(t))
+            })
+        }) {
+            errors.push(Error::BundleError(
+                "BIBs sharing a security target with a BCB must be encrypted".to_string(),
+            ));
+        }
         if bcb_blocks.iter().any(|b| {
             b.block_control_flags
                 .contains(BlockControlFlags::BLOCK_REMOVE)

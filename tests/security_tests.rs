@@ -1280,3 +1280,64 @@ fn security_operation_uniqueness_tests() {
         );
     }
 }
+
+#[test]
+fn bib_bcb_interaction_tests() {
+    use bp7::bpsec::rfc9173::{bcb, bib};
+    let key = [0x1a; 32];
+    let source = || EndpointID::none();
+    let new_bundle = || {
+        let mut b = bundle::new_std_payload_bundle(
+            "dtn://node1/".try_into().unwrap(),
+            "dtn://node2/inbox".try_into().unwrap(),
+            b"ABC".to_vec(),
+        );
+        b.set_crc(crc::CRC_32);
+        b
+    };
+
+    // encrypted targets must not get a BIB
+    let mut b = new_bundle();
+    bcb::encrypt(&mut b, 1, &key, &[0x24; 12], source(), Default::default()).unwrap();
+    assert!(matches!(
+        bib::sign(&mut b, &[1], &key, source(), Default::default()),
+        Err(BpsecError::InvalidTarget(1, _))
+    ));
+    // other targets may be signed
+    bib::sign(&mut b, &[0], &key, source(), Default::default()).unwrap();
+
+    // a BIB of the target would have to be encrypted with it
+    let mut b = new_bundle();
+    let bib_number = bib::sign(&mut b, &[1], &key, source(), Default::default()).unwrap();
+    assert!(matches!(
+        bcb::encrypt(&mut b, 1, &key, &[0x24; 12], source(), Default::default()),
+        Err(BpsecError::Unsupported(_))
+    ));
+
+    // received bundles with an unencrypted BIB of an encrypted target are invalid, and
+    // the integrity of the target can't be checked
+    let bcb_asb = SecurityBlockBuilder::default()
+        .security_targets(vec![1])
+        .security_context_id(BCB_AES_GCM_ID)
+        .security_results(vec![vec![(1, Value::Bytes(vec![0; 16]))]])
+        .build()
+        .unwrap();
+    b.add_canonical_block(new_confidentiality_block(
+        0,
+        BlockControlFlags::empty(),
+        bcb_asb.to_cbor(),
+    ));
+    let received = Bundle::try_from(b.to_cbor().as_slice()).unwrap();
+    let errors = received.validate().unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.to_string().contains("must be encrypted")),
+        "{:?}",
+        errors
+    );
+    assert!(matches!(
+        bib::verify(&received, bib_number, &key),
+        Err(BpsecError::InvalidTarget(1, _))
+    ));
+}

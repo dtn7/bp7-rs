@@ -345,6 +345,18 @@ pub fn encrypt(
             "already a security target of a BCB".to_string(),
         ));
     }
+    // a BIB of the target would have to be encrypted by the same BCB (RFC 9172 3.9),
+    // which would require multiple targets sharing the IV of this BCB
+    if bundle
+        .decode_bibs()
+        .iter()
+        .any(|bib| bib.security_targets.contains(&target))
+    {
+        return Err(BpsecError::Unsupported(format!(
+            "encryption of block {}, which is a security target of a BIB",
+            target
+        )));
+    }
 
     let bcb_block_number = bundle.next_canonical_block_number();
     let bcb_flags = BlockControlFlags::BLOCK_REPLICATE.bits();

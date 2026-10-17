@@ -612,6 +612,18 @@ pub fn sign(
             "already a security target of a BIB".to_string(),
         ));
     }
+    // encrypted targets must not get a BIB (RFC 9172 3.9)
+    if let Some(target) = bundle
+        .decode_bcbs()
+        .iter()
+        .flat_map(|bcb| bcb.security_targets.iter())
+        .find(|t| targets.contains(t))
+    {
+        return Err(BpsecError::InvalidTarget(
+            *target,
+            "already a security target of a BCB".to_string(),
+        ));
+    }
     let scope_flags = parameters
         .integrity_scope_flags
         .map_or(DEFAULT_INTEGRITY_SCOPE_FLAGS, |f| f.1);
@@ -671,6 +683,18 @@ pub fn verify(bundle: &Bundle, bib_block_number: u64, key: &[u8]) -> Result<bool
         CanonicalData::Unknown(data) => IntegrityBlock::from_cbor(data)?,
         _ => return Err(BpsecError::MissingBlock(bib_block_number)),
     };
+    // BIBs of encrypted targets must not be checked (RFC 9172 3.9)
+    if let Some(target) = bundle
+        .decode_bcbs()
+        .iter()
+        .flat_map(|bcb| bcb.security_targets.iter())
+        .find(|t| bib.security_targets.contains(t))
+    {
+        return Err(BpsecError::InvalidTarget(
+            *target,
+            "encrypted by a BCB, its integrity can't be checked".to_string(),
+        ));
+    }
     if bib.security_context_id != BIB_HMAC_SHA2_ID {
         return Err(BpsecError::Unsupported(format!(
             "security context {}",
