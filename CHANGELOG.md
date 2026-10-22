@@ -1,6 +1,16 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.12.1] - 2026-10-22
+
+### Bug Fixes
+
+- Omit empty security context parameters
+
+### Features
+
+- Encrypt bundle age, hop count and previous node blocks
+
 ## [0.12.0] - 2026-10-17
 
 ### Bug Fixes
