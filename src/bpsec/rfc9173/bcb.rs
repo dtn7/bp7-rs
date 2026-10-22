@@ -155,12 +155,24 @@ fn block_type_specific_data(block: &CanonicalBlock) -> ByteBuffer {
 }
 
 /// Replace the block-type-specific data of a block
+///
+/// A decrypted block with a known structure is decoded again, as it was before the
+/// encryption. Ciphertext is kept as unknown data.
 fn set_block_type_specific_data(block: &mut CanonicalBlock, data: ByteBuffer) {
-    if block.block_type == PAYLOAD_BLOCK {
-        block.set_data(CanonicalData::Data(data));
-    } else {
-        block.set_data(CanonicalData::Unknown(data));
-    }
+    let decoded = match block.block_type {
+        PAYLOAD_BLOCK => Some(CanonicalData::Data(data.clone())),
+        BUNDLE_AGE_BLOCK => serde_cbor::from_slice(&data)
+            .ok()
+            .map(CanonicalData::BundleAge),
+        HOP_COUNT_BLOCK => serde_cbor::from_slice::<(u8, u8)>(&data)
+            .ok()
+            .map(|(limit, count)| CanonicalData::HopCount(limit, count)),
+        PREVIOUS_NODE_BLOCK => serde_cbor::from_slice(&data)
+            .ok()
+            .map(CanonicalData::PreviousNode),
+        _ => None,
+    };
+    block.set_data(decoded.unwrap_or(CanonicalData::Unknown(data)));
 }
 
 /// AES-GCM with an AES variant and key, for IVs of 8 to 16 bytes
@@ -467,16 +479,8 @@ fn check_encryption_targets(bundle: &Bundle, targets: &[u64]) -> Result<(), Bpse
             .iter()
             .find(|b| b.block_number == target)
             .ok_or(BpsecError::MissingBlock(target))?;
-        match target_block.block_type {
-            CONFIDENTIALITY_BLOCK => return invalid_target(target, "BCBs must not be encrypted"),
-            // their encrypted content could not be decoded anymore
-            HOP_COUNT_BLOCK | BUNDLE_AGE_BLOCK | PREVIOUS_NODE_BLOCK => {
-                return Err(BpsecError::Unsupported(format!(
-                    "encryption of blocks of type {}",
-                    target_block.block_type
-                )));
-            }
-            _ => {}
+        if target_block.block_type == CONFIDENTIALITY_BLOCK {
+            return invalid_target(target, "BCBs must not be encrypted");
         }
         // a target must not be encrypted by more than one BCB
         if encrypted.contains(&target) {

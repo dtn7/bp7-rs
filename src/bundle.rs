@@ -189,9 +189,29 @@ impl Bundle {
         }
         #[cfg(feature = "bpsec")]
         self.validate_security_blocks(&mut errors);
+        // blocks encrypted by a BCB are ciphertext until they are decrypted
+        #[cfg(feature = "bpsec")]
+        let encrypted: Vec<CanonicalBlockNumberType> = self
+            .decode_bcbs()
+            .into_iter()
+            .flat_map(|bcb| bcb.security_targets)
+            .collect();
+        #[cfg(not(feature = "bpsec"))]
+        let encrypted: Vec<CanonicalBlockNumberType> = Vec::new();
         for blck in &self.canonicals {
             if let Err(mut err) = blck.validate() {
                 errors.append(&mut err);
+            }
+            if matches!(
+                blck.block_type,
+                BUNDLE_AGE_BLOCK | HOP_COUNT_BLOCK | PREVIOUS_NODE_BLOCK
+            ) && matches!(blck.data(), CanonicalData::Unknown(_))
+                && !encrypted.contains(&blck.block_number)
+            {
+                errors.push(Error::CanonicalBlockError(format!(
+                    "Content of block {} of type {} can not be decoded",
+                    blck.block_number, blck.block_type
+                )));
             }
             if (self
                 .primary

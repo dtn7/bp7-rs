@@ -195,25 +195,19 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                     //dbg!(crate::helpers::hexify(&raw_payload));
                     CanonicalData::Data(raw_payload)
                 } else if block_type == BUNDLE_AGE_BLOCK {
-                    CanonicalData::BundleAge(serde_cbor::from_slice::<u64>(&raw_payload).map_err(
-                        |err| {
-                            de::Error::custom(format!("error decoding bundle age block: {}", err))
-                        },
-                    )?)
+                    // an encrypted block (RFC 9172 3.9) is ciphertext, that can only be
+                    // decoded after decryption, `Bundle::validate` rejects it otherwise
+                    serde_cbor::from_slice::<u64>(&raw_payload)
+                        .map(CanonicalData::BundleAge)
+                        .unwrap_or(CanonicalData::Unknown(raw_payload))
                 } else if block_type == HOP_COUNT_BLOCK {
-                    let hc: (u8, u8) = serde_cbor::from_slice(&raw_payload).map_err(|err| {
-                        de::Error::custom(format!("error decoding hop count block: {}", err))
-                    })?;
-                    CanonicalData::HopCount(hc.0, hc.1)
+                    serde_cbor::from_slice::<(u8, u8)>(&raw_payload)
+                        .map(|hc| CanonicalData::HopCount(hc.0, hc.1))
+                        .unwrap_or(CanonicalData::Unknown(raw_payload))
                 } else if block_type == PREVIOUS_NODE_BLOCK {
-                    CanonicalData::PreviousNode(serde_cbor::from_slice(&raw_payload).map_err(
-                        |err| {
-                            de::Error::custom(format!(
-                                "error decoding previous node block: {}",
-                                err
-                            ))
-                        },
-                    )?)
+                    serde_cbor::from_slice(&raw_payload)
+                        .map(CanonicalData::PreviousNode)
+                        .unwrap_or(CanonicalData::Unknown(raw_payload))
                 } else {
                     CanonicalData::Unknown(raw_payload)
                 };

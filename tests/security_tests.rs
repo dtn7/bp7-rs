@@ -728,11 +728,6 @@ fn bcb_aes_gcm_error_tests() {
         encrypt(&mut b, 9, &key, &iv, source(), Default::default()),
         Err(BpsecError::MissingBlock(9))
     ));
-    // the hop count block could not be decoded anymore
-    assert!(matches!(
-        encrypt(&mut b, 2, &key, &iv, source(), Default::default()),
-        Err(BpsecError::Unsupported(_))
-    ));
     let unchanged = b.clone();
 
     // BCBs must not be encrypted
@@ -1831,4 +1826,135 @@ fn bcb_encrypt_targets_error_tests() {
         }
         assert_eq!(b.to_cbor(), before);
     }
+}
+
+const GUIDE_BUNDLE: &str = "9F88070000820282010282028202018202820201820018281A000F42408507020000410085010100005823526561647920746F2067656E657261746520612033322D62797465207061796C6F6164FF";
+/// The bundle above with its payload and bundle age block encrypted by one BCB
+const GUIDE_ENCRYPTED_BUNDLE: &str = "9F88070000820282010282028202018202820201820018281A000F4240850C030100581D820102020182028203018182014C5477656C7665313231323132828080850702000051C225655BB0AF8CC854641DA15AB6BE9FA28501010000583390EAB6457593379298A8724E16E61F837488E127212B59AC91F8A86287B7D07630A122C42BBA8CA26EECBCAB0F8124C2A42BDFFF";
+
+#[test]
+fn bcb_encrypts_bundle_age_blocks() {
+    let key = unhexify("71776572747975696F7061736466676871776572747975696F70617364666768").unwrap();
+    let iv = unhexify("5477656c7665313231323132").unwrap();
+    let source = || EndpointID::try_from("ipn:3.1").unwrap();
+    let original = Bundle::try_from(unhexify(GUIDE_BUNDLE).unwrap()).unwrap();
+
+    // CCSDS BPSec PICS guide, test 2.3: one BCB for the payload and the bundle age block
+    let mut bundle = original.clone();
+    encrypt_targets(
+        &mut bundle,
+        &[1, 2],
+        &key,
+        &iv,
+        source(),
+        Default::default(),
+        AuthenticationTag::Ciphertext,
+    )
+    .unwrap();
+    assert_eq!(
+        hexify(&bundle.to_cbor()),
+        GUIDE_ENCRYPTED_BUNDLE.to_lowercase()
+    );
+
+    // the encrypted bundle can be decoded and is valid, test 2.4
+    let mut received = Bundle::try_from(unhexify(GUIDE_ENCRYPTED_BUNDLE).unwrap()).unwrap();
+    assert_eq!(received, bundle);
+    assert!(!undecodable_blocks(&received));
+    assert!(matches!(
+        received.canonicals[0].data(),
+        CanonicalData::Unknown(_)
+    ));
+    let bcb = received
+        .canonicals
+        .iter()
+        .find(|b| b.block_type == CONFIDENTIALITY_BLOCK)
+        .unwrap()
+        .block_number;
+    decrypt(&mut received, bcb, &key, CRC_NO).unwrap();
+    assert_eq!(received, original);
+    assert_eq!(received.to_cbor(), original.clone().to_cbor());
+
+    // a wrong key leaves the encrypted block as it is
+    let mut tampered = Bundle::try_from(unhexify(GUIDE_ENCRYPTED_BUNDLE).unwrap()).unwrap();
+    assert!(decrypt(&mut tampered, bcb, &[0x42; 32], CRC_NO).is_err());
+    assert_eq!(tampered, bundle);
+}
+
+/// Whether validation complains about the content of a block
+fn undecodable_blocks(bundle: &Bundle) -> bool {
+    bundle
+        .validate()
+        .err()
+        .into_iter()
+        .flatten()
+        .any(|err| err.to_string().contains("can not be decoded"))
+}
+
+#[test]
+fn bcb_encrypts_hop_count_and_previous_node_blocks() {
+    let key = [0x2b; 16];
+    for block_type in [HOP_COUNT_BLOCK, PREVIOUS_NODE_BLOCK] {
+        let mut bundle = bp7::bundle::new_std_payload_bundle(
+            EndpointID::try_from("dtn://a/").unwrap(),
+            EndpointID::try_from("dtn://b/").unwrap(),
+            b"payload".to_vec(),
+        );
+        bundle.set_crc(bp7::crc::CRC_32);
+        if block_type == PREVIOUS_NODE_BLOCK {
+            bundle.canonicals.insert(
+                0,
+                new_previous_node_block(
+                    3,
+                    BlockControlFlags::empty(),
+                    EndpointID::try_from("dtn://prev/").unwrap(),
+                ),
+            );
+        }
+        let original = bundle.clone();
+        let target = bundle
+            .canonicals
+            .iter()
+            .find(|b| b.block_type == block_type)
+            .unwrap()
+            .block_number;
+        let bcb = encrypt(
+            &mut bundle,
+            target,
+            &key,
+            &[0x25; 12],
+            EndpointID::try_from("dtn://a/").unwrap(),
+            BcbSecurityContextParameter {
+                aes_variant: Some(AES_128_GCM),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut received = Bundle::try_from(bundle.to_cbor()).unwrap();
+        assert!(!undecodable_blocks(&received));
+        decrypt(&mut received, bcb, &key, bp7::crc::CRC_32).unwrap();
+        let block = |b: &Bundle| {
+            b.canonicals
+                .iter()
+                .find(|b| b.block_type == block_type)
+                .unwrap()
+                .data()
+                .clone()
+        };
+        assert_eq!(block(&received), block(&original));
+    }
+}
+
+#[test]
+fn undecodable_blocks_of_known_type_are_invalid() {
+    let mut bundle = bp7::bundle::new_std_payload_bundle(
+        EndpointID::try_from("dtn://a/").unwrap(),
+        EndpointID::try_from("dtn://b/").unwrap(),
+        b"payload".to_vec(),
+    );
+    bundle.canonicals.insert(
+        0,
+        new_canonical_block(7, 2, 0, CanonicalData::Unknown(vec![0xff, 0x00])),
+    );
+    let decoded = Bundle::try_from(bundle.to_cbor()).unwrap();
+    assert!(undecodable_blocks(&decoded));
 }
