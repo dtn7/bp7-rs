@@ -118,8 +118,12 @@ impl AbstractSecurityBlock {
     }
 
     /// Set typed security context parameters
+    ///
+    /// No parameters are encoded if there are none to set, the security context uses its
+    /// defaults then (RFC 9172 3.6).
     pub fn set_parameters<P: SecurityContextParameters>(&mut self, parameters: &P) {
-        self.security_context_parameters = Some(parameters.to_parameters());
+        let parameters = parameters.to_parameters();
+        self.security_context_parameters = (!parameters.is_empty()).then_some(parameters);
     }
 
     /// Security results of the given security target
