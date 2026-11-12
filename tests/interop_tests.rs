@@ -17,3 +17,20 @@ fn reserved_block_flags_are_accepted_and_kept() {
     // forwarded unchanged
     assert_eq!(bundle.to_cbor(), unhexify(hex).unwrap());
 }
+
+/// Block-type-specific data and CRCs are CBOR byte strings (RFC 9171 4.3.2), issue #20
+#[test]
+fn text_strings_as_block_data_are_rejected() {
+    // payload block data of the issue as text string
+    let text = "9f88070000820282020182028201018202820100821b000000bb0e20b4ea001a000927c08507020100410086010100016d48656c6c6f2c20576f726c64214254b3ff";
+    let err = Bundle::try_from(unhexify(text).unwrap().as_slice()).unwrap_err();
+    assert!(err.to_string().contains("byte string"), "{}", err);
+
+    // the same bundle with a byte string is accepted
+    let bytes = text.replace(
+        "016d48656c6c6f2c20576f726c6421",
+        "014d48656c6c6f2c20576f726c6421",
+    );
+    let bundle = Bundle::try_from(unhexify(&bytes).unwrap().as_slice()).unwrap();
+    assert_eq!(bundle.payload().unwrap(), &b"Hello, World!".to_vec());
+}

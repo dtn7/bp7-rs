@@ -153,6 +153,43 @@ impl Serialize for CanonicalBlock {
     }
 }
 
+/// CBOR byte string, that unlike `serde_bytes::ByteBuf` is not satisfied by a text string
+struct ByteString(ByteBuffer);
+
+impl<'de> Deserialize<'de> for ByteString {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ByteStringVisitor;
+
+        impl Visitor<'_> for ByteStringVisitor {
+            type Value = ByteString;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a CBOR byte string")
+            }
+
+            fn visit_bytes<E: de::Error>(self, v: &[u8]) -> Result<Self::Value, E> {
+                Ok(ByteString(v.to_vec()))
+            }
+
+            fn visit_byte_buf<E: de::Error>(self, v: Vec<u8>) -> Result<Self::Value, E> {
+                Ok(ByteString(v))
+            }
+        }
+
+        if deserializer.is_human_readable() {
+            // JSON has no byte strings, they are arrays of numbers
+            Ok(ByteString(
+                serde_bytes::ByteBuf::deserialize(deserializer)?.into_vec(),
+            ))
+        } else {
+            deserializer.deserialize_bytes(ByteStringVisitor)
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for CanonicalBlock {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -186,9 +223,9 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
 
                 // get payload as raw byte buffer
                 let raw_payload = seq
-                    .next_element::<serde_bytes::ByteBuf>()?
+                    .next_element::<ByteString>()?
                     .ok_or_else(|| de::Error::invalid_length(4, &self))?
-                    .into_vec();
+                    .0;
 
                 // parse nested payload according to block_type
                 let data = if block_type == PAYLOAD_BLOCK {
@@ -215,9 +252,9 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                     CrcValue::CrcNo
                 } else if crc_type == CRC_16 {
                     let crcbuf: ByteBuffer = seq
-                        .next_element::<serde_bytes::ByteBuf>()?
+                        .next_element::<ByteString>()?
                         .ok_or_else(|| de::Error::invalid_length(5, &self))?
-                        .into_vec();
+                        .0;
                     let mut outbuf: [u8; 2] = [0; 2];
                     if crcbuf.len() != outbuf.len() {
                         return Err(de::Error::invalid_length(5, &self));
@@ -226,9 +263,9 @@ impl<'de> Deserialize<'de> for CanonicalBlock {
                     CrcValue::Crc16(outbuf)
                 } else if crc_type == CRC_32 {
                     let crcbuf: ByteBuffer = seq
-                        .next_element::<serde_bytes::ByteBuf>()?
+                        .next_element::<ByteString>()?
                         .ok_or_else(|| de::Error::invalid_length(5, &self))?
-                        .into_vec();
+                        .0;
                     let mut outbuf: [u8; 4] = [0; 4];
                     if crcbuf.len() != outbuf.len() {
                         return Err(de::Error::invalid_length(5, &self));
