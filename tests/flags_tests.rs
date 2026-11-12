@@ -2,13 +2,11 @@ use bp7::flags::*;
 
 #[test]
 fn block_control_flags_reserved_tests() {
-    // defined and unassigned bits are valid
-    for flags in [0x00u8, 0x01, 0x02, 0x04, 0x10, 0x17, 0x80] {
+    // unrecognized flags are ignored (RFC 9171 4.2.4)
+    for flags in [
+        0x00u8, 0x01, 0x02, 0x04, 0x10, 0x17, 0x80, 0x08, 0x20, 0x40, 0x68, 0x19, 0xf9, 0xff,
+    ] {
         assert!(BlockValidation::validate(&flags).is_ok(), "{:#x}", flags);
-    }
-    // any reserved bit is invalid
-    for flags in [0x08u8, 0x20, 0x40, 0x68, 0x11 | 0x08] {
-        assert!(BlockValidation::validate(&flags).is_err(), "{:#x}", flags);
     }
 }
 
@@ -22,15 +20,14 @@ fn bundle_control_flags_reserved_tests() {
         | BundleControlFlags::BUNDLE_STATUS_REQUEST_FORWARD
         | BundleControlFlags::BUNDLE_STATUS_REQUEST_DELIVERY
         | BundleControlFlags::BUNDLE_STATUS_REQUEST_DELETION;
-    // defined and unassigned bits are valid
+    // unrecognized flags are ignored (RFC 9171 4.2.3)
     for flags in [0u64, defined.bits(), 1 << 21, 1 << 63] {
         assert!(BundleValidation::validate(&flags).is_ok(), "{:#x}", flags);
     }
-    // any reserved bit is invalid
     for bit in [3, 4, 7, 8, 9, 10, 11, 12, 13, 15, 19, 20] {
         let flags: u64 = 1 << bit;
-        assert!(BundleValidation::validate(&flags).is_err(), "bit {}", bit);
+        assert!(BundleValidation::validate(&flags).is_ok(), "bit {}", bit);
         let flags = flags | defined.bits();
-        assert!(BundleValidation::validate(&flags).is_err(), "bit {}", bit);
+        assert!(BundleValidation::validate(&flags).is_ok(), "bit {}", bit);
     }
 }

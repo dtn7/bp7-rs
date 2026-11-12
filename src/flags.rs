@@ -31,20 +31,14 @@ bitflags! {
 pub trait BlockValidation {
     fn flags(&self) -> BlockControlFlags;
 
+    /// Reserved and unassigned flags are valid, as receivers must ignore unrecognized flags
+    /// (RFC 9171 4.2.4). They are kept as received, so they stay part of forwarded bundles
+    /// and of the AAD and IPPT of security blocks.
     fn validate(&self) -> Result<(), Error>
     where
         Self: Sized,
     {
-        if self
-            .flags()
-            .intersects(BlockControlFlags::BLOCK_CFRESERVED_FIELDS)
-        {
-            Err(Error::BlockControlFlagsError(
-                "Given flag contains reserved bits".to_string(),
-            ))
-        } else {
-            Ok(())
-        }
+        Ok(())
     }
     fn contains(&self, flags: BlockControlFlags) -> bool
     where
@@ -124,11 +118,7 @@ pub trait BundleValidation {
     {
         let mut errors: ErrorList = Vec::new();
         let flags = self.flags();
-        if flags.intersects(BundleControlFlags::BUNDLE_CFRESERVED_FIELDS) {
-            errors.push(Error::BundleControlFlagsError(
-                "Given flag contains reserved bits".to_string(),
-            ));
-        }
+        // reserved and unassigned flags are ignored (RFC 9171 4.2.3)
 
         let admin_rec_check = !flags
             .contains(BundleControlFlags::BUNDLE_ADMINISTRATIVE_RECORD_PAYLOAD)
