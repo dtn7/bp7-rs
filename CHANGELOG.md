@@ -1,7 +1,14 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [0.12.1] - 2026-10-23
+## [0.12.2] - 2026-11-12
+
+### Bug Fixes
+
+- Ignore unrecognized control flags
+- Block data and crcs must be cbor byte strings
+
+## [0.12.1] - 2026-10-22
 
 ### Bug Fixes
 
